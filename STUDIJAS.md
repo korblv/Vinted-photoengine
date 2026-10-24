@@ -243,6 +243,14 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
   Kandidāt-eksperiments **E9** (= E4 etalona turpinājums):
   sintētiska zināma mala; salīdzināt Lanczos pret guided
   upsampling ar Boundary IoU un malas nobīdi pikseļos.
+  **E9 veikts 2026-10-24 (§86): NAV pierādīts.** Binārā 2x režīmā
+  (chroma/plate) guided zaudē visur (BIoU5 0.79-0.81 pret 0.8353);
+  mīkstā 4x režīmā krāsu variants (r=4, eps=1e-3) kritēriju (a)
+  zaudē par 0.005, toties atgūst plānas struktūras (siksnu chamfer
+  1.43 pret 8.23) un iztur viltus šuves slazdu; pelēktoņu variants
+  slazdā iekrīt (3.49) - tas mūsu jomā aizliegts. Paliek LANCZOS.
+  Atlikums: E9b tikai uz īstām ISNet mīkstajām maskām, ja kāda
+  grupa uzrādīs plānu struktūru zudumu.
 
 ### N3 — Superpikseļi (SLIC) pret robežas troksni
 - SLIC reģioni seko attēla malām un vidējo pikseļu troksni; SLIC+

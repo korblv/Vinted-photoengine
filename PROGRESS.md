@@ -2171,3 +2171,41 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   klasifikācijai.
 - Abu eksperimentu cena: ~sekundes CPU pret ražošanas refaktoru —
   tieši šim studiju sistēma domāta.
+
+### §86 E9 etalons: guided upsampling pret ražošanas LANCZOS — NAV pierādīts (2026-10-24)
+- Lietotāja izvēle (poga): E9. Skripts `tmp_id/e9_guided.py`, rezultāti
+  `tmp_id/e9_guided.json`, vizuālais pierādījums `tmp_id/e9_evidence.png`.
+  Ražošanas kods nemainīts.
+- Etalons: 4 sintētiskas ainas ar analītiskām patiesām malām (A kontrasts
+  ar līci, B vāja mala, C viltus tumša līnija 3-6 px ārpus malas, D 4/8 px
+  siksnas + cilpa) x 2 režīmi (R1 bināra 2x ievade kā chroma/plate;
+  R2 mīksta 4x kā ISNet) x 6 metodes; visām beigās ražošanas
+  `clean_mask(128, erode 1)`. Iekšējā pārbaude: PROD ainās A/B/C dod
+  identiskus skaitļus - pareizi, ievade tajās ir viena un tā pati maska.
+- **R1 (binārā ievade): guided zaudē visur.** BIoU5 0.79-0.81 pret PROD
+  0.8353; chamfer 1.01-1.68 pret 0.844. Blakus atklājums: BILIN pēc
+  sliekšņa + clean_mask ir identisks LANCZOS (0.8353) - interpolācijas
+  veids binārai maskai pēc binarizācijas vairs neko nemaina.
+- **R2 (mīkstā ievade): tuvākais ir COL-P1** (krāsu guided, r=4,
+  eps=1e-3): kritērijs (a) krīt par 0.005 (vid. BIoU5 0.7729 pret
+  0.7775; velk lejā vājas malas aina B: 0.7723 pret 0.7917), (b) un
+  (c) izpildās. Lielākais reālais ieguvums: D siksnas pie 4x - chamfer
+  1.43 pret PROD 8.23 (Lanczos plānu struktūru izsmērē zem sliekšņa,
+  guided to atgūst no foto). Pelēktoņu guided ainā C ielēca viltus šuvē
+  (chamfer 3.49) - pelēktoņu variants mūsu jomā aizliegts; krāsu
+  variants slazdu izturēja (0.7937 pret 0.7917).
+- **Spriedums pēc iepriekš fiksētā kritērija (abi režīmi obligāti):
+  NAV pierādīts - neviens no 4 variantiem neizpilda visus (a)(b)(c).**
+  Ražošanas LANCZOS paliek. Skaidrojums: ar ideālu zemas izšķirtspējas
+  ievadi Lanczos+slieksnis jau ir tuvu informācijas robežai; guided
+  koeficientu izlīdzināšana malu nobīda (~+0.25 px). Guided vērtība
+  parādās tikai tur, kur ievade struktūru jau ZAUDĒJUSI (siksnas 4x).
+  Ātrums nav šķērslis (COL 0.82 s/12 MP pret PROD 0.06 s). Kopējais IoU
+  visiem ~0.99 - literatūras brīdinājums apstiprināts: IoU malu neredz.
+- Ierobežojumi: ievades ideālas (no patiesās alfas); īstās ISNet mīkstās
+  maskas nes semantiskas kļūdas; apģērba iekšējās malas (apdruka/šuves
+  pie robežas) netestētas. Atlikušais kandidāts tikai ar jaunu lēmumu:
+  E9b = COL-P1 A/B tests TIKAI uz ISNet mīksto masku ceļa ar īstu grupu;
+  chroma/plate bināro ceļu neaiztikt (pierādīti sliktāk). Mans
+  ieteikums: slēgt; atgriezties tikai, ja īsta grupa uzrāda siksnveida
+  struktūru zudumu maskas posmā.
