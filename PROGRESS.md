@@ -2401,3 +2401,42 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   (pārrenderēšana no saglabātajām maskām) + 160550 bez dekontaminācijas
   + makro un cauruma diagnostika ar mērījumiem pirms jebkāda koda
   soļa; vai (B) šaurāks apjoms pēc lietotāja izvēles.
+
+### §95 Uniqlo Henley Attempt 2 (identity WB): checker 1/3 + diagnostika (2026-10-24)
+
+- Komanda (poga `attempt2_full`): `--attempt 2 --wb-mode identity
+  --no-decontam MVIMG_20261020_160550`, 3 pabeigtie faili. Maker 3/3
+  (46.6 s); profils WB [1,1,1], ekspozīcija 1.06.
+- Checker **1/3 PASS**: `160538` ALL_PASS. GATE_K izlabots visām trim
+  (identity WB strādā — siltais papīrs vairs neizvēdina krēmkrāsu).
+- `160550` GATE_C: 2 caurumi, 54 569 px. Lielākais 53 877 px,
+  bbox (2851,1922) 158x1936 — pad_retry maska labajā malā fragmentējas
+  pa vafeļadījuma ielejām un ieslēdz auduma joslu kā "caurumu"; kolāžā
+  baltais pleķis apakšā pa labi ir šī cauruma renderis. Dekontaminā-
+  cijas svītras pazudušas (salīdzinot ar §94), pleķis palicis. GATE_L
+  DUBIOUS 0.527% (bija 1.03%).
+- `160601` GATE_C: tas pats 1 caurums 619 px (alfā 610 px, 14x55 pie
+  kreisās malas (31,1078)) — nemainīgs, kā gaidīts: WB to nevar labot.
+- Diagnostika (tikai mērījumi, kods nemainīts):
+  - `plate_mask` offline `160550`: accept=True, segums 0.646
+    (pad_retry 0.666); labā mala tīra, apkakles iekšpusē nelieli robi.
+    Ražošanas ķēde strukturāli sliktam pad_retry mēģina tikai chroma,
+    plate netiek mēģināta. CLI plate piespiešanas karoga nav.
+  - **Korekcija §93/§94 aprakstam:** `160608` = kopšanas birka,
+    `160645` = izmēra birka "L" (bija samainīti).
+  - `160608` plate: segums 0.6145, noraidīta "ārpusē audums 0.833 >
+    0.6"; pārklājumā ārējā kontūra pareiza (~90%), iekšpuse caurumaina
+    pa noēnotajām vafeļielejām (QA mēra pirms caurumu aizpildīšanas).
+    bg_med_E = NaN (drošu fona sēklu nav — papīrs tikai stūrī).
+  - `160645` plate: segums 0.8906, noraidīta "fons iekšpusē 0.036 >
+    0.02" — baltā izmēra birka + gaišās ribu virsotnes skaitās papīrs
+    (tā pati §69/§70 klase: makro gluds+gaišs nav papīrs). ISNet makro
+    neder (segumi 0.0135 / 0.2449).
+  - Pārklājumi: `tmp_id/diag_plate_{160550,160608,160645}.jpg`,
+    `diag_160550_right.jpg`, `diag_160601_left.jpg`.
+- Krātuve pēc Attempt 2: `/home/user` 102 483 214 B (iekšējais 100 MB
+  pārsniegts, Arena 128 MB vēl nav), `loop_bildes` 55 221 255 B.
+- Nemainīgs: ražošanas kods (2.5), vārtu sliekšņi, oriģināli.
+  Piegādājams šobrīd: 1/5 (`160538`). Nākamais solis — tikai pēc
+  lietotāja pogas (sk. ziņu: `--pad` tests bez koda / plate ķēdē /
+  plate QA makro precizējums / kadru izslēgšana).
