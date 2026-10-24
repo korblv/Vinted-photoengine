@@ -1852,3 +1852,20 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   sēklu bibliotēkas īsās atslēgas klusām nesakrīt stemiem ar
   `.PORTRAIT.ORIGINAL` galu (§67); 00 §3.5 100 MB limits pret
   128 MB griestiem (§71) — abi gaida lietotāja vārdu.
+
+## §73 — Studiju žurnāls STUDIJAS.md izveidots (2026-10-24)
+- Pēc lietotāja lūguma uzsākta sistemātiska pašizglītošanās darba
+  jomā. Godīga atruna, kas pasniegta arī lietotājam: zināšanas
+  saglabājas tikai kā pieraksts (`STUDIJAS.md`), tāpēc tas ir
+  pastāvīgs projekta dokuments, ne sarunas piezīme.
+- Saturs: izmērāmi "absolvēšanas" kritēriji (galvenais: 3 grupas
+  pēc kārtas bez koda labojumiem), moduļi M1-M7 (Otsu sadalījumi,
+  COD/tekstūras mērogi, matting/dekontaminācija, malas mērīšana
+  Boundary IoU+Grad, krāsu konstante/ΔE2000, ēnas/harmonizācija,
+  pārizlase/asināšana) ar literatūras atsaucēm, 7 kandidāt-
+  eksperimenti E1-E7 (neviens nav atļauja mainīt kodu bez pogas)
+  un KPI tabula no divām piegādātajām grupām.
+- Asākais secinājums: mūsu vārti mēra maskas īpašības, bet ne
+  malas precizitāti pret patiesību; lētākais nākamais zināšanu
+  solis ir sintētisks zināmas-patstiesības etalons (E4) bez
+  ražošanas izmaiņām. Kods šajā solī: 0 izmaiņu.
