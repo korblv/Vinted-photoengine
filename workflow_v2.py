@@ -98,8 +98,8 @@ from engine.config import (  # noqa: E402,F401
 from engine.masks import (  # noqa: E402,F401
     TMP_SOFT, _mask_polygons, _mask_stats, ai_mask_qa, closeup_mask_qa,
     isnet_auto_worker, isnet_padded_mask, isnet_worker, pad_guards,
-    paper_profile, plan_closeup_crop, plate_mask, repair_interior_holes,
-    run_isnet, run_isnet_auto, save_seed_proposal,
+    lost_fabric_metric, paper_profile, plan_closeup_crop, plate_mask,
+    repair_interior_holes, run_isnet, run_isnet_auto, save_seed_proposal,
 )
 
 
@@ -370,6 +370,7 @@ def main() -> int:
         chroma_info = None
         pre_chroma_struct = None
         hole_info = None
+        q_info = None
         no_auto_crop = False
         try:
             soft_path = TMP_SOFT / f"{stem}_{source_sha[:10]}_isnet_soft.png"
@@ -599,26 +600,69 @@ def main() -> int:
             # checker paliek tiesnesis — šis trigeris neko neatvieglo.
             if method != "chroma_seeded":
                 struct_qa = structural_qa(binary)
-                if not struct_qa["accept"]:
-                    pre_chroma_struct = struct_qa
-                    print(f"  kandidāts ({method}) strukturāli slikts: "
+                # Zaudētā auduma trigeris (§103): structural_qa neredz
+                # audumu ĀRPUS maskas (ar malu savienoti līči/ieleju
+                # kanāli nav caurumi) — to mēra lost_fabric_metric
+                # (checker GATE_Q spogulis). Kandidāts neuzticas, ja
+                # strukturāli slikts VAI zaudētais audums virs trigera;
+                # Q gadījumā vispirms mēģina plate (tās tekstūras
+                # mērījums ielejas neatmet), tad chroma kā līdz šim.
+                q_before = lost_fabric_metric(binary, orig)
+                q_pct = q_before.get("lost_fabric_pct")
+                q_bad = (q_pct is not None and q_pct
+                         > float(CFG["mask"]["q_trigger_pct"]))
+                if q_bad or not struct_qa["accept"]:
+                    if not struct_qa["accept"]:
+                        pre_chroma_struct = struct_qa
+                    q_info = {"before": q_before,
+                              "trigger": ("lost_fabric" if q_bad
+                                          else "structural")}
+                    print(f"  kandidāts ({method}) neuzticas: "
                           f"fill={struct_qa['silhouette_fill']} "
                           f"caurumi>={struct_qa['interior_holes_ge400']} "
-                          f"lielākā={struct_qa['largest_ratio']} -> chroma",
+                          f"lielākā={struct_qa['largest_ratio']} "
+                          f"zaudētais audums={q_pct}%",
                           flush=True)
-                    t = time.perf_counter()
-                    chroma_bin, chroma_qa = _try_chroma()
-                    fallback_s += time.perf_counter() - t
-                    chroma_info = chroma_qa
-                    if chroma_qa.get("accept"):
-                        binary = chroma_bin
-                        method = "chroma_seeded"
-                        print(f"  chroma ceļš pieņemts: segums="
-                              f"{chroma_qa.get('struct_coverage')} min_cross_dE="
-                              f"{chroma_qa.get('min_cross_dE')}", flush=True)
-                    else:
-                        print(f"  chroma noraidīts: {chroma_qa.get('reason')} "
-                              f"-> paliek kandidāds", flush=True)
+                    adopted = False
+                    if q_bad and method != "plate_texture":
+                        t = time.perf_counter()
+                        p_bin, p_qa = plate_mask(orig)
+                        fallback_s += time.perf_counter() - t
+                        q_info["plate_accept"] = bool(p_qa.get("accept"))
+                        if p_qa.get("accept"):
+                            q_plate = lost_fabric_metric(p_bin, orig)
+                            q_info["plate"] = q_plate
+                            if (q_plate.get("lost_fabric_pct") is not None
+                                    and q_plate["lost_fabric_pct"] < q_pct):
+                                binary = p_bin
+                                method = "plate_texture"
+                                plate_info = p_qa
+                                adopted = True
+                                print(f"  plate pieņemta caur Q trigeri: "
+                                      f"zaudētais {q_pct}% -> "
+                                      f"{q_plate['lost_fabric_pct']}%",
+                                      flush=True)
+                        if not adopted:
+                            print("  plate Q trigerī nepalīdzēja "
+                                  f"({p_qa.get('reason')})", flush=True)
+                        del p_bin
+                    if not adopted:
+                        t = time.perf_counter()
+                        chroma_bin, chroma_qa = _try_chroma()
+                        fallback_s += time.perf_counter() - t
+                        chroma_info = chroma_qa
+                        if chroma_qa.get("accept"):
+                            binary = chroma_bin
+                            method = "chroma_seeded"
+                            adopted = True
+                            print(f"  chroma ceļš pieņemts: segums="
+                                  f"{chroma_qa.get('struct_coverage')} min_cross_dE="
+                                  f"{chroma_qa.get('min_cross_dE')}", flush=True)
+                        else:
+                            print(f"  chroma noraidīts: {chroma_qa.get('reason')} "
+                                  f"-> paliek kandidāds", flush=True)
+                    q_info["after"] = (lost_fabric_metric(binary, orig)
+                                       if adopted else q_before)
 
             # --- Kadrējuma IZVĒLE ---------------------------------------
             # Divi stili, abi lietotāja izvēlē (`--framing`):
@@ -711,6 +755,8 @@ def main() -> int:
                 rec["pre_chroma_structural"] = pre_chroma_struct
             if hole_info is not None and hole_info.get("holes_ge_min"):
                 rec["hole_repair"] = hole_info
+            if q_info is not None:
+                rec["lost_fabric_trigger"] = q_info
             rec["framing"] = framing_info
             rec["no_auto_crop"] = bool(no_auto_crop)
             if auto_info is not None:

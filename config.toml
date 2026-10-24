@@ -47,6 +47,15 @@ hole_tex_min = 1.2         # absolūtais grīdas līmenis (defokusā netrigerē)
 hole_L_slack = 4.0         # cauruma L* auduma apkārtnes p5..p95 diapazonā (±slack)
 hole_tex_fg_ratio_max = 2.5  # tekstūra nedrīkst būt arī daudz STIPRĀKA par audumu
 hole_bg_E = 8.0            # fona tekstūras atsauce: gludie pikseļi ar E < šim pret papīru
+# Zaudētā auduma trigeris (PROGRESS §103): maker puses spogulis checker
+# GATE_Q metrikai. Vērtībām JĀSAKRĪT ar checker GATE_Q_* konstantēm —
+# to piesprauž krustsargs testos; checker paliek tiesnesis.
+q_scale = 0.25
+q_close_r_ds = 10
+q_tex_bg_ratio = 2.5
+q_tex_bg_abs = 2.0
+q_tex_fg_ratio = 0.5
+q_trigger_pct = 1.0        # virs šī kandidāts neuzticas -> plate/chroma
 
 [plate]
 inner_min = 0.50      # iekšmalas tekstūra pret iekšpusi; zema = iekšā ir fons

@@ -2639,3 +2639,29 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   Krātuve: /home/user 118255591 B. Nākamais pēc pogas: B solis (maker
   trigeris ar Q metriku -> plate/chroma) vai Uniqlo pabeigt ar zināmo
   plate maršrutu bez vispārīgā trigera.
+
+### §103 B solis: GATE_Q trigeris makerī (2.8) — checker 3/3, bet plate apēd apkakli (2026-10-24)
+
+- Poga step_b_trigger. Kritēriji pirms darba visi izpildīti:
+  160550 pie noklusētā pad 0.90 trigeris pats nonāk līdz plate;
+  checker 3/3 ieskaitot Q; 160538/160601 bez izmaiņām; testi
+  98/98 OK, zelta e2e nemainīgs.
+- lost_fabric_metric (engine/masks.py) = GATE_Q spogulis; parametri
+  config [mask] q_* piesprausti pret checker konstantēm krustsarga
+  testā. Trigeris strukturālajā blokā: kandidāts neuzticas, ja
+  strukturāli slikts VAI zaudētais audums > 1.0%; Q gadījumā vispirms
+  plate (pieņem, ja tās Q mazāks), tad chroma kā līdz šim.
+  WORKFLOW_VERSION 2.8.
+- Attempt 7: 160550 pad_retry Q=4.253% -> plate pieņemta caur
+  trigeri (Q=0.031%, metode plate_texture, segums 0.6460). Checker
+  3/3 PASS (Q: 0.101/0.031/0.065%).
+- **Vizuālais atradums (GATE_E):** plate renderī apkakles josla
+  vietām apēsta (balti robi augšā pa kreisi un vidū) — gaišās
+  apkakles ribu virsotnes plate lasa kā papīru (redzēts jau §95
+  pārklājumā, kolāžā tagad acīmredzams). Pad_retry apkakli turēja
+  tīru, bet zaudēja apakšas ielejas; plate otrādi. Q vārti robus
+  neredz pēc konstrukcijas (plati logi, ne šauri kanāli), tāpēc
+  "3/3 PASS" šim kadram joprojām nav "gatavs" — lēmums lietotājam:
+  (a) līču/kanālu atgūšana uz pad_retry bāzes (§99 b); (b) kandidātu
+  apvienošanas mērījums (union) offline; (c) pieņemt plate robus;
+  (d) 160550 izslēgt. Makro joprojām STOP. Krātuve: 117619511 B.

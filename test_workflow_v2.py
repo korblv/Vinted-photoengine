@@ -31,7 +31,7 @@ import setup_v2
 import workflow_v2 as wf
 from engine.chroma import (_dark_uncertain, _median_cut_palette,
                            chroma_mask, structural_qa)
-from engine.masks import plate_mask, repair_interior_holes
+from engine.masks import lost_fabric_metric, plate_mask, repair_interior_holes
 
 SEED = 12345
 
@@ -402,8 +402,9 @@ class TestMaskProvenance(unittest.TestCase):
         # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4);
         # 2.4 = chroma rezerves ceļš (§76); 2.5 = tumšās zonas piegājiens (§78);
         # 2.6 = iekšējo caurumu klasificēšana pēc satura (§97);
-        # 2.7 = klasifikatora tekstūras pierādījums mērogā (§98).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.7")
+        # 2.7 = klasifikatora tekstūras pierādījums mērogā (§98);
+        # 2.8 = zaudētā auduma (GATE_Q) trigeris kandidātu izvēlē (§103).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.8")
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +437,11 @@ class TestConfig(unittest.TestCase):
                      "hole_tex_scale": 4, "hole_tex_fg_ratio": 0.5,
                      "hole_tex_bg_ratio": 2.0, "hole_tex_min": 1.2,
                      "hole_L_slack": 4.0, "hole_tex_fg_ratio_max": 2.5,
-                     "hole_bg_E": 8.0},
+                     "hole_bg_E": 8.0,
+                     # GATE_Q trigeris (§103) — jāsakrīt ar checker konstantēm
+                     "q_scale": 0.25, "q_close_r_ds": 10,
+                     "q_tex_bg_ratio": 2.5, "q_tex_bg_abs": 2.0,
+                     "q_tex_fg_ratio": 0.5, "q_trigger_pct": 1.0},
             "plate": {"inner_min": 0.50, "outer_max": 0.60,
                       "bg_inside_max": 0.02, "cover_min": 0.25,
                       "cover_max": 0.95},
@@ -643,6 +648,18 @@ class TestCheckerIndependence(unittest.TestCase):
                              wf.apply_quarter_turn(img, deg).tobytes(), f"deg={deg}")
         with self.assertRaises(ValueError):
             ck._quarter_turn_cw(img, 45)
+
+    def test_gate_q_constants_equal_maker_trigger(self):
+        """KRUSTSARGS (§103): maker trigera q_* parametriem jāsakrīt ar
+        checker GATE_Q konstantēm — citādi trigeris klusi novirzās no
+        vārtiem, kuriem tas mēģina palīdzēt iziet."""
+        q = wf.CFG["mask"]
+        self.assertEqual(q["q_trigger_pct"], ck.GATE_Q_LIMIT_PCT)
+        self.assertEqual(q["q_scale"], ck.GATE_Q_SCALE)
+        self.assertEqual(q["q_close_r_ds"], ck.GATE_Q_CLOSE_R_DS)
+        self.assertEqual(q["q_tex_bg_ratio"], ck.GATE_Q_TEX_BG_RATIO)
+        self.assertEqual(q["q_tex_bg_abs"], ck.GATE_Q_TEX_BG_ABS)
+        self.assertEqual(q["q_tex_fg_ratio"], ck.GATE_Q_TEX_FG_RATIO)
 
     def test_spec_constants_equal_current_maker_values(self):
         """KRUSTSARGS: checker specifikācija šodien sakrīt ar maker
@@ -1120,6 +1137,47 @@ class TestHoleRepair(unittest.TestCase):
         out, info = repair_interior_holes(binary, Image.fromarray(rgb))
         self.assertTrue(np.array_equal(out, binary))
         self.assertEqual(info["holes_total"], 0)
+
+
+# ---------------------------------------------------------------------------
+# Zaudētā auduma metrika maker pusē (GATE_Q trigeris, PROGRESS §103)
+# ---------------------------------------------------------------------------
+class TestLostFabricMetric(unittest.TestCase):
+    def _scene(self, channel=False):
+        H, W = 1000, 800
+        rgb = np.tile(np.array([170, 168, 160], np.uint8), (H, W, 1))
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 6) + (yy // 6)) % 2) * 44 - 22
+        fabric = np.clip(np.array([210, 206, 198], np.int16) + tex[..., None],
+                         0, 255).astype(np.uint8)
+        rgb[80:920, 100:700] = fabric[80:920, 100:700]
+        binary = np.zeros((H, W), np.uint8)
+        binary[80:920, 100:700] = 1
+        if channel:
+            binary[80:920, 380:420] = 0
+        return rgb, binary
+
+    def test_clean_candidate_below_trigger(self):
+        rgb, binary = self._scene()
+        m = lost_fabric_metric(binary, Image.fromarray(rgb))
+        self.assertLess(m["lost_fabric_pct"],
+                        wf.CFG["mask"]["q_trigger_pct"], m)
+
+    def test_channel_candidate_above_trigger(self):
+        rgb, binary = self._scene(channel=True)
+        m = lost_fabric_metric(binary, Image.fromarray(rgb))
+        self.assertGreater(m["lost_fabric_pct"],
+                           wf.CFG["mask"]["q_trigger_pct"], m)
+
+    def test_agrees_with_checker_gate_direction(self):
+        """Maker metrika un checker GATE_Q uz tiem pašiem sintētiskajiem
+        kadriem dod saskaņotu spriedumu (trigeris redz to, ko vārti)."""
+        for channel, expect_bad in ((False, False), (True, True)):
+            rgb, binary = self._scene(channel=channel)
+            m = lost_fabric_metric(binary, Image.fromarray(rgb))
+            g = ck.lost_fabric_gate(rgb, (binary * 255).astype(np.uint8))
+            self.assertEqual(m["lost_fabric_pct"] > 1.0, expect_bad)
+            self.assertEqual(g["pass"], not expect_bad)
 
 
 # ---------------------------------------------------------------------------

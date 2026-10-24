@@ -1013,3 +1013,55 @@ def repair_interior_holes(binary: np.ndarray,
     if changed:
         return out.astype(np.uint8), info
     return binary, info
+
+
+def lost_fabric_metric(binary: np.ndarray, orig: Image.Image) -> dict:
+    """Zaudētā auduma mērījums kandidāta maskai — maker puses spogulis
+    checker GATE_Q (PROGRESS §102/§103): auduma tekstūras pikseļi
+    šauros silueta līčos/kanālos (aizvērts(siluets) − siluets
+    1:q mērogā), % no priekšplāna. Maker to izmanto tikai kā
+    TRIGERI rezerves ceļiem (plate/chroma), tāpat kā structural_qa;
+    vārtu slieksnis dzīvo checkerī un checker paliek tiesnesis.
+    Parametri: config.toml [mask] q_* (piesprausti pret GATE_Q_*)."""
+    from scipy import ndimage
+
+    t0 = time.perf_counter()
+    C = CFG["mask"]
+    gray = cv2.cvtColor(np.asarray(orig.convert("RGB")),
+                        cv2.COLOR_RGB2GRAY).astype(np.float32)
+    sc = float(C["q_scale"])
+    g = cv2.resize(gray, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
+    m1 = ndimage.uniform_filter(g, 5, mode="nearest")
+    m2 = ndimage.uniform_filter(g * g, 5, mode="nearest")
+    tex = np.sqrt(np.maximum(m2 - m1 * m1, 0.0))
+    fg = cv2.resize((binary > 0).astype(np.float32),
+                    (g.shape[1], g.shape[0]),
+                    interpolation=cv2.INTER_AREA) > 0.5
+    out: dict = {"lost_fabric_pct": None, "seconds": 0.0}
+    if int(fg.sum()) < 100:
+        out["seconds"] = round(time.perf_counter() - t0, 3)
+        return out
+    ker = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (2 * int(C["q_close_r_ds"]) + 1, 2 * int(C["q_close_r_ds"]) + 1))
+    closed = cv2.morphologyEx(fg.astype(np.uint8), cv2.MORPH_CLOSE, ker) > 0
+    bg_lab, _ = ndimage.label(~fg)
+    bords = (set(bg_lab[0].tolist()) | set(bg_lab[-1].tolist())
+             | set(bg_lab[:, 0].tolist()) | set(bg_lab[:, -1].tolist()))
+    bords.discard(0)
+    outer = np.isin(bg_lab, list(bords)) if bords else np.zeros_like(fg)
+    tex_bg = float(np.median(tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    core = ndimage.binary_erosion(fg, iterations=3)
+    tex_fg = float(np.median(tex[core])) if core.any() \
+        else float(np.median(tex[fg]))
+    thr = max(float(C["q_tex_bg_ratio"]) * tex_bg,
+              tex_bg + float(C["q_tex_bg_abs"]),
+              float(C["q_tex_fg_ratio"]) * tex_fg)
+    cand = closed & (~fg) & (ndimage.distance_transform_edt(~fg) > 1)
+    susp = cand & (tex >= thr)
+    out.update(lost_fabric_pct=round(100.0 * float(susp.sum())
+                                      / float(fg.sum()), 3),
+               tex_bg=round(tex_bg, 2), tex_fg=round(tex_fg, 2),
+               tex_threshold=round(thr, 2),
+               seconds=round(time.perf_counter() - t0, 3))
+    return out
