@@ -1924,3 +1924,34 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - STUDIJAS KPI rindai: Attempt 1 checker 2/4; koda labojumu pagaidām
   0 (lēmums lietotājam: piegādāt 2 / pārfotografēt uz papīra /
   būvēt krāsu-attāluma ceļu kā atsevišķu soli).
+
+## §76 — Chroma rezerves ceļš uzbūvēts (engine/chroma.py, workflow 2.4) (2026-10-24)
+- Lietotāja lēmums (§75 poga): būvēt krāsu-attāluma ceļu kā atsevišķu
+  soli. Prototips #1 izgāzās izmērāmi: malas gredzena (2%) k-means
+  paletē nonāca pats apģērbs (centrs b*=-32.5), jo slīpos kadros jaka
+  pieskaras kadra malām -> segums 0.0/0.0005. Prototips #3 (sēklas no
+  ISNet: kodols = FG palete; malas gredzens MINUS FG-līdzīgie = BG
+  palete; tuvākā palete + plūdu princips) uz abiem slīpajiem kadriem:
+  min. savstarpējais palešu dE 24.0/23.0; sēklu pašu/citā mediānas
+  5.4-6.2 pret 35-42; pēc clean segums 0.7837/0.7777, fill
+  0.9184/0.8238, 0 caurumu >=400 px; pārklājumi `tmp_id/chroma3_*.jpg`
+  vizuāli seko kontūrai.
+- Ražotne: jauns `engine/chroma.py` (deterministiska mediān-griezuma
+  palete, bez RNG; dE76 kartes gabalos; QA iekšā: palešu atstarpe,
+  sēklu robežas, divdomīgo pikseļu daļa, strukturālais veselums) +
+  `structural_qa` (tās pašas 4 īpašības, ko checker GATE_C). Parametri
+  `config.toml [chroma]` (12 gab.), workflow 2.3 -> 2.4.
+- Integrācija (`workflow_v2.py`): chroma ir PĒDĒJAIS ceļš divās
+  vietās — (a) pēc plate noraidījuma pirms STOP-eskalācijas;
+  (b) strukturāls trigeris: jebkura ceļa kandidāts, kas pirms
+  saglabāšanas neiztur `structural_qa`, mēģina chroma; ja chroma
+  sevi noraida, kandidāds paliek un checker lemj (nekas netiek
+  atvieglināts). Atskaitē: `chroma_qa`, `pre_chroma_structural`,
+  metode `chroma_seeded`.
+- Testi: +5 sintētiski (atgūst ISNet zaudētu paneli, IoU >= 0.93;
+  noraida pārplūdes joslas iekšpusi; noraida, ja apģērbs==fons krāsā;
+  noraida bez sēklām; palete deterministiska; structural_qa caurums/
+  fragmenti). Kopā 79 OK; TESTSINT zelta hashi nemainījās (ceļš
+  neiedarbojas, kur vecā ķēde strādā).
+- Nākamais: Attempt 2 visai grupai + checker. Prognoze: pilnie kadri
+  paliek `isnet`; abi slīpie pārslēdzas uz `chroma_seeded`.

@@ -29,6 +29,7 @@ import paper_leak
 import plate_segment as ps
 import setup_v2
 import workflow_v2 as wf
+from engine.chroma import _median_cut_palette, chroma_mask, structural_qa
 from engine.masks import plate_mask
 
 SEED = 12345
@@ -397,8 +398,9 @@ class TestMaskProvenance(unittest.TestCase):
             np.testing.assert_array_equal(np.asarray(Image.open(p)), arr1)
 
     def test_workflow_version_bumped_for_new_rerender_semantics(self):
-        # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.3")
+        # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4);
+        # 2.4 = chroma rezerves ceļš (§76).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.4")
 
 
 # ---------------------------------------------------------------------------
@@ -424,6 +426,12 @@ class TestConfig(unittest.TestCase):
             "plate": {"inner_min": 0.50, "outer_max": 0.60,
                       "bg_inside_max": 0.02, "cover_min": 0.25,
                       "cover_max": 0.95},
+            "chroma": {"scale": 2, "palette_k": 8, "fg_alpha": 0.90,
+                       "fg_core_alpha": 0.80, "fg_core_dist_px": 10.0,
+                       "border_alpha_max": 0.50, "seed_margin_dE": 18.0,
+                       "bg_refine_dE": 25.0, "margin_sigma": 2.0,
+                       "min_cross_dE": 15.0, "seed_margin_ratio_min": 2.0,
+                       "max_ambiguous_fraction": 0.08},
             "decontam": {"max_px": 30, "tex_ratio": 0.45},
             "grade": {"curve_blend": 0.18, "highlight_knee": 0.86,
                       "exposure_target": 248.0, "exposure_min": 0.99,
@@ -833,6 +841,78 @@ class TestGatePIntegration(unittest.TestCase):
         v = ck.gate_p_verdict(res["regions"])
         self.assertEqual(v["enclosed_border_regions"], 1)
         self.assertTrue(v["pass"])
+
+
+class TestChromaPath(unittest.TestCase):
+    """PROGRESS §76: krāsu-attāluma rezerves ceļš ne-papīra fonam.
+
+    Sintētika atdarina izmērīto gadījumu (zila pufjaka uz koka, §75):
+    ISNet mīkstā maska zaudē veselu paneli un plānu joslu pārplūst uz
+    grīdas; apģērbs pieskaras kadra malām, tāpēc tīra gredzena palete
+    neder (prototips #1 deva segumu 0.0).
+    """
+
+    def _scene(self, garment_rgb=(60, 90, 190), bg_rgb=(170, 130, 85)):
+        rng = np.random.default_rng(11)
+        h, w = 1200, 1600
+        yy, xx = np.mgrid[0:h, 0:w]
+        img = np.zeros((h, w, 3))
+        for c, base in enumerate(bg_rgb):
+            img[..., c] = (base + 18 * np.sin(yy * 2 * np.pi / 90 + c)
+                           + rng.normal(0, 4, (h, w)))
+        truth = np.zeros((h, w), bool)
+        truth[250:h, 0:1150] = True          # apģērbs pāri kreisai+apakš malai
+        shade = 0.75 + 0.45 * (xx / w)        # ēnojums pāri audumam
+        for c, base in enumerate(garment_rgb):
+            img[..., c] = np.where(truth, base * shade
+                                   + rng.normal(0, 4, (h, w)), img[..., c])
+        rgb = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
+        soft = np.where(truth, 245, 5).astype(np.uint8)
+        soft[800:h, 700:1150] = 10            # ISNet zaudē paneli
+        soft[250:400, 1150:1180] = 240        # plāna pārplūde uz fona
+        return rgb, soft, truth
+
+    def test_recovers_missed_panel_and_rejects_spill(self):
+        rgb, soft, truth = self._scene()
+        binary, qa = chroma_mask(rgb, [soft])
+        self.assertTrue(qa["accept"], qa.get("reason"))
+        m = binary > 0
+        iou = float((m & truth).sum() / (m | truth).sum())
+        self.assertGreaterEqual(iou, 0.93)
+        self.assertGreaterEqual(float(m[800:, 700:1150].mean()), 0.95)
+        # joslas iekšpuse (bez ~10 px robežas zonas, ko pusmērogs izpludina)
+        self.assertLessEqual(float(m[250:400, 1162:1180].mean()), 0.05)
+
+    def test_same_color_garment_and_background_rejected(self):
+        rgb, soft, _ = self._scene(garment_rgb=(170, 130, 85))
+        _, qa = chroma_mask(rgb, [soft])
+        self.assertFalse(qa["accept"])
+
+    def test_no_foreground_seeds_rejected(self):
+        rgb, _, _ = self._scene()
+        _, qa = chroma_mask(rgb, [np.zeros((1200, 1600), np.uint8)])
+        self.assertFalse(qa["accept"])
+
+    def test_palette_is_deterministic(self):
+        rng = np.random.default_rng(3)
+        s = rng.normal(50, 15, (5000, 3)).astype(np.float32)
+        c1, sup1 = _median_cut_palette(s, 6)
+        c2, sup2 = _median_cut_palette(s, 6)
+        np.testing.assert_array_equal(c1, c2)
+        self.assertEqual(sup1, sup2)
+
+    def test_structural_qa(self):
+        ok = np.zeros((600, 800), np.uint8)
+        ok[100:500, 100:700] = 1
+        self.assertTrue(structural_qa(ok)["accept"])
+        hole = ok.copy()
+        hole[250:350, 350:450] = 0            # 10 000 px ieslēgts caurums
+        q = structural_qa(hole)
+        self.assertFalse(q["accept"])
+        self.assertEqual(q["interior_holes_ge400"], 1)
+        frag = np.zeros((600, 800), np.uint8)
+        frag[::3, ::3] = 1                    # fragmenti, ne siluets
+        self.assertFalse(structural_qa(frag)["accept"])
 
 
 if __name__ == "__main__":

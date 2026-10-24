@@ -37,6 +37,23 @@ bg_inside_max = 0.02  # fona-pikseļu daļa maskas iekšpusē
 cover_min = 0.25
 cover_max = 0.95
 
+[chroma]
+# Krāsu-attāluma REZERVES ceļš (engine/chroma.py, PROGRESS §76). Darbojas
+# tikai, kad papīra ķēde masku nav devusi vai kandidāts ir strukturāli
+# slikts; pats sevi noraida, ja krāsas nav pārliecinoši atdalāmas.
+scale = 2                    # darba mērogs (1/scale), kā plāksnes ceļā
+palette_k = 8                # mediān-griezuma paletes centri katrai klasei
+fg_alpha = 0.90              # priekšplāna sēkla: ISNet alfa vismaz tik
+fg_core_alpha = 0.80         # kodola attālumu mēra no šīs robežas
+fg_core_dist_px = 10.0       # sēklas dziļums kodolā (pusmēroga px)
+border_alpha_max = 0.50      # malas gredzens: alfa ne vairāk par tik
+seed_margin_dE = 18.0        # fona sēkla: vismaz tik tālu no FG paletes
+bg_refine_dE = 25.0          # globāla fona sēkla: tik tuvu malas paletei
+margin_sigma = 2.0           # klasifikācijas lauka izlīdzināšana (px)
+min_cross_dE = 15.0          # palešu min. savstarpējais attālums (QA)
+seed_margin_ratio_min = 2.0  # sēklai otra palete vismaz 2x tālāk (QA)
+max_ambiguous_fraction = 0.08  # |dB-dF| < 5 pikseļu daļa (QA)
+
 [decontam]
 max_px = 30
 tex_ratio = 0.45

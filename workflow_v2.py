@@ -130,6 +130,18 @@ from engine.masks import (  # noqa: E402,F401
 
 
 
+# --- Krāsu-attāluma rezerves ceļš ("chroma_seeded") -------------------------
+# Papīra ķēde (ISNet -> apmales retry -> plate) uz NE-papīra fona melo:
+# papīra krāsas novērtējums un aizsargi kļūst bezjēdzīgi (koka grīda,
+# PROGRESS §74-§76). Ja tādā ainā apģērbs un fons krāsā ir tālu, masku dod
+# sēklu paletes Lab telpā. Ceļš ir PĒDĒJAIS pirms STOP un sevi noraida, ja
+# paletes nav pārliecinoši atdalāmas. Sk. `engine/chroma.py`; parametri
+# config.toml [chroma].
+
+from engine.chroma import chroma_mask, structural_qa  # noqa: E402,F401
+
+
+
 # ---------------------------------------------------------------------------
 # Krāsu profils
 # ---------------------------------------------------------------------------
@@ -352,6 +364,8 @@ def main() -> int:
         proposal_path = None
         retry_info_probe = None
         plate_info = None
+        chroma_info = None
+        pre_chroma_struct = None
         no_auto_crop = False
         try:
             soft_path = TMP_SOFT / f"{stem}_{source_sha[:10]}_isnet_soft.png"
@@ -377,6 +391,15 @@ def main() -> int:
             closeup_qa = None
             proposal_path = None
             baseline_accepted = bool(qa.get("accept"))
+
+            def _try_chroma():
+                # Sēklas no ISNet mīkstajām maskām, kasšim kadram ir:
+                # bāze vienmēr, apmales retry — ja tas tika palaists.
+                softs = []
+                for p in (soft_path, pad_path):
+                    if p.is_file():
+                        softs.append(np.asarray(Image.open(p).convert("L")))
+                return chroma_mask(orig, softs)
 
             if baseline_accepted and not force_here:
                 soft = np.asarray(Image.open(soft_path).convert("L"))
@@ -472,8 +495,25 @@ def main() -> int:
                               f"fons_iekšā={plate_qa['bg_inside']}", flush=True)
                     else:
                         print(f"  plāksnes ceļš noraidīts: {plate_qa.get('reason')}", flush=True)
+                        # 4. (pēdējais) ceļš: krāsu attālums. Papīra ķēde ir
+                        # izsmelta; ja arī chroma sevi noraida, paliek
+                        # STOP-eskalācija zemāk.
+                        t = time.perf_counter()
+                        chroma_bin, chroma_qa = _try_chroma()
+                        fallback_s = time.perf_counter() - t
+                        chroma_info = chroma_qa
+                        if chroma_qa.get("accept"):
+                            binary = chroma_bin
+                            method = "chroma_seeded"
+                            full_shot = False
+                            print(f"  chroma ceļš pieņemts: segums="
+                                  f"{chroma_qa.get('struct_coverage')} min_cross_dE="
+                                  f"{chroma_qa.get('min_cross_dE')}", flush=True)
+                        else:
+                            print(f"  chroma ceļš noraidīts: {chroma_qa.get('reason')}",
+                                  flush=True)
 
-                if method in ("plate_texture", "isnet_pad_retry"):
+                if method in ("plate_texture", "isnet_pad_retry", "chroma_seeded"):
                     pass          # maska jau iegūta (sk. zemāk zināmo kļūdu)
                 else:
                     # ZINĀMĀ KĻŪDA, IZLABOTA 2026-10-23: šis zars agrāk sauca
@@ -526,6 +566,38 @@ def main() -> int:
                 full_shot = False
                 if "grabcut" in method:
                     print(f"  GrabCut fallback: {fallback_s:.2f} s", flush=True)
+
+            # --- Strukturālais trigeris chroma ceļam ----------------------
+            # Maker QA (ISNet/apmales/plate) ir per-ceļa un var pieņemt
+            # masku, kas strukturāli ir fragmenti vai ar caurumu — tieši to
+            # neatkarīgais checker pēc tam soda GATE_C (izmērīts §75:
+            # fill 0.4058 pieņemts ar pad aizsargiem; caurums 576 px
+            # pieņemts ar ISNet QA). Tāpēc PIRMS saglabāšanas kandidātu
+            # pārbauda strukturāli; ja tas krīt, mēģina chroma. Ja chroma
+            # sevi noraida, kandidāds PALIEK (uzvedība nemainās) un
+            # checker paliek tiesnesis — šis trigeris neko neatvieglo.
+            if method != "chroma_seeded":
+                struct_qa = structural_qa(binary)
+                if not struct_qa["accept"]:
+                    pre_chroma_struct = struct_qa
+                    print(f"  kandidāts ({method}) strukturāli slikts: "
+                          f"fill={struct_qa['silhouette_fill']} "
+                          f"caurumi>={struct_qa['interior_holes_ge400']} "
+                          f"lielākā={struct_qa['largest_ratio']} -> chroma",
+                          flush=True)
+                    t = time.perf_counter()
+                    chroma_bin, chroma_qa = _try_chroma()
+                    fallback_s += time.perf_counter() - t
+                    chroma_info = chroma_qa
+                    if chroma_qa.get("accept"):
+                        binary = chroma_bin
+                        method = "chroma_seeded"
+                        print(f"  chroma ceļš pieņemts: segums="
+                              f"{chroma_qa.get('struct_coverage')} min_cross_dE="
+                              f"{chroma_qa.get('min_cross_dE')}", flush=True)
+                    else:
+                        print(f"  chroma noraidīts: {chroma_qa.get('reason')} "
+                              f"-> paliek kandidāds", flush=True)
 
             # --- Kadrējuma IZVĒLE ---------------------------------------
             # Divi stili, abi lietotāja izvēlē (`--framing`):
@@ -612,6 +684,10 @@ def main() -> int:
                 rec["pad_retry"] = retry_info_probe
             if plate_info is not None:
                 rec["plate_qa"] = plate_info
+            if chroma_info is not None:
+                rec["chroma_qa"] = chroma_info
+            if pre_chroma_struct is not None:
+                rec["pre_chroma_structural"] = pre_chroma_struct
             rec["framing"] = framing_info
             rec["no_auto_crop"] = bool(no_auto_crop)
             if auto_info is not None:
