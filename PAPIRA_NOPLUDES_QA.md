@@ -2445,3 +2445,26 @@ vizuāli). Mērķa tabulu sk. PROGRESS §51.
   lietotāja apstiprināts, kamēr nav nospiesta poga pie A3 kolāžas; ja to
   noraida, jāmaina viens lielums (virziens/peak/nobīde) un jāpārmēra ar
   šo pašu sektoru×attāluma tabulu, nevis jāslēdz atpakaļ ambient halo.
+
+## §50 — Henley grupa (2026-10-24): plate ceļš baltajam makro kadram
+- Grupa: 2 pilni kadri ISNet + 2 tuvplāni `isnet_pad_retry` izgāja
+  pirmajā piegājienā (checker 4/4). Birkas makro `124406358` krita
+  visos ceļos (ISNet 0.0501, retry 0.0462, plate 0.0219) — godīgs
+  `needs_review` STOP, nevis klusa slikta maska.
+- Cēloņa ķēdes pierādījums (PROGRESS §68-§70): (1) plate Otsu
+  slieksnis 13.73 > auduma E mediāna 7.06 ekstrēmas astes dēļ;
+  enkurētais fallback (ģeom. vid. no papīra 2.24 / auduma p90 9.38
+  = 4.58) atgūst segumu 0.8696, kontroles kadros bitiski identisks.
+  (2) `bg_inside` bez krāsas nosacījuma vafeļu ēnu līnijas sauca
+  par fonu (0.0284); ar papīra L* logu 0.0145, bet papīra krāsas
+  pleķis sintētikā joprojām 0.1719 -> noraidīts. (3) GATE_P
+  bloķēja audumā ieslēgtus ielokus pie malas (dE 9.6-13.9,
+  `garment_fpr=0.196`); ķīļa paraksts tagad ir "nav ieslēgts",
+  sintētiskais ķīlis (dE 0.46) joprojām krīt.
+- Pēc trim pierādītiem precizējumiem: checker 5/5 PASS (exit 0),
+  lietotājs apstiprināja kolāžu, ZIP verificēts pret checker
+  hashiem. Mācība: baltam audumam uz pelēka papīra krāsa neatdala
+  neko (L* 58 pret 64) — vienīgais signāls ir tekstūras MĒROGA
+  izvēle, un katrs vārti, kas balstās uz "gluds = papīrs", makro
+  kadram vispirms jāpārbauda pret auduma paša gludajām daļām
+  (birka, aproce, ieloku ēnas).
