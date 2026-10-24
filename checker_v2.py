@@ -321,6 +321,35 @@ def gate_r_reconciliation(stem: str, maker_rec: dict, paraugs_path: Path,
     }
 
 
+def gate_p_verdict(regions) -> dict:
+    """GATE_P: papīrs maskā pie kadra malas = segmentācijas ķīlis.
+
+    Bloķējošs ir tikai reģions, kas pieskaras foto kadra malai un NAV
+    audumā ieslēgts (`enclosed_by_fg` False): ķīlis ir papīrs, kas no
+    ĀRPUSES ienāk maskā, tāpēc tā gredzenā ir īstais fons (alpha < 0.5).
+    Pilnkadra makro kadros gludi auduma ieloki pie malas ir audumā
+    ieslēgti, un bez šī dalījuma detektors tos bloķētu kā papīru
+    (birkas makro `124406358`, 2026-10-24: 3 reģioni, visi ieslēgti,
+    dE 9.6-13.9 pret papīra krāsu; sintētisks īsts ķīlis: nav
+    ieslēgts, dE 0.46 — sk. testus un PROGRESS §70). Ieslēgtos
+    reģionus vārti ziņo, bet nebloķē.
+    """
+    border = [r for r in regions if r.get("touches_photo_border")]
+    blocking = [r for r in border if not r.get("enclosed_by_fg")]
+    enclosed = [r for r in border if r.get("enclosed_by_fg")]
+    return {
+        "pass": len(blocking) == 0,
+        "regions": len(blocking),
+        "px": int(sum(r["area_px"] for r in blocking)),
+        "max_depth_px": round(max([r["max_depth_px"] for r in blocking],
+                                    default=0.0), 1),
+        "enclosed_border_regions": len(enclosed),
+        "enclosed_border_px": int(sum(r["area_px"] for r in enclosed)),
+        "note": ("papīrs maskā, kas pieskaras kadra malai un nav audumā "
+                 "ieslēgts; ieslēgtie = tikai ziņojums (sk. gate_p_verdict)"),
+    }
+
+
 def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     if maker_rec.get("status", "completed") != "completed":
         return {
@@ -523,14 +552,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
                 "thresholds": res["thresholds"],
                 "seconds": round(_time.perf_counter() - _t0, 2),
             }
-            bad = [r for r in res["regions"] if r.get("touches_photo_border")]
-            border_leak = {
-                "pass": len(bad) == 0,
-                "regions": len(bad),
-                "px": int(sum(r["area_px"] for r in bad)),
-                "max_depth_px": round(max([r["max_depth_px"] for r in bad], default=0.0), 1),
-                "note": "papīrs maskā, kas pieskaras kadra malai",
-            }
+            border_leak = gate_p_verdict(res["regions"])
         except Exception as exc:                    # brīdinājums nedrīkst nogāzt čekeri
             gate_l = {"pass": None, "advisory": True, "skipped": True,
                       "error": f"{type(exc).__name__}: {exc}"}

@@ -1775,3 +1775,36 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   segumu 0.8275 (patiesais 0.8125); papīra krāsas pleķis auduma vidū
   joprojām tiek noraidīts (`bg_inside` 0.1719), gaiša gluda "birka"
   netiek karogota (0.0, accept=True). Testi: 64 -> **69 OK** (2.60 s).
+
+## §70 — Attempt 2 + GATE_P precizējums; checker 5/5 PASS (2026-10-24)
+- Attempt 2 (`--resume`, 30.5 s): 4 gatavās maskas atpazītas pēc
+  SHA-256; tikai birka segmentēta no jauna — `plate_texture`,
+  segums 0.8693 (iekšmala 0.69, ārējā 0.533, bg_inside 0.0145).
+  5/5 pabeigtas, 11.08 s/bilde. Krāsu profils nedaudz nobīdījās
+  (fons [131.0, 128.5, 127.5] -> [132.0, 129.0, 128.0], WB R
+  0.974457 -> 0.969584), jo kopīgais LUT tagad rēķināts no visām
+  piecām bildēm, kā §3.2 prasa; tāpēc 4 iepriekšējie kadri ar jauno
+  LUT pārrenderēti (hashi mainīti, maskas nē).
+- Pirmais checker piegājiens: 4/5. Birka krita `GATE_P_paper_at_border`
+  (3 reģioni, 30 537 px). Lokalizācija pierādīja viltus trauksmi:
+  visi reģioni ir vafeļu rindu gludie ieloki un aproces josla pie
+  kadra malām, `enclosed_by_fg=True`, dE pret papīru 9.6-13.9
+  (īstam papīram ~0-3); detektora `garment_fpr=0.196`, atdalāmība
+  0.52 (paša veerdikts "marginal", tāpēc GATE_L ir tikai advisory).
+  Pilnkadra makro kadram "pieskaras malai" nav informācijas.
+- Lietotājs ar pogām apstiprināja GATE_P precizējumu. Diskriminators
+  PIRMS koda maiņas pierādīts uz sintētikas: īsts ķīlis (maska
+  pārskrien papīrā līdz malai) -> `enclosed=False`, dE 0.46; gluda
+  auduma josla līdz malai -> `enclosed=True`, dE 12.89.
+- Izmaiņa (`checker_v2.gate_p_verdict`): bloķē tikai malas reģionus,
+  kas NAV audumā ieslēgti; ieslēgtie tiek ziņoti
+  (`enclosed_border_regions`/`_px`). Pārējiem 4 kadriem spriedumi
+  nemainās (tiem malas reģionu nebija). 5 jauni testi (3 vienību +
+  2 integrācijas caur `leak_probe`) -> **74 OK**.
+- Checker otrais piegājiens: **5/5 PASS**, exit 0; birkas GATE_P ziņo
+  3 ieslēgtos reģionus / 30 537 px. Gala PARAUGS sha256(16):
+  priekšpuse `76ff012e1750c2d3`, kakls `c4e67398867278e5`,
+  apakšmala `202452de832866e6`, birka `cde7d9d6131e46aa`,
+  mugura `e317d70c804d2882`; grade profils `771e8e148a2a8e68`.
+- Krātuve pirms piegādes: 96 765 843 B (jāatbrīvo vieta ZIP dublikātam;
+  kandidāti: tmp_id diagnostika, output/audits saturu pārbaudīt).

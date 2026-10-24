@@ -25,6 +25,7 @@ from PIL import Image
 
 import checker_v2 as ck
 import loop
+import paper_leak
 import plate_segment as ps
 import setup_v2
 import workflow_v2 as wf
@@ -763,6 +764,75 @@ class TestPlateBgInsideColor(unittest.TestCase):
         _, qa = plate_mask(self._rgb(245))
         self.assertLess(qa["bg_inside"], 0.005)
         self.assertTrue(qa["accept"])
+
+
+class TestGatePVerdict(unittest.TestCase):
+    """PROGRESS §70: GATE_P dalījums ķīlis pret ieslēgtiem ielokiem."""
+
+    @staticmethod
+    def _region(border, enclosed, area=1000):
+        return {"touches_photo_border": border, "enclosed_by_fg": enclosed,
+                "area_px": area, "max_depth_px": 10.0}
+
+    def test_wedge_blocks(self):
+        v = ck.gate_p_verdict([self._region(border=True, enclosed=False)])
+        self.assertFalse(v["pass"])
+        self.assertEqual(v["regions"], 1)
+        self.assertEqual(v["enclosed_border_regions"], 0)
+
+    def test_enclosed_border_only_reports(self):
+        v = ck.gate_p_verdict([self._region(border=True, enclosed=True, area=3000)])
+        self.assertTrue(v["pass"])
+        self.assertEqual(v["regions"], 0)
+        self.assertEqual(v["enclosed_border_regions"], 1)
+        self.assertEqual(v["enclosed_border_px"], 3000)
+
+    def test_interior_regions_ignored(self):
+        v = ck.gate_p_verdict([self._region(border=False, enclosed=False)])
+        self.assertTrue(v["pass"])
+        self.assertEqual(v["regions"], 0)
+        self.assertEqual(v["enclosed_border_regions"], 0)
+
+
+class TestGatePIntegration(unittest.TestCase):
+    """End-to-end caur `paper_leak.leak_probe` uz sintētikas (§70).
+
+    Īsts ķīlis (maska pārskrien papīrā līdz kadra malai): reģions nav
+    ieslēgts, dE 0.46. Gluda auduma josla līdz malai (birkas makro
+    analogs): ieslēgts, dE 12.9. GATE_P izšķir abus.
+    """
+
+    def _scene(self, wedge):
+        rng = np.random.default_rng(7)
+        h, w = 1200, 1600
+        yy, xx = np.mgrid[0:h, 0:w]
+        tex = (205 + 26 * np.sin(yy * 2 * np.pi / 16)
+               + 26 * np.sin(xx * 2 * np.pi / 16) + rng.normal(0, 1.5, (h, w)))
+        paper = 150 + rng.normal(0, 1.5, (h, w))
+        alpha = np.zeros((h, w), np.float32)
+        if wedge:
+            img = np.where(xx < 1280, tex, paper)
+            alpha[:, :1280] = 1.0
+            cv2.fillPoly(alpha, [np.array(
+                [[1280, 520], [1600, 600], [1600, 700], [1280, 760]])], 1.0)
+        else:
+            img = np.where(xx < 1408, tex, paper)
+            img[:170, :1408] = 185 + rng.normal(0, 1.5, (170, 1408))
+            alpha[:, :1408] = 1.0
+        rgb = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).convert("RGB")
+        return rgb, alpha
+
+    def test_real_wedge_fails_gate_p(self):
+        rgb, alpha = self._scene(wedge=True)
+        res = paper_leak.leak_probe(rgb, alpha)
+        self.assertFalse(ck.gate_p_verdict(res["regions"])["pass"])
+
+    def test_smooth_fabric_band_at_border_passes(self):
+        rgb, alpha = self._scene(wedge=False)
+        res = paper_leak.leak_probe(rgb, alpha)
+        v = ck.gate_p_verdict(res["regions"])
+        self.assertEqual(v["enclosed_border_regions"], 1)
+        self.assertTrue(v["pass"])
 
 
 if __name__ == "__main__":
