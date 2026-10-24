@@ -1,0 +1,1348 @@
+# PROGRESS — loopa atmiņa (ārpus sarunas)
+
+Komplekts: Uniqlo waffle henley (balts/krēmkrāsas), izmērs L
+Avots: uploads/MVIMG_20261020_*.jpg (5 bildes, 3072×4096, mājas apstākļi)
+Paraugs: uploads/slamjam_mfpen_trousers*.jpg (2000×2500, fons #F3F3F3)
+
+Bilžu kartējums:
+- MVIMG_20261020_160538 — pilnais kadrs no priekšas (kadrā arī kājas/apavi — jāpazūd)
+- MVIMG_20261020_160550 — tuvplāns: kakla izgriezums + birka
+- MVIMG_20261020_160601 — tuvplāns šķērsām: izgriezums + pogas
+- MVIMG_20261020_160608 — tuvplāns: izmēra birka (L, Made in Indija)
+- MVIMG_20261020_160645 — tuvplāns: kopšanas/sastāva birka
+- Mugurpuses kadra komplektā NAV — loops to neizdomā (sarkanā līnija Nr.1)
+
+## Iterācijas
+- [x] Iterācija 1: pilots (160538), u2net — maska OK (segums 0.355), bet process
+      nogalināts (OOM) kompozīcijas solī (float32 pilna kadra masīvi).
+      Stratēģijas maiņa: uint8 + apstrāde rindkopās, ēnai pelēktoņu fons.
+- [x] Iterācija 1 vizuālā pārbaude E: **FAIL** — u2net maska pilnībā izlaida krekla
+      labo piedurkni (maskā tās nav), lai gan fons/ēna un pārējais siluets pareizi.
+      Secinājums: skaitliskie vārti vien nepietiek; modelis jāmaina.
+- [x] Iterācija 2: pilots ar isnet-general-use + atmiņu taupoša kompozīcija
+      → pilnais kadrs (160538) iziet VISUS vārtus A–E (maska 0.403, abas
+      piedurknes vietā, pikseļi maxdiff=0). Stratēģija pilnajam kadram apstiprināta.
+- [x] Iterācija 2 partija uz tuvplāniem: **FAIL (E un daļēji C)** — isnet par
+      "objektu" izvēlas birku/pogu laukumu (segumi 0.007–0.245), audumu uzskata
+      par fonu. Diagnostika: output/diagnostika_tuvplani_iter2.jpg
+- [x] Iterācija 3 diagnostika: watershed (tekstūra+krāsa) — vājš, noraidīts;
+      u2net_cloth_seg — nomira atmiņas dēļ (768×768 U-Net > 2GB), noraidīts;
+      **GrabCut ar konservatīvām sēklām (512px tests) — segumi 0.65–0.93,
+      robežas vizuāli pareizas.** Diagnostika: diagnostika_tuvplani_grabcut.jpg
+      (160601 sēkla koriģēta pēc augšmalas piezūmēšanas: augša = drošs fons.)
+- [x] Iterācija 3: tuvplāni produkcijā ar GrabCut (--mode closeup, 960px)
+      → A–D PASS visām 5 bildēm; E: 160550/160601/160645 PASS,
+      160608 FAIL — virs apmales palika vecā fona pleķis (papīra šķiedru
+      tekstūra 960px mērogā deva viltus auduma sēklas).
+- [x] Iterācija 3b (sēklas korekcija): 160608 drošā fona josla līdz y=0.315 —
+      pleķis samazinājās, bet E joprojām FAIL (pelēka ēnas josla virs apmales;
+      GrabCut robežu velk pa ēnas ārējo pāreju). Diagnostikā salīdzināti
+      varianti (512/960, ar/bez tekstūras sēklām).
+- [x] Iterācija 3c: 160608 bez tekstūras sēklām + top_edge_snap → E PASS
+      (robeža iet pa auduma augšējo vīli, pleķis/ēnas josla pazuduši).
+- [x] Checker A–D + vizuālā pārbaude E visam komplektam: **5/5 PASS**
+      (skat. output/report.json un GALA_PARSKATS.md)
+
+## STĀVOKLIS: GAIDA CILVĒKA LĒMUMU (ārējā cilpa)
+Komplekts ir gatavs apstiprināšanai pēc output/paraugs/*_PARAUGS_2000x2500.jpg.
+Apstiprinājums → publicēt. Noraidījums ar iemeslu → jauna iterācija ar
+mainītu parametru (piem., ēnas stiprums/nobīde, sēklas, kadrējums).
+
+## Ārējās cilpas atgriezeniskā saite (2026-10-21)
+- Lietotājs: "Priekšpuse ir labi, bet pārējām ir nogrieztas malas, vajadzētu
+  būt pilnā izmērā." → Priekšpuse APSTIPRINĀTA. Tuvplāni NORAIDĪTI kadrējuma
+  dēļ: contain (1875×2500 + sānu joslas) lika audumam izskatīties nogrieztam
+  pirms malas; parauga tuvplāni ir full-bleed līdz kadra malām.
+- [x] Iterācija 4: tuvplāni → cover uz 2000×2500 (bez sānu joslām; griež tikai
+      ~6.25% augstuma centrāli), pievienoti F vārti checker.py (PASS: 3/4, 3/4,
+      3/4, 4/4 malas), E pārbaude: birkas/pogas nav apgrieztas, audums sasniedz
+      kadra malas. Vecie contain varianti → output/archive_iter3_contain/.
+      Pārskata lapa PARSKATS_5_bildes.jpg un GALA_PARSKATS.md atjaunoti.
+- STĀVOKLIS: atkal GAIDA CILVĒKA LĒMUMU par koriģētajiem tuvplāniem.
+
+## Ārējās cilpas atgriezeniskā saite #2 (2026-10-21)
+- Lietotājs 160550 bildē atrada palikušu papīra gabalu augšā labajā pusē un
+  pieprasīja pārliecināties, ka VISĀM bildēm maska ir ideāla.
+- Audits (output/audits/, piezūmētas visas robežas + koordinātu režģi):
+  160538 tīrs; 160550 defekts apstiprināts (papīra/ēnas ķīlis aiz apkakles
+  x~0.82–0.92, y~0.285–0.315); 160601 tīrs; 160608 tīrs;
+  160645 atrasts papildu defekts — galda plakne tās ēnā (diagonālā josla +
+  sprauga zem apakšējās malas) bija maskā kā "audums".
+- [x] Iterācija 5: BG sēklas ķīlī (160550, 2 sēklas — pēc pirmās vēl palika
+      mazs atlikums, noķerts 2× zūmā) un ēnas zonās (160645) iestrādātas
+      CLOSEUP_SEEDS, G vārti pievienoti LOOP.md. Pārpalaišana + checker A–F
+      (5/5 PASS) + atkārtots audits: pleķi pazuduši, audums nav skarts.
+      (Procesu piezīme: pirmā 160550 pārpalaišana sēklu nepielietoja paralēlu
+      loop.py labojumu konflikta dēļ — noķerts ar hash salīdzinājumu, izlabots.)
+      Audita protokols: MASKU_AUDITS.md; pārskata lapa atjaunota.
+- STĀVOKLIS: GAIDA CILVĒKA APSTIPRINĀJUMU izlabotajām 160550/160645 bildēm.
+
+## Ārējās cilpas atgriezeniskā saite #3 (2026-10-21)
+- Lietotājs: "MVIMG_20261020_160645_PARAUGS_2000x2500 ir melni pikseļi apakšā
+  nav ideāli." Atkārtotais audits apstiprināja, ka iter.5 secinājums par
+  160645 apakšmalu bija nepilnīgs: pēdējās 50 rindās bija 5 625 pikseļi ar
+  vidējo luminanci <60, galvenokārt zem baltās vīles izvirzītā galda/spraugas
+  blokā. Iter.5 izvade arhivēta `output/archive_iter5_pirms_apaksas_labojuma/`.
+- [x] Iterācija 6: `closeup_mask` vairs neaizpilda fona komponenti, kurā ir
+      drošā fona (`GC_BGD`) sēkla; 160645 apakšējās spraugas sēkla paplašināta
+      slīpi gar vīli līdz y=1.000 un x≈0.690. Pārpalaišana tikai 160645,
+      checker visām 5 bildēm: A–D/F 5/5 PASS; 160645 segums 0.8819,
+      A kodols 11 078 083 px, max diff 0. Tumšie (<60) pikseļi pēdējās
+      50 rindās: 5 625 → 407; pikseļu mēroga salīdzinājums apstiprina, ka
+      atlikusī šaurā josla ir īstā apakšējā auduma slāņa sānu mala, bet galda
+      sprauga ir ārpus maskas. Atjaunotas `audits_160645.jpg`,
+      `PARSKATS_5_bildes.jpg`, `MASKU_AUDITS.md` un `GALA_PARSKATS.md`.
+- STĀVOKLIS: GAIDA CILVĒKA APSTIPRINĀJUMU iter.6 160645 bildei; pārējās
+  4 bildes šajā iterācijā nav mainītas.
+
+## Ārējās cilpas atgriezeniskā saite #4 (2026-10-21)
+- Lietotājs: 160645 ir labāk, maska ir laba, bet vietām drēbju maliņas
+  izskatās robainas; jautāja, vai profesionāli būtu pielietot nedaudz blur.
+  Ieteikums: neblurēt attēlu, tikai maskas alfa pāreju. Lietotājs apstiprināja:
+  "Veido 7 iterāciju".
+- [x] Iterācija 7: A/B testos salīdzināta pašreizējā alfa, attāluma pāreja,
+      guided-filter varianti un kontūras izlīdzināšana + kontrasta
+      atjaunošana. Guided varianti noraidīti redzamāka oreola dēļ. Ražošanā
+      visām 5 bildēm no saglabātajām binārajām maskām: attāluma alfa ±1,6 px,
+      Gaussian kontūras izlīdzināšana σ=1,6, kontrasts 1,65, priekšplāna
+      krāsas paplašināšana tieši ārpus maskas un premultiplicēta RGBA
+      samazināšana. Checker pievienoti H vārti; visas 5 bildes A–D/F/H PASS,
+      A max diff joprojām 0, daļējā alfa ne tālāk par 2,0 px no robežas.
+      Iter.6 izvades: `output/archive_iter6_pirms_malu_labojuma/`; protokols:
+      `MALU_AUDITS_ITER7.md`; audita lapas un pārskats atjaunoti.
+- STĀVOKLIS: GAIDA CILVĒKA APSTIPRINĀJUMU iter.7 malu kvalitātei visam
+  komplektam.
+
+## Ārējās cilpas atgriezeniskā saite #5 — krātuve (2026-10-21)
+- Lietotājs norādīja uz Workspace brīdinājumu (128,6/128,0 MB) un noteica:
+  vienmēr sekot krātuvei, vecos failus neglabāt un brīvo vietu turēt pēc
+  iespējas lielāku.
+- [x] Tīrīšana: dzēsti visi veco iterāciju arhīvi, audita/testa/diagnostikas
+      attēli, SOFTMASK dublikāti un `__pycache__` (atbrīvoti 28 076 379 baiti).
+      Aktuālie MASTER PNG papildus bezzudumā optimizēti ar kompresiju 9
+      (vēl 1 911 982 baiti; dekodēto pikseļu SHA-256 pirms/pēc identiski).
+      Saglabāti tikai aktuālie MASTER/PARAUGS, maskas/ALPHA, JSON, kopskats,
+      kods un dokumenti; `uploads/` oriģināli nav aiztikti.
+- [x] Pastāvīga kārtība ierakstīta `LOOP.md` 7. sadaļā; `loop.py` vairs
+      nesaglabā SOFTMASK, PNG raksta ar `compress_level=9` un beigās izdrukā
+      `KRĀTUVE:` izmēru. Pēc tīrīšanas: `/home/user` 100,41 MB (46 faili),
+      `loop_bildes` 55,56 MB (36 faili), `uploads` 44,86 MB.
+
+## Atmiņas/swap un ātruma side-by-side (2026-10-21)
+- Inventārs: 2 vCPU, 1,9 GB RAM, cgroup limits 1 944 915 968 baiti, bez GPU;
+  swap rīki un sudo pieejami. Fizisko RAM no sandbox iekšpuses palielināt
+  nevar.
+- [x] 2 GB faila swap tests: īstais 160645 saved-mask renderings bez swap
+      2,025 s/473 MB, ar swap 2,046 s/473 MB — ātruma ieguvuma nav. 2400 MB
+      stresa tests bez swap tika OOM-nogalināts, ar swap pabeigts 11,26 s
+      (VmSwap ~990 MB). Swap pēc testa izslēgts un fails dzēsts; secinājums:
+      swap tikai kā īslaicīga OOM drošība, nevis paātrinājums.
+- [x] Lielākais atrastais ātruma zudums bija PNG 9. līmenis: 12,365 s pret
+      3,248 s 6. līmenī, ietaupot tikai 0,43 MB. `loop.py` pievienots
+      `--png-level` ar noklusēto 6. Pilns protokols:
+      `ATMINAS_UN_ATRUMA_TESTI.md`.
+- [ ] Checker A–D + vizuālā pārbaude E pilotam
+- [ ] Ja pilots iziet vārtus → visa partija (5 bildes) ar to pašu stratēģiju
+- [ ] Ja neiziet → iterācija 2 (isnet-general-use) / iterācija 3 (parametri)
+- [ ] Gala lēmums: cilvēks (ārējā cilpa)
+
+## Pastāvīgais piegādes noteikums (2026-10-21)
+- Lietotājs noteica turpmāko secību: pirms gala rezultāta vispirms jāizveido
+  un jāparāda kolāža ar visām komplekta `PARAUGS_2000x2500` bildēm.
+- `.zip` arhīvu ar apstiprinātajām gala bildēm veido tikai pēc tam, kad
+  lietotājs kolāžu ir skaidri apstiprinājis. Noteikums ierakstīts
+  `LOOP.md` 8. sadaļā.
+- Lietotājs lika šo secību piemērot arī pašreizējam Henley komplektam.
+  Darba telpā vienlaikus tur tikai vienu aktīvu produktu bilžu grupu:
+  pēc lejupielādes apstiprinājuma grupas attēlu failus (`uploads/`
+  avotus, MASTER/PARAUGS, maskas, kolāžu un `.zip`) dzēš, saglabājot
+  kodu, dokumentāciju, īsu tekstuālu vēsturi un parauga atsauces.
+- Lietotājs apstiprināja pašreizējo kolāžu un noteica, ka turpmāk
+  apstiprinājumi jāprasa ar saskarnes izvēles pogām, nevis rakstītu
+  tekstu. Noteikums ierakstīts `LOOP.md` 8. sadaļā.
+- [x] Izveidots `output/Uniqlo_Polo_20261020_GALA_BILDES.zip`
+      (6 689 288 baiti; SHA-256
+      `4231d1c69d4915c505d6f3829f7bb4808cda6f98d84181ef26700431a214c4bd`)
+      ar visām 5 apstiprinātajām `PARAUGS_2000x2500` JPG bildēm;
+      arhīva CRC pārbaude izieta.
+- [x] Lietotājs ar izvēles pogu apstiprināja `Lejupielādēju — dzēst
+      grupu`. Dzēsti 32 šīs grupas faili: 5 `uploads/` avoti, 5 MASTER,
+      5 PARAUGS, 15 maskas/ALPHA, kolāža un `.zip`; atbrīvoti
+      108 887 837 baiti (103,84 MB). Pēc tīrīšanas `/home/user` ir
+      2,96 MB un `loop_bildes` 0,07 MB. Saglabāts kods, dokumentācija,
+      JSON atskaites un parauga atsauces.
+- STĀVOKLIS: Henley komplekts ir piegādāts un slēgts; darba telpa ir
+  gatava vienai jaunai bilžu grupai.
+
+## Pastāvīgais jaunas grupas starta noteikums (2026-10-21)
+- Lietotājs noteica: pēc katras jaunas produktu foto augšupielādes vispirms
+  ar izvēles pogām jāpajautā, vai šīs ir visas šīs grupas bildes.
+- Ja atbilde ir `Nē, vēl pievienošu`, darbu nesāk; gaida nākamo
+  augšupielādi un jautājumu uzdod atkārtoti. Tikai pēc
+  `Jā, šīs ir visas — sāc darbu` sāk komplekta inventarizācijas fiksēšanu
+  un loopa izpildi. Noteikums ierakstīts `LOOP.md` 1. sadaļā.
+- Lietotājam sagatavotas īsās sarunas komandas un pilna procesa secība
+  failā `LOOP_KOMANDAS.md`.
+
+## Atkāpes no parauga (apzinātas, pikseļu saglabāšanas dēļ)
+- Apģērbs netiek rotēts/iztaisnots, krokas un mājas apgaismojums UZ APĢĒRBA paliek
+  kā oriģinālā — citādi tiktu pārkāpta "oriģinālo pikseļu" prasība.
+- Parauga bikšu bbox proporcijas (platums ~60%) attiecas uz biksēm; krekls ar
+  izplestām piedurknēm dabiski aizņem platāku kadru. Tiek ievērots parauga
+  fons/audekls/centrējums/ēna, nevis cita apģērba gabala silueta proporcijas.
+
+## Jauna aktīva grupa — Vans Authentic Chino bikses (2026-10-21)
+- Pēc pirmās augšupielādes lietotājs izvēlējās `Nē, vēl pievienošu`; darbs
+  netika sākts. Pēc otrās augšupielādes lietotājs ar pogu izvēlējās
+  `Jā, šīs ir visas — sāc darbu`.
+- Pilns apstiprinātais komplekts (6 bildes pirms apstrādes 60,30 MB,
+  katra 3072×4096, izņemot `IMG_20261020_201332.jpg` 3071×4096):
+  - `MVIMG_20261020_161746.jpg` — pilnais kadrs no aizmugures.
+  - `MVIMG_20261020_161944.jpg` — tuvplāns: priekšējā jostasvieta un
+    labā kabata.
+  - `MVIMG_20261020_161959.jpg` — tuvplāns: atvērta jostasvieta/rāvējslēdzējs.
+  - `MVIMG_20261020_162013.jpg` — tuvplāns: iekšējā jostasvieta un birkas.
+  - `MVIMG_20261020_162101.jpg` — tuvplāns: kopšanas birka rokā; roka un
+    fons nav apģērbs.
+  - `IMG_20261020_201332.jpg` — pilnais kadrs no priekšas; kadra stūros
+    ķivere un kāja jāpaliek ārpus apģērba maskas.
+- Stratēģija: pilniem kadriem vispirms pilots ar
+  `birefnet-general-lite`; ja tas neiziet vārtus, nākamais mēģinājums ir
+  pārbaudītais `isnet-general-use`. Tuvplāniem izmanto vizuāli kartētas
+  sēklas + GrabCut 960 px; malas apstrādā ar 7. iterācijas alfa.
+- [x] Pilnie kadri pabeigti ar BiRefNet-General-Lite optimizēto ONNX ceļu
+      (768×1024 host attēls, īslaicīgs 6 GB swap, pēc izpildes izslēgts).
+      Zoom audits atrada un atsevišķi izlaboja vecā papīra/ēnas sloksnes pie
+      iekšmalām: IMG_201332 noņemti 12 608 silti pikseļi gar iekšējo vīli;
+      161746 starpkājē noņemta mērīta daudzstūra zona un nelieli ēnas
+      atlikumi. Gala segumi: IMG 0.3553, 161746 0.4321.
+- [x] Tuvplāni ar kartētām sēklām/GrabCut: 161944 5. mēģinājums,
+      161959 3. mēģinājums, 162013 1. mēģinājums, 162101 5. mēģinājums.
+      162101 papildus precīzi noņemta roka garās birkas galā, saglabājot
+      birkas tekstu un fiziskās malas. Segumi: 0.5436 / 0.7339 / 0.6197 /
+      0.6023.
+- [x] Trīs tuvplāniem pievienoti deterministiski PARAUGS 4:5 kadrēšanas logi,
+      lai apģērbs sasniegtu vismaz trīs ārējās malas un vienlaikus
+      saglabātu birkas/pogas: 161944 `(0, 0.2325, 0.8175, 0.9989)`,
+      162013 `(0, 0.0800, 0.9800, 0.99875)`,
+      162101 `(0, 0.0200, 0.8500, 0.816875)`. MASTER joprojām ir pilnā
+      1:1 avota kadrā.
+- [x] Checker gala pārbaude: visas 6 bildes A–D/F/H **PASS**; A vārtiem
+      `maxdiff=0`. Veikts E/G vizuālais audits ar piezūmētām kritiskajām
+      malām. Kolāža:
+      `output/Vans_Authentic_Chino_20261020_KOLAZA.jpg`.
+- STĀVOKLIS: GAIDA LIETOTĀJA APSTIPRINĀJUMU kolāžai. `.zip` veidot tikai
+  pēc pogas `Apstiprināt`; noraidījuma gadījumā turpināt iterāciju.
+- [x] Lietotājs ar pogu `Apstiprināt` apstiprināja kolāžu. Izveidots
+      `output/Vans_Authentic_Chino_20261020_GALA_BILDES.zip`
+      (8 054 065 baiti; SHA-256
+      `291f4cf10668a28e3b633652e9fadb185fbaf9f1072355f7847402a3352dcb29`)
+      ar visām 6 apstiprinātajām `PARAUGS_2000x2500` JPG bildēm.
+      Arhīva CRC un katra faila baitu identitāte ar avota JPG pārbaudīta.
+      Lai nepārsniegtu krātuves limitu, pēc pārbaudes dzēsti vaļējie JPG
+      dublikāti `output/paraugs/`; to vienīgās gala kopijas tagad ir ZIP.
+- STĀVOKLIS: GAIDA LEJUPIELĀDES/DZĒŠANAS pogas lēmumu.
+- [x] Lietotājs ar pogu izvēlējās `Lejupielādēju — dzēst grupu`.
+      Dzēsti 32 Vans grupas faili (6 avoti, 6 MASTER, 18 maskas/ALPHA,
+      kolāža un ZIP), kopā 128 205 561 baiti. Vaļējie PARAUGS JPG
+      dublikāti jau bija dzēsti pēc ZIP baitu pārbaudes. Pārbaudīts, ka
+      grupas attēlu failu vairs nav; saglabāts kods, dokumentācija, JSON
+      atskaites un parauga atsauces. Pēc tīrīšanas `/home/user` ir
+      3 143 324 baiti (3,00 MiB).
+- STĀVOKLIS: Vans komplekts ir piegādāts un slēgts; darba telpa ir gatava
+  vienai jaunai bilžu grupai.
+
+## Workflow v2 pilots — Henley testa grupa (2026-10-21)
+- Lietotājs augšupielādēja 5 bildes un ar pogu apstiprināja
+  `Jā, šīs ir visas — sāc darbu`. Komplekts pirms apstrādes: 41,97 MiB,
+  visas 3072×4096:
+  `MVIMG_20261020_160538.jpg`, `MVIMG_20261020_160550.jpg`,
+  `MVIMG_20261020_160601.jpg`, `MVIMG_20261020_160608.jpg`,
+  `MVIMG_20261020_160645.jpg`.
+- Pilota mērķis: AI izmanto tikai apģērba maskai/fona nošķiršanai; apģērba
+  ģeometrija, krokas, birkas un tekstūra netiek ģenerēti vai pārzīmēti.
+  Atļauta viena globāla, deterministiska Lightroom tipa krāsu/kontrasta
+  korekcija visam komplektam. Fons, ēna un 2000×2500 kompozīcija paliek
+  deterministiska. Mērķa ātrums: **20 s ± 1 bilde**, ko mēra un ziņo
+  atsevišķi maskai un kopējai apstrādei.
+- [x] Modeļu salīdzināšana šajā sandboxā: `u2netp` 0,23–0,28 s, bet
+      izlaida piedurknes; `silueta` 0,81–0,92 s, bet izlaida vienu
+      piedurkni; abi tuvplānos izvēlējās tikai fragmentu. ISNet pilnajam
+      kadram deva pilnu siluetu 1,45 s predikcijā, bet tuvplānos izvēlējās
+      birku/apkakli (segumi 0,0135–0,2449). SegFormer ADE un
+      clothes-seg arī nedeva pilnu auduma masku tuvplānos; smagie
+      BEN2/SAM/cloth-seg ceļi beidzās ar OOM vai neatbilst ātrumam.
+- [x] Izveidots `workflow_v2.py`: katrai bildei ISNet atsevišķā procesā,
+      automātiska AI maskas QA un noraidītajiem tuvplāniem GrabCut
+      fallback no sēklu bibliotēkas 768 px mērogā. Pilnajam kadram metode
+      ir `isnet`; četriem tuvplāniem atskaitē atklāti atzīmēts
+      `grabcut_seed_library_fallback`.
+- [x] Krāsu profils visam komplektam: fona mediāna RGB
+      `(154, 149, 138)`, WB pastiprinājumi `(0.956044, 1.0, 1.109544)`,
+      ekspozīcija `1.06`, gaišo toņu rolloff no `0.86` un S-līknes
+      kontrasts `0.18`. Pēc rolloff ieviešanas nogriezto kodola pikseļu
+      īpatsvars ir tikai 0–0,136%.
+- [x] Ātruma optimizācija: MASTER/masku PNG raksta ar 3. līmeni un bez
+      PIL `optimize`; augstfrekvences auduma PNG optimizācija vien varēja
+      maksāt ~12 s. Gala komponentu laiki: kopā **7,80–13,33 s/bilde**,
+      vidēji **10,49 s/bilde**. Checker v2: visas 5 bildes **PASS**
+      (A2 maxdiff=0 pret deterministiski koriģēto oriģinālu, B/C/D/F/H/T).
+      Kolāža: `output/Uniqlo_Henley_20261020_V2_KOLAZA.jpg`.
+- [x] Lietotājs ar pogu `Apstiprināt` apstiprināja v2 kolāžu. Izveidots
+      `output/Uniqlo_Henley_20261020_V2_GALA_BILDES.zip`
+      (7 843 480 baiti; SHA-256
+      `2fbcf28f911e95996bcb8dd81fd1496d80a86a6c6e5305bad8426f682d4a7216`)
+      ar visām 5 apstiprinātajām `PARAUGS_2000x2500` JPG bildēm. Arhīva
+      CRC un katra faila baitu identitāte ar vaļējo JPG pārbaudīta.
+- STĀVOKLIS: GAIDA LEJUPIELĀDES/DZĒŠANAS pogas lēmumu.
+- [x] Lietotājs ar pogu izvēlējās `Lejupielādēju — dzēst grupu`. Dzēsti
+      32 Henley v2 grupas faili (5 avoti, 5 MASTER, 5 PARAUGS,
+      15 maskas/ALPHA, kolāža un ZIP), kopā 125 645 021 baiti.
+      Pārbaudīts, ka grupas attēlu failu vairs nav; saglabāts kods,
+      dokumentācija, grade profils, JSON atskaites un parauga atsauces.
+      Pēc tīrīšanas `/home/user` ir 3 240 146 baiti (3,09 MiB).
+- STĀVOKLIS: Workflow v2 pilots ir piegādāts un slēgts; darba telpa ir
+  gatava vienai jaunai bilžu grupai.
+
+## Workflow v2.1 cietināšana (2026-10-21)
+- Lietotāja lēmums: pagaidām paliekam pie pašreizējā lokālā v2 loop
+  modeļa; GPU/mākoņa maskas pilots atlikts, neviena ārēja servisa
+  konta vai API atslēga nav izveidota.
+- Konstatēts, ka pēc sandbox atiestatīšanas `/var/tmp/pylibs` un
+  `/var/tmp/rembg_home` bija pazuduši. Pievienots `setup_v2.py`, kas
+  reproducējami atjauno piespraustās versijas (rembg 2.0.85,
+  onnxruntime 1.31.0, NumPy 2.3.5, SciPy 1.17.1, Pillow 12.3.0) un
+  ISNet modeli (178 648 008 baiti) ārpus darba telpas. Pēc atjaunošanas
+  `setup_v2.py --check` un workflow `--preflight` ir `ready: true`.
+- [x] `workflow_v2.py` atjaunināts uz v2.1: malu attiecību saglabājošs
+      ISNet proxy, EXIF orientācijas vienādošana, precīzs `--files`
+      saraksts, atomiska inkrementāla atskaite, `--resume` tikai ar
+      sakrītošu avota SHA-256, per-image kļūdu izolēšana, standarta
+      kolāža un checker-gated `--make-zip` režīms.
+- [x] Jaunam tuvplānam bez sēklu bibliotēkas ieraksta pievienots
+      automātisks sēklu priekšlikums (`output/audits/*_SEED_PROPOSAL.jpg`)
+      un eksperimentāls auto-GrabCut ar atsevišķu QA. Noraidīta bilde
+      iegūst `needs_seed_review`; pārbaudītā bibliotēka paliek prioritāra.
+- [x] Krāsu LUT pievienota paraugu clipping aplēse un automātiskas
+      ekspozīcijas drošības samazināšanas cilpa pirms renderēšanas.
+- [x] `checker_v2.py` tagad nepārtrauc darbu pie vienas bojātas bildes,
+      nepabeigtos ierakstus uzskaita `_meta` sadaļā, raksta atskaiti
+      atomiski un Gate H pievieno informatīvas malas metrikas. Esošie
+      A2/B/C/D/F/H/T sliekšņi nav mīkstināti.
+- [x] Testi: `test_workflow_v2.py` **7/7 PASS**. ISNet dūmu tests uz
+      parauga atsauces deva 768×960 proxy (bez 768×1024 izstiepšanas),
+      `predict_s=3.052`, segumu 0,3343 un QA PASS. Sintētiskā tuvplāna
+      auto-sēklu + GrabCut integrācijas testā IoU bija 0,990; reālos
+      jaunus tuvplānus joprojām jānovērtē ar zoom auditu, pirms auto
+      režīmu uzskata par pārbaudītu.
+- Atjaunināta dokumentācija: `WORKFLOW_V2.md`, `LOOP_KOMANDAS.md` un
+  `LOOP.md` tagad skaidri norāda v2.1 kā pašreizējo ražošanas dzinēju.
+- Aktīvas produktu bilžu grupas nav; šis posms neizveidoja nevienu
+  produktu MASTER/PARAUGS/ZIP failu.
+- STĀVOKLIS: Workflow v2.1 ir gatavs nākamajai vienai bilžu grupai pēc
+  obligātā starta pogu protokola.
+
+## Pastāvīgais orientācijas noteikums (2026-10-21)
+- Lietotājs demonstrēja piemēru `MVIMG_20261020_161031.jpg` (4096×3072,
+  10 365 849 baiti): pelēki džinsi kadrā guļ šķērsām — jostasvieta pie
+  labās malas, staras horizontāli pa kreisi. Norāde: **nākotnē šādas
+  bildes pirms apstrādes pagriezt vertikāli**. Bilde bija tikai
+  izskaidrošanai: tā netika apstrādāta, netika sākta jauna grupa un pēc
+  lietotāja lūguma fails tika izdzēsts no krātuves.
+- Noteikuma izpilde: atļauts tikai visa kadra bezzaudējumu pagrieziens
+  par 90° soļiem tā, lai apģērba dabiskā augša (apkakle/jostasvieta,
+  birkas teksts) būtu uz augšu. Iepriekšminētajā piemērā tie ir 90°
+  pret pulksteņrādītāja virzienu (`270` CW): jostasvieta augšā, staras
+  uz leju. Brīva leņķa iztaisnošana/deformēšana joprojām aizliegta;
+  pikseļu vērtības nemainās (tikai pārkārtojas) — mainās tikai
+  komplekta LUT kā līdz šim.
+- [x] Ieviests kodā: `workflow_v2.py --rotate STEM:90|180|270`
+      (arī `:cw`/`:ccw`); pagrieziens tiek piemērots visos posmos
+      (arī ISNet worker), fiksēts maker atskaitē kā `rotation_cw`,
+      pārmantots ar `--resume`/`--rerender-saved`; maska ar citu
+      pagriezienu atkārtoti netiek izmantota. `checker_v2.py`
+      salīdzina oriģinālu tajā pašā orientācijā. Pievienots vienību
+      tests (pagriešana 270° CW un atpakaļ baitu līmenī identiska);
+      kopā `test_workflow_v2.py` **8/8 PASS**.
+- Noteikums ierakstīts arī `WORKFLOW_V2.md` (sarkanās līnijas +
+  atsevišķa sadaļa) un `LOOP_KOMANDAS.md`.
+- STĀVOKLIS: aktīvas grupas joprojām nav; gatavs nākamajai vienai
+  grupai pēc starta pogu protokola. Orientāciju katrai bildei
+  novērtēt inventarizācijā un pagriezienus fiksēt grupas ierakstā.
+
+## BRIA RMBG-1.4 vienas bildes pilots (2026-10-21)
+- Lietotājs pēc dverso lapas analīzes apstiprināja izolētu testu ar
+  vienu attēlu: `MVIMG_20261020_161146.jpg`, 3072×4096,
+  14 563 477 baiti, SHA-256
+  `50f58532febffe031b12e312f799f7751ecb36fb01c24a717e73535084959e8a` (skat.
+  testa JSON). Šī nav jauna produktu grupa un nav sākts ražošanas loop.
+- Vidu atjaunoja ar `setup_v2.py`. BRIA modelis lejupielādēts tikai uz
+  `/var/tmp/bria_test/model_quantized.onnx`: 44 403 226 baiti,
+  SHA-256 `a6648479275dfd0ede0f3a8abc20aa5c437b394681b05e5af6d268250aaf40f3`.
+  Bilde netika sūtīta ārējam servisam; abi modeļi palaisti lokāli.
+- BRIA noklusējuma (kvadrātā izstiepta 1024×1024) rezultāts:
+  segums 0,7637, viena komponente 1,000, closeup QA PASS;
+  inference 2,646 s, kopā skriptā 3,354 s, max RSS 955 268 KB.
+  Garantētās auduma zonas (apakšējā kreisā daļa un abas kabatas)
+  visas bija 100% virs sliekšņa 128.
+- ISNet salīdzinājums uz tās pašas bildes: segums 0,1643, lielākā
+  komponente 0,7127; modelis izvēlējās galvenokārt kabatas, šuves un
+  birku, bet apakšējo audumu gandrīz pilnībā izlaida. Worker wall
+  6,341 s (predict 3,076 s), child max RSS 1 171 420 KB.
+- Binarizēto masku IoU ir tikai 0,2148; BRIA-only daļa ir 0,5997 no
+  kadra, ISNet-only 0,0002. Secinājums: BRIA šajā grūtajā auduma
+  tuvplānā atrisina galveno semantisko problēmu, ko ISNet neatrisina.
+- [ ] Būtisks defekts: redzamais papīra/ēnas ķīlis starp bikšu krokām
+      (92 596 px pārbaudes daudzstūris) BRIA maskā ir 100% virs 128
+      sliekšņa ar mean alpha 0,9957 — tas tiktu saglabāts kā apģērbs.
+      Tāpēc BRIA masku pagaidām nedrīkst bez papildu QA/korekcijas
+      likt ražošanā. Malu attiecību saglabājošs letterbox variants
+      defektu neizlaboja (wedge mean alpha 0,9959; segums pat 0,867).
+- Testa materiāli tika sagatavoti `output/bria_test/`
+  (`BRIA_RMBG14_161146_SALIDZINAJUMS.jpg`,
+  `BRIA_RMBG14_161146_ZOOM.jpg`,
+  `BRIA_RMBG14_161146_REZULTATI.json`) un parādīti lietotājam.
+  Ražošanas kods nav mainīts; pirms iespējamas integrācijas
+  nepieciešama papildu caurumu/fona savienojamības QA, korekcijas
+  stratēģija un BRIA licences pārbaude.
+- [x] Lietotājs ar pogu izvēlējās `Dzēst testu`. Izdzēsti 4 darba
+      telpas faili (avots + 2 audita JPG + rezultātu JSON), kopā
+      17 607 208 baiti; notīrīti arī `/var/tmp/bria_test` pagaidu
+      artefakti. Pēc tīrīšanas `/home/user` ir 3 271 497 baiti.
+      Saglabāts tikai šis teksta rezultāts un darba kods/dokumentācija.
+- STĀVOKLIS: BRIA pilots ir slēgts; aktīvas produktu grupas nav.
+
+## Pārlūka BG rīku izpēte (2026-10-21)
+- Pēc lietotāja ierosinājuma veikts ierobežots interneta pētījums par
+  dverso līdzīgām klienta puses fona noņemšanas lapām un atvērtā koda
+  projektiem. Neviena produktu bilde netika augšupielādēta; ražošanas
+  kods nav mainīts.
+- Pilns kopsavilkums un avotu saraksts: `PETIJUMS_BROWSER_BG.md`.
+- Galvenais secinājums: lielākā daļa šādu lapu izmanto vienu no trim
+  ceļiem — ISNet, BRIA RMBG-1.4 vai BiRefNet-lite. BRIA ir stiprākā
+  mūsu pārbaudītajā tuvplānā, bet tās nekomerciālā licence ir šķērslis
+  ražošanai; nākamais loģiskais vienas bildes kandidāts ir optimizēts
+  MIT licences BiRefNet-lite ONNX eksports.
+- Pārņemamas idejas: modeļu salīdzinājuma laboratorija vienai bildei,
+  border flood-fill/paper-leak QA, SlimSAM tipa punktu korekcija,
+  guided filter tikai malas joslā, blur-fusion krāsu dekontaminācija,
+  īstas ēnas clean-plate ekstrakcija un BG0 tipa modeļu reģistrs ar
+  timeout/fallback kāpnēm.
+- STĀVOKLIS: tikai izpēte pabeigta; jauna modeļa tests vēl nav sākts
+  un aktīvas produktu grupas nav.
+
+## BiRefNet-lite dzīvotspējas posms (2026-10-21)
+- Lietotājs apstiprināja sākt ar izpētes ieteikumiem. Darba telpā nav
+  mājas testa bildes (tikai parauga atsauces un ekrānuzņēmums), tāpēc
+  vispirms veikts tikai modeļu CPU/RAM dzīvotspējas tests.
+- [ ] Evan native-DeformConv BiRefNet 1024 (91 708 456 baiti):
+      sesija izveidojās, bet inference tika nogalināta ar exit 137
+      arī ar zema RAM ORT iestatījumiem. Šai 1,9 GB videi neder.
+- [ ] `studioludens/birefnet-lite-512` FP16 (98 484 532 baiti): arī
+      OOM inference laikā; GatherND ceļš nav piemērots.
+- [x] BG0 optimizētais `int8-full-512.ort` (55 563 408 baiti,
+      SHA-256 `6fa08dc7df0417597454e52e2b721b2c190b13545a46a6bd3a8bac1ebf0709dc`)
+      izturēja vārtus: sesija 0,881 s, inference 3,754 s, max RSS
+      740 336 KB. Uz parauga atsauces segums 0,3335 un vizuāli pilns
+      siluets; tas pierāda tikai izpildāmību, ne mājas tuvplāna kvalitāti.
+- Testa artefakti: `output/birefnet_test/BG0_BIREFNET512_SMOKE.jpg`
+  un `.json`. BG0 modelis atrodas tikai `/var/tmp/birefnet_test/`.
+- NĀKAMAIS SOLIS: vajadzīga viena grūta mājas tuvplāna bilde īstajam
+  BG0 BiRefNet-lite pret BRIA/ISNet salīdzinājumam; vislabāk tā pati
+  iepriekšējā `MVIMG_20261020_161146.jpg`, jo tai jau ir BRIA/ISNet
+  mērījumi. Ražošanas kods joprojām nav mainīts.
+
+## BG0 BiRefNet-lite reālais vienas bildes tests (2026-10-22)
+- Lietotājs atkārtoti augšupielādēja tieši to pašu
+  `MVIMG_20261020_161146.jpg`; SHA-256 sakrīt ar iepriekšējo BRIA
+  pilotu. Šis joprojām ir izolēts tests, nevis jauna produktu grupa.
+- [ ] BG0 dzimtajā 512×512 kvadrāta ievadē pilnībā izgāzās: visi
+      logits bija negatīvi (maks. -9,75), segums 0,0000. Aspect
+      letterbox ar pelēkām joslām deva tikai 0,2412.
+- [x] Diagnostika atrada konteksta triku: samazinot oriģinālu līdz
+      80% un novietojot to 512×512 kanvā ar no fona nomērītu papīra
+      krāsu `RGB(206,202,190)`, BG0 deva segumu 0,7455, vienu
+      komponenti un closeup QA PASS. IoU pret BRIA 0,9750; 65%
+      variants deva 0,7473 un IoU 0,9770.
+- BG0 pad80 garantētās auduma zonas visas ir 100%; fona ķīlī kļūdaini
+  iekļauti 37,29% pikseļu pret BRIA 100%. Tātad BG0 ar kontekstu ir
+  semantiskiski līdzvērtīgs BRIA un šajā konkrētajā defektā labāks,
+  bet ķīlis vēl nav pilnībā tīrs.
+- Laiki/RAM: BG0 pad variants inference 2,724 s tajā pašā sesijā;
+  atsevišķs BG0 process 3,248 s un 839 244 KB. BRIA 2,310 s /
+  924 900 KB; ISNet predict 2,637 s / 1 166 760 KB child RSS.
+- [ ] Guided-filter A/B noraidīts: pārejas mediāna pasliktinājās no
+      9 px līdz 14–29 px (1536×2048 mērogā), nenoteiktā alfa pieauga
+      no 1,68% līdz 2,21–3,18%. Pašreizējo malas apstrādi ar to
+      neaizstāt bez jauna, labāk pamatota varianta.
+- Testa materiāli: `output/birefnet_test/`
+  (`BG0_BIREFNET_161146_SALIDZINAJUMS.jpg`, `_ZOOM.jpg`,
+  `_GUIDED_ZOOM.jpg`, `_REZULTATI.json`).
+- STĀVOKLIS: BG0 + 80% papīra konteksta apmale ir daudzsološs
+  eksperimentāls tuvplānu fallback kandidāts ar MIT modeli, bet vēl
+  nav integrēts ražošanā. Pirms integrācijas jāvalidē uz citiem
+  audumiem un jāizveido paper-leak QA/korekcija. Lietotājs ar pogu
+  izvēlējās testa bildi un audita failus pagaidām paturēt.
+
+## 2026-10-22 — Papīra noplūdes QA + korekcija + regresija (3. solis)
+
+Pilna atskaite: `PAPIRA_NOPLUDES_QA.md`. Kods: `lab/`.
+
+- [x] `lab/lab_common.py` — modeļu lejupielāde ar SHA-256 pin, `pad_with`
+      (audekls = garā mala / pct; agrākā īsās malas definīcija deva
+      negatīvu nobīdi uz 4:5 foto), `alpha_stats`, `open_rgb` ar rotāciju.
+- [x] `lab/lab_bg0.py` — BG0 BiRefNet-lite 512 (int8, 55 563 408 B,
+      SHA `6fa08dc7…`) palaišana; ImageNet normalizācija, sigmoida
+      ārpus modeļa, 1 pavediens, izslēgti arenas/mem-pattern.
+- [x] `lab/lab_leak.py` — fona krāsas mērītājs (divi gaišuma režīmi,
+      uzvar gludākais), trīskanālu detektors (dC + tekstūra + L_min ar
+      kvantiļu sliekšņiem) un deterministiskā ģeodēziskā korekcija.
+- [x] ΔE/Youden sliekšņu metode **noraidīta**: 1 RGB vienības izmaiņa
+      pārlēca slieksni 14.63 → 7.39. Aizstāta ar kvantilēm.
+- [x] Injekcijas tests `lab/test_leak_injection.py`: 204 800 px papīra →
+      zonde DUBIOUS (99.99 % atrasts) → korekcija izņēma 99.99 % injekcijas,
+      **0 px ārpus**, 0 pievienotu → zonde PASS 0.0 %.
+- [x] 161146 (BG0, pad 80 %): segums 0.7472, infer 2.2 s, zonde PASS 0
+      noplūdes, garment_fpr 0.18 %, ticamība "marginal".
+- [x] Paraugi, BG0 pret ISNet: IoU 0.9924 / 0.9836 / 0.9898 / 0.4340;
+      uz parauga 4 BG0 0.9298 pret ISNet+GrabCut 0.4035, un zonde ISNet
+      maskai atzīmē 9.606 % papīra — godīgs patiesi pozitīvs.
+- [x] **Viltus pozitīvu atklājums**: vaļīgā ΔE zonde uz 161146 deva
+      7 "noplūdes" (63 790 px); acu pārbaude parādīja, ka visas 7 ir
+      apģērba detaļas — gaišāki džinsa laukumi un baltā cauruļu bante.
+      Stingrā zonde atgriež 0.
+- [x] Pilnas darbplūsmas regresija uz 4 paraugiem: 4/4 izgatavotas,
+      vid. 8.61 s/bilde, čekeris 2/4 PASS. Neiztur paraugi 3 un 4 —
+      full-bleed tuvplāni, kur ISNet atrod fragmentu un auto-seed
+      GrabCut norij kadru; gala vārti D/F to pareizi noraida.
+      Nav orientācijas regresija (`rotation_cw = 0` visiem).
+- [ ] NAV integrēts ražošanā. Vārti paliek A2, B, C, D, F, H, T.
+      Zonde maksā 5.4–6.4 s uz 12.6 MP — pirms iekļaušanas jārēķina
+      samazinātā mērogā.
+
+## 2026-10-22 (turpinājums) — lietotāja lēmumi izpildīti daļēji
+
+- [x] **GATE_L_paper_leak** pievienots `checker_v2.py` kā **brīdinājums**:
+      `pass=None`, `advisory=True`, `ALL_PASS` to ignorē, kļūda → `skipped`.
+      Zonde rēķinās uz ≤3000 px, maksā 1.8–2.1 s. Pārbaudīts uz 4 paraugiem:
+      PASS 0.000 / 0.000 / 0.375 %, DUBIOUS 9.606 % (paraugs 4, pareizi).
+      Vienību testi 8/8.
+- [x] `paper_background_mask()` — modelim nepiederoša fona segmentācija no
+      izmērītā papīra. Segums pret atsauci: 161146 +0.025, paraugi 1–2
+      +0.033/+0.025, paraugs 3 +0.078, paraugs 4 **+0.004**.
+- [!] **Tuvplānu auto-sēklas labošana pārtraukta**: `closeup_mask()` atkārtota
+      izsaukšana ar saglabāto `cfg` atgriež tukšu masku, lai gan darbplūsmā tā
+      deva 0.8278/0.4035. Sāniedarbība nav izskaidrota → ražošanas kods
+      netiek mainīts. Nākamais solis: padot `paper_background_mask()` kā
+      raster `sure_bg` tieši GrabCut, ar atsevišķu parametru un testu.
+- [ ] Gaida lietotāja bildes: 3–5 dažādi foni un vismaz 2 balti apģērbi ar
+      baltām etiķetēm, lai pabeigtu noplūdes validāciju.
+
+## 2026-10-22 (turpinājums 2) — 3 jauni testa attēli, BG0 spriedums
+
+- [x] Lietotājs apstiprināja: 3 bildes ir viss komplekts, laist pilnu salīdzinājumu.
+- [x] `paper_leak.measure_paper_colour` ieguva `plausible` karogu (papīrs ir
+      gluds; ja gludākais režīms ir teksturēts, kadrā nav papīra). Uz 122248
+      (koka grīda) tas pareizi atgriež `no paper-like backdrop`.
+- [x] `lab/run_compare3.py`: ISNet atsevišķos procesos, tad BG0 + papīra-fons +
+      GATE_L. Pirmā versija nomira ar exit 137 (vecāks turēja BG0 sesiju un
+      pilnas izšķirtspējas mozaīkas) — pārrakstīta divās fāzēs.
+- [x] Rezultāti: BG0 → 0.9990 / izlaists / 0.0000. **BG0 neiztur
+      generalizāciju**; ieteikums to slēgt. Papīra-fons → 0.6480 / 0.9737 /
+      0.6135. Uz spīdīgās jakas papīra-fons izgriež caurumus spoguļatspīdumos.
+- [x] GATE_L uz jaunajiem: 160550 ISNet → DUBIOUS 5.545 % (maska ir fragments),
+      161944 → PASS 0.000 %.
+- [x] Salīdzinājuma lapa `output/birefnet_test/COMPARE3.jpg` un `COMPARE3.json`.
+- [ ] Atlikts: spīduma un ēnas labojumi papīra-fona prototipā, tad atkārtot
+      šo pašu testu. 122248 (koka grīda) paliek ārpus papīra režīma.
+
+## 2026-10-22 (turpinājums 3) — BG0 arhivēts, defekti parādīti
+
+- [x] Lietotāja lēmums: **BG0 arhivēt bez turpmākas izmantošanas**. Statuss
+      ierakstīts `PETIJUMS_BROWSER_BG.md` sākumā un `PAPIRA_NOPLUDES_QA.md`
+      9.2. sadaļā. `lab/lab_bg0.py` paliek tikai kā vēsturisks pieraksts.
+- [x] Defektu tuvplāni: `output/birefnet_test/DEFECTS.jpg` + `DEFECTS.json`.
+      Trīs atklājumi: (1) ēnas pārejas josla pie pleca malas tiek uzskatīta
+      par papīru; (2) uz jakas fona krāsa tiek izmērīta no pašas jakas un
+      `paper_background_mask()` joprojām izpildās, lai gan `plausible=False`;
+      (3) robeža ir raiba un ēna zem apģērba paliek priekšplānā.
+- [x] Trīs konkrēti labojumi formulēti (`PAPIRA_NOPLUDES_QA.md` 10.2).
+- [ ] Nav ieviesti — gaida lietotāja apstiprinājumu.
+
+## 2026-10-22 (turpinājums 4) — 3 labojumi, 8 attēlu retests
+
+- [x] Labojums 1 (aizsargs `plausible`): 122248 tagad **REFUSED**, nevis
+      0.9737. Strādā pilnībā.
+- [x] Labojums 2 (sasniedzamība no malas caur mazu gradientu + `L_floor` no
+      papīra kodola, ne astes): 160550 pleca defekts novērsts, bet segums
+      0.648 → 0.700 (ēna tagad paliek priekšplānā).
+- [!] Labojums 3 (ēna): `shadow 0.0 %` visos 8 — modelis pārāk šaurs.
+- [!] Kopumā segums pasliktinājās uz 160550, 161146, 161944; uz studijas
+      paraugiem 1–4 bez izmaiņām.
+- [x] Secinājums: abi labojumi **pārbīda kļūdu** (apēda apģērbu → patur ēnu).
+      Cēlonis fundamentāls: ēnots papīrs un apgaismots audums var būt vienā
+      gaišumā. Vajadzīgs ēnu modelis, nevis slieksnis.
+- [ ] Prototips NAV gatavs ražošanai. `workflow_v2.py` nav mainīts.
+
+## 2026-10-22 (turpinājums 5) — ēnu modelis, mērogs, papīra-fona slēgšana
+
+- [x] Ēnas modelis pārrakstīts uz **apgaismojuma attiecību** pret tuvāko papīra
+      pikseli (josla 0.50–0.98), nevis absolūto gaišumu.
+- [x] `paper_background_mask(work_scale=N)` — lēmums rupjā mērogā, atpakaļ
+      uz augšu ar bilineāru + vienu closing. Fragmentācija 2891 → 1 komponente.
+- [x] Gradienta vārti: blurē L* pirms diferencēšanas.
+- [!] Ēnas modelis dod `shadow 0.0 %` — instrumentēts soli pa solim: ķēde
+      strādā, bet atrod maz, jo ēna jau ir fona maskā, bet 161944 "ēna" ir
+      papīra krokas.
+- [x] **Vizuāls gala tests** (`output/birefnet_test/PAPERBG_VERDICT.jpg`):
+      160550 → papīrs ķērpjains; 161944 → papīra krokas tiek uzskatītas par
+      audumu (segums 0.656 pret patiesību ~0.30).
+- [x] **Lēmums: papīra-fona prototips slēgts** tāpat kā BG0. Trīs labojumu
+      kārtas mainīja kļūdas formu, nevis to novērsa.
+- [x] Regresijas pārbaude: noplūdes zonde un GATE_L nav bojātas — injekcijas
+      tests atkārtots pēc visām izmaiņām: 204 800 px → DUBIOUS, izņemti
+      99.99 % iekšienē, **0 px ārpus**, pēc tam PASS.
+- [x] `paper_leak.py` ieguva statusa galveni: `leak_probe`/`correct_leaks`
+      VALIDATED, `paper_background_mask` CLOSED.
+- [x] Infrastruktūra: `/var/tmp` tiek tīrīts arī darba laikā (ne tikai starp
+      gājieniem) → lielie faili jālasa no `/home/user/uploads`, un katrs
+      attēls jāapstrādā atsevišķā procesā. `setup_v2.py` pārinstalēja vidi;
+      BG0 SHA pārbaudīts (`6fa08dc7…`).
+
+## 2026-10-22 (turpinājums 6) — 1. prioritāte pabeigta, 3. atbildēta
+
+- [x] `closeup_mask_qa(binary, orig)` tagad paredz GATE_D/F: nepārklāts
+      audums + malu kritērijs (>=3 malas). Slieksnis 0.05 atvasināts no
+      datiem (labās maskas 0.0072–0.0200, bojātā 0.5120 → 25x atstarpe).
+- [x] Tekstūras reference ņemta tikai no papīrveidīgiem rāmja pikseļiem —
+      citādi apģērbs, kas pieskaras malai, piesārņo slieksni (to atrada tests).
+- [x] Vienību testi **9/9**; jauns `test_closeup_qa_predicts_external_gates`.
+- [x] Darbplūsma: maker 2/4 pabeigta, čekeris **2/2 PASS**, 2 atzīmētas
+      `needs_seed_review` ar priekšlikumiem; `_meta.ignored_incomplete` tās
+      uzskaita. **Neviena klusi bojāta bilde vairs netiek izdota.**
+- [x] Atklāts īstais cēlonis: paraugs 3 maska ir **laba** (0.0200), problēma ir
+      **kompozīcija** (2 malas). Paraugs 4 maska ir **bojāta** (0.5120).
+      Tāpēc 2. prioritāte jāsadala: kompozīcija (3.) un sēkla (4.).
+- [x] 3. prioritāte atbildēta: GrabCut deterministisks (3/3 = 0.8278). Agrākais
+      0.0000 = bojāts faila nolasījums. Jauns atradums: GrabCut karājas uz
+      deģenerētiem vienkrāsainiem ievadiem (>15 min, 100 % CPU).
+
+## 2026-10-22 (turpinājums 7) — koriģēti skaitļi, divas manas kļūdas
+
+- [x] Atklāta un labota kļūda: `closeup_mask` atgriež 0/1, nevis 0/255, tāpēc
+      `binary > 128` bija nepatiess visur (no tā "0/4 malas", "0.91").
+- [x] Malu noteikums piemērojams tikai tuvplāniem (`coverage >= 0.60`).
+- [x] Otrs reāls labojums: `auto_closeup_seed_config` pievienots
+      `L* >= 0.60 x L*_papīra`, lai tumšs audums, kas pieskaras malai, nekļūtu
+      par "drošo fonu". Paraugs 4: **0.4035 → 0.8736**.
+- [x] Gala stāvoklis: maker 2/4, čekeris **2/2 PASS**, 0 klusi bojātu bilžu,
+      2 `needs_seed_review` ar konkrētu iemeslu, testi **9/9**.
+- [ ] 2. prioritāte: paraugam 3 vajag kompozīcijas lēmumu (maska laba),
+      paraugam 4 — sēklas labojumu apakšā pie ēnas.
+
+## 2026-10-22 (turpinājums 8) — AI piesaistes punkts un apmales tests
+
+- [x] Inventarizēts: AI = **viens** ISNet izsaukums 768x1024, tikai varbūtību
+      lauks. Viss pārējais deterministisks.
+- [x] Apmales tests (6 attēli x 3 režīmi): apmale izlabo abus pilnbleed
+      tuvplānus ar tumšu audumu — 0.0859 → 0.8256 un 0.0277 → 0.9291
+      (kļūda +0.001 pret atsauci).
+- [x] Bet apmale sabojā gaišu audumu uz gaiša papīra (160550 → 0.8075 pret
+      patiesību 0.62; pie pad 0.65 → 0.9996).
+- [x] Noteikums: apmale tikai kā **retry**, ja pirmais gājiens < 0.25 segums.
+      4/6 pareizi; abi pārējie ir gaiša-auduma gadījumi.
+- [x] Mana testa kļūda: proxy izmēra maska tika apgriezta pilna izmēra
+      koordinātēs. Tests, kas noliedz zināmu labu gadījumu, ir bojāts tests.
+
+## 2026-10-22 — apmales retry ražošanā, auto-sēklu ceļš dzēsts
+- Retry kā RETRY (ne režīms) strādā: s3 0.8252, s4 0.9291, 161944 0.5449.
+- Kompozīcija pārbūvēta: leksikogrāfisks mērķis (4 malas pirms izmēra) + joslu apgriešana.
+- Divi gates caurumi aizvērti: `silhouette_fill` ≥ 0.60 (GATE_C + ai QA), GATE_P (papīrs pie kadra malas).
+- GATE_D stūri: krāsu slieksnis → maska; viens pikselis → 8×8 laukums.
+- `auto_closeup_seed_config` dzēsts. `closeup_mask` paliek tikai 160550 dēļ (atvērts lēmums).
+- 6/7 pabeigtas, 6/6 PASS, vidēji 12.75 s/bilde.
+- Pad 0.80 -> 0.90; `paper_like` ieguva augšējo robežu (balts audums vairs nav "papīrs").
+- Jauns: mala tiek vērtēta JOSLĀ (0.5 % no malas, slieksnis 0.85), nevis vienā rindā.
+- GATE_D stūru klauzula izņemta (nespēja atšķirt ēnu/mīksto alfu/papīru).
+- 8 bilžu regress: 6 PASS, 1 GATE_P (122248), 1 refused (161146). Vidēji 12.18 s/bilde.
+- 160550 "papīra josla" izrādījās MANA kļūda (nepareizs salīdzinājums); godīgs tests: 2.6 % atšķirību, tas ir LUT + ēna. Defekta nav.
+- Otra modeļa pārbaude: bria-rmbg 1.02 GB -> OOM; u2net_cloth_seg -> OOM (137). Otrs modelis šajā sandboxā nav izpildāms.
+- .rembg (169 MB) un bria_test izdzēsti; darba telpa atpakaļ uz 127 MB.
+- Uzbūvēts `loop_engine.py`: bāze -> remēdiju bibliotēka -> gala brauciens -> trace + eskalācijas lapa.
+- Maker ieguva `--pad`, `--force-pad-retry`, `--overrides`; remēdija maina masku, nevis kompozīciju.
+- Dzinējs pats sev atklāja 2 kļūdas: exit 2 pie godīga atteikuma; atteikts attēls tika skaitīts kā PASS.
+- Pirmais brauciens: 6/8 PASS, 2 eskalācijas ar pierādījumiem (287.3 s).
+- Jauns komplekts (zila jaka + balts krekls): 2/2 PASS; 121740 10.6 s, 160550 16.6 s.
+- Atrasts kluss krāsu defekts: WB no koka grīdas atņēma ~4.6 b* abiem audumiem. Ieviesta fona hromas pārbaude + GATE_K (±2.5).
+- Viena bilde (PXL...PORTRAIT.ORIGINAL, guļus 4080x3072): 1/1 PASS, 17.05 s, 4 malas 1.0.
+- Salabots: rotācijas atslēga ar vairākiem punktiem; GATE_K avārija pie rotētas bildes; graudaina kartona atbalsts ar `profile_relaxed` ierakstu.
+- Testi: 11/11.
+- Ātrums 17.05 -> 12.80 s (tajā pašā logā; uz klusas mašīnas ~10 s), vārti nemainījās.
+- `isnet_native.py`: ISNet tieši uz onnxruntime, imports 2.4 s -> 0.03 s; maska bitu identiska (`test_isnet_parity.py`).
+- Arēna izslēgta: otrā inference vienā procesā vairs nekrit ar SIGKILL (1215 MB -> 611 MB).
+- Viens workers abiem piegājieniem; papīra mērījums koplietots; PNG līmenis 1.
+- Jauna bilde 124339475 (balts vafeles krekls uz pelēka kartona): dzinējs ATTEICA, 1 eskalācija. ISNet saķer tikai gludās aproces (segums 3.1 %); fons un krekls tekstūras ziņā neatšķirami. Sk. QA §23.
+- Salabots: `load_reports()` vairs nekrīt ar FileNotFoundError, ja maker atteicis visu bildi.
+- Jauns ceļš `plate_texture` (plate_segment.py): kad ISNet neredz apģērbu, masku dod virsmas tekstūras mērījums. 124339475 -> PASS, 13.64 s.
+- Pamats: lokālais L* std pusizmērā — kartons 2.8, vafeles adījums 12.8, Otsu 7.6. Pilnā izšķirtspējā atstarpe pazūd.
+- Robeža kalibrēta +2 px (mērītā nobīde −2.3 px); QA: iekšmala 0.655, ārējā 0.365, fons iekšā 0.007.
+- Salabots: `load_reports()` vairs nekrīt, ja maker atteicis visu bildi.
+- 124339475: novērsti divi viltus caurumi (ēnas kroka L* 20, atspīdums L* 79) — fona komponents tagad jābūt arī papīram līdzīgam, L_TOL (-14,+8). Mērīta kalibrācija.
+- Kadrējuma politika: `--framing auto` — slēgts siluets -> novietots ar malām; atvērts -> kadrs kā nofotografēts. Fons 1.4 % -> 28.8 %.
+- GATE_F pārformulēts: sargā izgudrotu taisnu griezienu (mala `cut`), nevis pieprasa 3 malas. Mala ir margin / bleed (mantots) / cut (izgudrots).
+- Determinsms: 2 skrējieni -> bitu identiski SHA. Testi 11/11.
+- Metēnā ēna pie piedurknes malas (izskatījās kā krekla turpinājums): atcelts gradienta precizējums (apgrauž kontūru) un aklā dilatācija +2 (to pastiprināja). Ieviests `_trim_shadow` + `SHADOW_TRIM_PX=3` (mērīts: 98 % auduma sākas <=4 px).
+- Segums 0.7058, ALL_PASS, 13.23 s. Determinsms pārbaudīts.
+- Kadrējums tagad ir lietotāja izvēle: `--framing slamjam|original|auto` (abi slāņi). `slamjam` = produkta kadrs ar fona malām; prasa slēgtu siluetu, citādi ziņo un atgriež `original`.
+- `slamjam` pārbaudīts uz īstas bildes ar slēgtu siluetu: fons 65.9 % pret references 64.3 %, malas 0/0/0/0.
+- Profesionālās prakses audits (Nuke IBK, edge extend, light wrap; Photoshop frekvenču separācija; ghost-mannequin ēnas; marketplace specifikācijas): 12 tehnikas, katra ar mērījumu. Dokuments `PROFESIONALAS_METODES.md`.
+- Atrasts īsts defekts: ēna krita 54° pret gaismu no 315° (~70° kļūda, "divas saules"). Izmērīts 4 metodēm; uzticamākā — fona plāksne ar inpaint (135°, reziduāla std 2.69 L*). Labots uz 125°.
+- `dx,dy` cietie skaitļi (3 kopijas: loop.py:408/496, workflow_v2.py:1155) konsolidēti `SHADOW_ANGLE_DEG` + `shadow_dir()`. Apģērba kodolā 0.00 % izmaiņu, maska nemainīta, determinisms bitu identisks, testi 11/11.
+- Noraidīts ar mērījumu: graudu saskaņošana (plakans fons ir marketplace prasība), kontakta ēna (oriģinālā nav asa pleca), light wrap/screen subtraction (ΔR≈ΔG≈ΔB, noplūdes nav).
+- Atklāta latentā kļūda debugam: `--rerender-saved` bez `--rotate` salauž renderēšanu (`open_rgb` ignorē saglabāto `rotation_cw`) un pārrēķina grade citādi.
+- Sistēmas debug 2026-10-23: 11 faili, 5061 rinda. Statiskā tīra (0 nenoteiktu mainīgo). Atskaite `DEBUG_2026-10-23.md`.
+- KRITISKI: piegādātais PARAUGS netiek saskaņots ar MASTER. 6/6 apzinātas sabotāžas (izgudrots plankums, izdzēsts apģērbs, blur, nobīde, iekrāsošana, troksnis) izgāja ar ALL_PASS=True. Vienīgā gāte, kas paraugu saturiski skata, ir GATE_K (viens skalārs b*).
+- KRITISKI: rotācija ir globāls sānkanāls, nevis ieraksta daļa. `render_one` ignorē `rec["rotation_cw"]`; `--rerender-saved` bez `--rotate` krīt, maskas ceļš klusi pārsegmentē nepareizā orientācijā. Checker to dara pareizi — asimetrija.
+- `--rerender-saved` pārrēķina grade citādi (154.66 vs 158.94) — nav līdzvērtīgs ceļš.
+- Pierādīts, ka gātes uz master/masku STRĀDĀ: 5/5 sabotāžas noķertas (GATE_A2, B, H).
+- Robustums: 3/3 sliktas ievades nenogāž partiju (bet traceback, ne strukturēta kļūda). Atmiņa 984/1982 MB. loop_engine 1/1 PASS 38 s.
+- GATE_R ieviests (`checker_v2.py`): piegādātais JPEG pret master, 3 lielumi (fore_p99 ≤24, bg_p99 ≤4, edge_ratio 0.80–1.85), sliekšņi = viduspunkti starp mērīto likumīgo un mērīto defektu. 6/6 sabotāžas noķertas, bāze iztur.
+- `test_gate_r.py` — pastāvīgs regresijas tests (7/7). `test_workflow_v2.py` 15/15 (+4).
+- Rotācija: `open_rgb_recorded()` lasa `rec["rotation_cw"]`, nevis globālo; aizstāts 3 vietās. `--rerender-saved` bez `--rotate` tagad dod bitu identisku rezultātu.
+- Atskaite labota: `--rerender-saved` grade neatbilstība NEAPSTIPRINĀJĀS — bija novecojis report no neizdevušās ISNet palaišanas (rotācijas kļūdas sekas).
+- `/var/tmp` iztīrīšanās starp sesijām apstiprināja atradumu 3.4: sistēma atteicās godīgi (`NAV GATES`), `setup_v2.py` atjaunoja 74 s.
+- Mirusī koda tīrīšana: pyflakes 15 -> 0, neviens nav `# noqa`. STRAIGHT_RUN/STRAIGHT_TOL izņemti ar paskaidrojumu (izgudrotu griezienu nosaka `inherited`, ne kontakta garums).
+- BG vienā avotā: `loop.BG_GRAY`; checker.py un checker_v2.py to importē (bija 243 trīs failos).
+- Ievades validācija: `probe_source_image()` pirms jebkā. Bojāts/tukšs JPEG vairs neaiziet līdz ISNet apakšprocesam, tāpēc traceback vairs netiek ielīmēts `report` `error` laukā. Tukšs fails atkrīt uzreiz (bija 7 s).
+- Trūkstošie faili: `raise FileNotFoundError` -> strukturēts paziņojums + exit 2.
+- Testi 20/20 (+5 TestSourceProbe), GATE_R 7/7, loop_engine 1/1 PASS 53.8 s, izvade bitu identiska.
+- DEBUG pozīcijas 1-6 visas aizvērtas.
+- `slamjam` pārbaudīts uz īstas bildes (džinsi): siluets slēgts, malas 0/0/0/0, kompozīcija slamjam, bbox 63.3%x78.0%, fons 70.8%, ALL_PASS.
+- Rotācija šai bildei OBLIGĀTA: bez tās fons 79.7% (josla), 90 apgriež otrādi, 270 pareizi. Mērījums neatšķir 90/270 — vizuālā pārbaude obligāta.
+- ĪSTA KĻŪDA atrasta un labota: QA pieņemta `isnet_pad_retry` maska tika izmesta (`if method == "plate_texture"` ignorēja retry), pretrunā ar sava komentāra `if retried: pass`. Ar --rotate 90 tas deva STOP, lai gan retry pieņēma (overflow 0.0, uncovered 0.0045).
+- GATE_C kalibrācijas kļūda: `silhouette_fill` 0.60 bija uz vienu kreklu; V-veida bikses dod 0.591. Aizstāts ar caurumu pārbaudi (`binary_fill_holes`, caurumi kas nav savienoti ar rāmi) + grīda 0.55.
+- GATE_R kalibrācijas kļūda: bg_p99 mērīja arī ēnas gradientu, kur paraugs un reference atšķiras PĒC KONSTRUKCIJAS (ēna renderēta no jauna audekla mērogā, blur 25 vs 35). Tagad bg_p99 tikai uz plakano fonu; ēna paliek informatīvi bg_shadow_p99.
+- Zināma vājuma vieta: SILHOUETTE_FILL_FLOOR 0.55 ir 0.007 virs sintētiskā cauruma — divu paraugu robeža, dokumentēta kodā.
+- Regresija: krekls #2 `663179f3` bitu identisks, ALL_PASS; GATE_R sabotāžas 7/7; GATE_C 5/5 gadījumi pareizi; testi 20/20.
+
+## 2026-10-23 — melnā līnija gar malu novērsta (§32)
+
+- Sakne: `SHADOW_ANGLE_DEG = 125°` bija iekodēts pēc vienas bildes. Džinsiem ēna oriģinālā krīt pa labi/uz leju, tāpēc labajām malām ēnas nebija un tumšā džinsa mala lasījās kā melna līnija.
+- Ēnas virziens tagad MĒRĪTS katrā bildē (`loop.measure_shadow_angle`, gradienta-koriģēts: tuvu 4-24 px pret tālu 60-120 px tajā pašā virzienā). Džinsi 3.6°, krekls 87.9°.
+- Divas mērīšanas metodes atmestas ar mērījumiem: kontūras skenēšana (vājš signāls) un krusteniskā korelācija (kreklam 131°, acīm redzami nepareizi, jo aizņem 70% kadra).
+- Atklāts līdztekus: globālais LUT + maker atskaite pārrakstījās katrā palaišanā, tāpēc iepriekšējo bilžu nevarēja verificēt (GATE_A2 max_diff=4, viltus kritums). Labots: LUT katrai bildei `output/profiles/`, atskaite uzkrājas, čekeris lieto bildes pašo LUT.
+- Krekls #2 pārrenderēts ar izlaboto modeli: 663179f3 -> bf5287c0 (vecais saglabāts `_accepted/` un `_backup_good/`).
+- Gala: džinsi `0b974708` 14.4 s; krekls `bf5287c0` 18.4 s; čekeris 2/2 PASS; testi 20/20; GATE_R 7/7; pyflakes 0.
+- Neatrisināts: ēnas ATTĀLUMS joprojām fiksēts (43 avota px), tikai virziens mērīts. Oriģināla ēna ir īsāka/blīvāka — nākamais uzlabojums, ne defekts.
+
+## 2026-10-23 — ēna pārāk tumša: modelis pārrakstīts (§33)
+
+- Lietotājs noraidīja iepriekšējo labojumu (SS 082656 krekls, 110348 džinsi): ēna pārāk tumša tieši iezīmētajās vietās.
+- Sakne: vecais modelis = nobīdīts izpludināts siluets ar vienu konstanti 0.26 -> VIENMĒRĪGS PLATO ar asu ārējo robežu. Zoom rāda "uzkrāsotu joslu", ne ēnu.
+- Izpēte (8 avoti): ēna = kontakta + metamā daļa; uz balta fona 8-20 %, ne 26 %; tumsākais PIE malas; dilšana obligāta, citādi "izskatās kā uzlīme"; eksponenciāls exp(-d/λ) ir rendering standarts.
+- Jauns modelis: shade = strength·exp(-d/λ)·window·(ambient + (1-ambient)·w(θ)); strength 0.18, λ 10 px, ambient 0.22, logs uz nulli pirms 80 px.
+- Rezultāts: maksimums 22 L* -> 11 L*, pārcelts no nobīdes vidus uz pašu malu, nulle pie 48 px.
+- Blakusdefekts atrasts un labots: GATE_B mēra master telpā (3072 px), kur 90 px nav tas pats relatīvais attālums kā 2000 px kadrā -> pareiza izvade krita. Slieksnis tagad mērogots, sabotāžas joprojām 6/6.
+- Gala: džinsi `c409ba57` 15.9 s; krekls `c00c4cc6` 18.7 s; čekeris 2/2; testi 20/20; GATE_R 7/7; pyflakes 0.
+- Ierobežojums: ēnas parametri fiksēti, nav mērīti no oriģināla (oriģināls 27 % pie malas, mums 18 % — apzināta kompozīcijas izvēle gaišajam papīram).
+
+## 2026-10-23 — īstais defekts: papīra ēna MASKAS IEKŠPUSĒ (melna maliņa) (§34)
+
+- Divas iepriekšējās iterācijas laboja ēnu ĀRPUS apģērba — abas garām. Lietotājs: "ēnai nebija ne vainas, bet fons kas ir tieši pie biksēm ir melns tā kā fons kas nav nogriezts".
+- Defekts: segmentācija aprija oriģināla papīra ēnu; matē palika 5-20 px josla ar PAPĪRA krāsu. Pikseļu skenēšana: maskas iekšpusē B-R -25, audumam +5…+10 (džinss zilgans, papīra ēna silta).
+- Kāpēc iepriekš neuztvēra: `extend_foreground_colors` apstrādā tikai pikseļus ĀRPUS maskas.
+- 4 neizdevušies mēģinājumi dokumentēti: krāsas aizvietošana (1.4% joslas), alfa atšķetināšana (C_f pats kontaminēts), akls choke (apgraiza siluetu), pa pikselim griezta hroma maska (mala saplīsa robos).
+- Risinājums `decontaminate_rim`: griež GAR KONTŪRU — mēra papīra dziļumu katram kontūras punktam (hroma UN spilgtums), izlīdzina ar gaussian sigma=120 gar kontūru, nobīda punktus uz iekšu. Vidēji 7.3 px, max 16.
+- Rezultāts: malas B-R -15.0 -> -1.0 (audums +10). Melnā josla pazudusi, mala gluda, detaļas saglabātas.
+- Blakusdefekts: `_MASK.png` rakstījās PIRMS apgriešanas -> GATE_R fore_p99=171 viltus kritums. Tagad apgrieztā maska tiek saglabāta kā kanoniskā.
+- Gala: čekeris 2/2 PASS; testi 20/20; GATE_R 7/7; pyflakes 0; džinsi 17.4 s, krekls 20.6 s.
+- Ierobežojums: ja apģērbam ir sprauga tieši malā, normāle var iziet cauri spraugai; ierobežo max_trim_px=16 un MORPH_OPEN 11×11.
+
+## 2026-10-23 §35 — malas kritērijs pārbūvēts uz tekstūru
+§34 (hroma+spilgtums) krita lietotāja pārbaudē. Mērījumi: 73.8 % tumšo pikseļu
+ir dziļi audumā, tāpēc spilgtums neder. Jauns kritērijs: papīra ēna gluda
+(tekstūra 1.4), džinss teksturēts (11–22). Griež gar kontūru, izlīdzina tikai gar
+to; otrs solis noņem izvirzījumus (tikai teksturētiem audumiem). Džinsi
+1d2a493d (20.4 s), krekls 2b4f912c (22.5 s, nav mainījies). Čekeris 2/2,
+testi 20/20, gate_r 7/7. Skat. QA §35.
+
+## 2026-10-23 §35.7 — pakāpienu izlīdzināšana (Vinted produkcijas prasība)
+Lietotājs: bildes vajadzīgas Vinted tirdzniecībai, jābūt bez kompromisiem.
+1:1 pārbaudē atklāts, ka īstais defekts nav krāsu josla, bet **robaina mala**:
+ISNet seko papīra ēnas mēlei un dod taisnstūra pakāpienus ~15 px.
+`MORPH_OPEN 11×11` tos pastiprināja. Labots: kontūru pievelk pie gludās
+līnijas, ja novirze ≤14 px; LINE_AA + shift=4 pildījums; MORPH_OPEN noņemts.
+Noraidīts ar mērījumiem: edge snapping (gradients pie malas 155–235, maska jau
+seko īstajai malai), guided filter (malu izpludina), BiRefNet_lite (neiederas
+1982 MB RAM). Džinsi 600e00ea, krekls 1d93c7a7. Čekeris 2/2, testi 20/20, gate_r OK.
+
+## 2026-10-23 §36 — studijas ēna + fotogrāfiska mala
+Ēna bija 3× vājāka par atsauci (24 vs 87 vienības pie malas, pazuda 50 px).
+STRENGTH 0.18→0.32, FALLOFF 10→18, AMBIENT 0.22→0.55, CUTOFF 80→34.
+"Robainība" nebija ģeometrijā (mūsu kontūra 0.29 gludāka par atsauces 0.45) —
+mala bija šķēru asa. refine_alpha feather 1.6→3.0, contrast 1.65→1.25, band→6.5.
+Vairāk nevar: feather 6.0 krita GATE_H (alfa >8px ārpus) un GATE_R (27>24).
+Džinsi 75f53072, krekls 6b63665d. Čekeris 2/2, testi 20/20.
+
+## 2026-10-23 PIEŅEMTS — §36 džinsi
+Lietotājs: "Ir labi, ļoti labs rezultāts." Džinsi 75f53072 pieņemti un
+saglabāti _accepted/MVIMG_161031_ACCEPTED_75f53072.jpg.
+Krekls 6b63665d arī saglabāts (jaunais, ar ēnu un mīksto malu);
+vecais fallback 663179f3 paliek _accepted blakus.
+Šis ir atskaites punkts: ēna (0.32/18/0.55/34) + refine_alpha (3.0/2.0/1.25/6.5)
++ decontaminate_rim ar tekstūras kritēriju + snap w35 s14. Nediagnostīcēts
+paliek: uploads/IMG_20261023_075010.jpg baltie stieņi pie aprocēm.
+
+## 2026-10-23 Krātuves tīrīšana
+Dzēsts (dublēts vai viennozīmīgi atkritumi, pirms tam pārbaudot):
+- `_backup_good/` 34 MB — rezerves LUT (`grade_profile_v2.json`, sha 316b8164)
+  ir identiska `output/grade_profile_v2.json` un
+  `output/profiles/PXL_...PROFILE.json`; fallsback `663179f3` jau ir `_accepted/`.
+- `_backup_pre_fix_54deg/` 2.7 MB — pirms-54° vecais krekls, aizstāts.
+- `__pycache__/`, `PIRMS_PEC_ena.jpg` — pagaidu artefakti.
+- `/var/tmp/models/birefnet_lite.onnx` 224 MB — BiRefNet, kas neiederas RAM.
+
+Saglabāts tīši:
+- `output/master/` 25 MB — **čekeris to lieto** (`reconcile_reference`), bez tā
+  GATE_R nevar pārbaudīt; izmērīts checker_v2.py:187,258.
+- `.md` dokumentācija (t.sk. QA §31–36), `lab/`, `_accepted/`, `output/`.
+
+Rezultāts: /home/user 98 MB -> 60 MB, 118 -> 95 faili.
+
+## 2026-10-23 §37 — tuvplāni (slamjam stila papildskati)
+Jauns modulis `closeup.py`. Galvenais: tuvplānam nav vajadzīga segmentācija
+(atsaucē apģērbs iet pāri malām), tāpēc nav arī malas defektu. Griež 1:1 no
+master -> asāks par overview (gradienta vid. 213.9 vs 89.9, t.i. 2.4x).
+Logs adaptīvs: lielākais 4:5 ar segumu >=0.88. Akcenti mērīti:
+"detaļa" = Laplacian maksimums, "zīmols" = hromas novirze (trāpīja sarkanajai
+etiķetei). Palielinājums ar Lanczos + UnsharpMask(threshold 3).
+Džinsi 1023x1279 -> 1.96x; krekls 2000x2500 -> 1.00x (bez palielināšanas).
+
+## 2026-10-23 §38 — otrā drēbe (henley), divas bildes + tuvplāni
+Atklāti un laboti TRĪS defekti:
+1) master ēna bija avota mērogā (blur 35), gala — audekla (blur 25); pēc
+   samazināšanas x0.52 tā iznāca 18 px vietā 25 -> GATE_R bg_p99 7-9.
+   Labots ar para_scale: visi ēnas mēri dalīti ar ielīmēšanas koeficientu.
+2) reconcile_reference grieza master pa bbox un nogrieza ēnu ārpus bbox ->
+   viltus GATE_R kritums gar kontūru. Labots ar divslāņu referencei.
+3) test_isnet_parity rādīja uz dzēsto bildi #1 -> neko nepārbaudīja. Pārvirzīts.
+Akcentu kritērijs: Laplacian uz neapstrādāta spilgtuma izvēlas blīvāko
+TEKSTŪRU (tukšs audums). Labots: |Laplacian(gaussian(lum, σ))|, σ=0.003·platums,
+meklē 500x625 logā. Čekeris 4/4, testi 20/20, gate_r OK, parity OK.
+
+## 2026-10-23 — 45° tuvplāni ATMESTI (lietotāja lēmums)
+Visa ar tiem saistītā izstrāde dzēsta pēc lietotāja lūguma: 4 bildes,
+kolāža, JSON, `closeup45.py`, `closeup45_set.py` un QA §39. Šo virzienu
+NEATKĀRTOT. Galvenās bildes nav aiztikts (4/4 PASS).
+
+## 2026-10-23 — krātuves tīrīšana (88 MB -> 41 MB)
+Izdzēsts:
+- `output/master/*_MASTER_1to1.png` (43 MB). Tie ir STARPPRODUKTS un ir pilnībā
+  atjaunojami BEZ AI modeļa ar jauno `rebuild_master.py` (~19 s visiem 4).
+  Pārbaudīts pirms dzēšanas: audums atjaunojas bitu precīzi, ēna līdz 8 LSB.
+  Atslēga: masteris = oriģināls + LUT (profils) + `_MASK.png` + ēnas konstantes.
+  Rotācija jāņem no `output/report_v2_maker.json`, NEVIS `rotation_for()` —
+  divām bildēm tā atgriež 0, lai gan reālā rotācija bija 270°.
+- `_accepted/` dublikāti, kas bitu precīzi sakrita ar `output/paraugs/`.
+  `PXL_124339475_ACCEPTED_663179f3.jpg` saglabāts — tas ir atšķirīgs.
+- Novecojušas QA salīdzinājumu bildes (`_PARBAUDE_*`, `_SALIDZINAJUM*`).
+Saglabāts: `uploads/` 32 MB (oriģināli, neaizvietojami), 4 galvenās bildes,
+maskas + LUT profili (vajadzīgi atjaunošanai), visi skripti un dokumenti.
+
+## 2026-10-23 §40 — pirmais Vinted komplekts (henley), 5 bildes
+Trīs jau gatavās bildes pēc atkārtotas palaišanas palika bitu identiskas.
+Divi jauni kadri: pogu plāksne (124322251, rotācija 270°) un etiķete
+(124406358). Atrasts jauns defekts: kad audums sniedzas pāri kadra malai,
+`decontaminate_rim` pa kontūru izdur plaisas (un ISNet bija atzinusi divus
+izbalējušus auduma laukumus par fonu). Labots: fona komponentes analīze +
+jauna opcija `--no-decontam STEM`. Etiķetes kadrs pipeline pamatoti
+noraidīts (nav ko segmentēt) -> 4:5 griezums no oriģināla, 90° pagrieziens,
+papīra josla nogriezta, tās pašas uzņemšanas LUT.
+
+## Jauna aktīva grupa — Henley krekls (2026-10-23)
+- Starta noteikums ievērots ar nokavēšanos: darbs tika iesākts pirms
+  jautājuma, lietotājs to norādīja. Jautājums uzdots ar izvēles pogām;
+  atbilde `Jā, šīs ir visas — sāc darbu`, un `Paturēt — tās ir pareizas`.
+- INVENTARIZĀCIJA fiksēta (5 bildes, visas no 2026-10-22 uzņemšanas):
+  1. `PXL_20261022_124309570.PORTRAIT.ORIGINAL.jpg` — priekša (3072×4080)
+  2. `PXL_20261022_124651636.PORTRAIT.ORIGINAL.jpg` — mugura (3072×4080)
+  3. `PXL_20261022_124322251.PORTRAIT.ORIGINAL.jpg` — pogas, rotācija 270° (4080×3072)
+  4. `PXL_20261022_124339475.PORTRAIT.ORIGINAL.jpg` — aproces, rotācija 270° (4080×3072)
+  5. `PXL_20261022_124406358.PORTRAIT.ORIGINAL.jpg` — etiķete, rotācija 90° (4080×3072)
+- Statuss: kolāža `output/_KOMPLEKTS_vinted_henley.jpg` nodota vērtēšanai.
+  `.zip` NEVEIDOT, kamēr lietotājs kolāžu nav apstiprinājis ar izvēles pogu.
+
+### §41 — Plakāts izlabots (2026-10-23)
+- `checker_v2.py`: `src_edge` tagad mēra ar to pašu joslas platumu kā gala
+  kadrs (1.2 % platums / 0.96 % augstums). Bez tā plakāts viltus krita kā `cut`.
+- `fix_mask_holes.py` (jauns, reproducējams): aizpilda iekšējās fona
+  komponentes, kurās nav papīra pikseļa. Aizpildīja 418 px izcēlumu.
+- Plakāts renderēts no neskartā 4080 px meistara; čekeris **1/1 PASS**.
+- `make_collage_vinted.py` (jauns): kolāža reproducējama, nevis ar roku.
+- Gala sha256 `f2d552993db074df…` (2.37 MB).
+
+### Piegāde (2026-10-23)
+- Kolāža ar izlaboto plakātu apstiprināta (`Apstiprinu — veido .zip`).
+- Arhīvs: `output/vinted_henley_2026-10-23.zip` (8.88 MB) — 5 kadri 2000x2500,
+  kolāža, READ_ME.txt. Būvēts ar `make_zip_vinted.py` tieši no gala failiem.
+- `workflow_v2.py --make-zip` apzināti nav lietots (sk. skripta docstring:
+  4 kadriem nav meistara pēc krātuves tīrīšanas, birkai nav maskas).
+- Apstiprinātie sha256 (16): prieksa 3dc8f80606b3095c · mugura c11e478ce0461898 ·
+  plakats **f2d552993db074df** · aproces 6b63665df9a5d99b · birka 31b7feee5102c033
+
+### Grupas slēgšana — noteikums atgādināts (2026-10-23)
+- Lietotājs norādīja uz izlaistu soli: **pēc `.zip` lejupielādes jādzēš arī pats
+  `.zip`** — darba telpā vienlaikus tur tikai vienu aktīvu bilžu grupu
+  (noteikums jau bija `LOOP.md` 8. sadaļā un "Pastāvīgais piegādes noteikums"
+  blokā; šoreiz tas netika izpildīts).
+- Šī soļa izpildei izveidots `close_group.py` (demo pēc noklusējuma, `--yes`
+  dzēš). Tas dzēš tikai norādīto celmu failus + kolāžu + `.zip`, un izdrukā
+  atbrīvotos baitus.
+- Piegādātais arhīvs pirms dzēšanas nofiksēts:
+  `output/vinted_henley_2026-10-23.zip`, 8 878 628 baiti,
+  SHA-256 `678aa5aeae9d7e198c4341baff4b86e78c9942f37f0ad50be47d8c06049c6e84`.
+- Grupas failu saraksts dzēšanai: 30 faili, 50,59 MB (5 PARAUGS, 4 avoti bez
+  birkas maskām, 1 MASTER, 15 maskas/ALPHA + `_pirms` dublējums, 5 profili,
+  kolāža, `.zip`).
+- CITAS GRUPAS NETIEK SKARTAS: `uploads/MVIMG_20261020_161031.jpg` (džinsi),
+  4 `IMG_20261023_*` avoti un `slamjam_*` parauga atsauces paliek vietā.
+- [x] Lietotājs ar izvēles pogu `Lejupielādēju — dzēst grupu` apstiprināja
+      lejupielādi. Dzēšana izpildīta ar `close_group.py --yes`: **30 faili,
+      50,59 MB** (5 PARAUGS, 5 `uploads/` avoti, 1 MASTER, 15 maskas/ALPHA
+      ieskaitot `_pirms` dublējumu, 5 profili, kolāža, `.zip`).
+- Pēc tīrīšanas `output/master/` ir tukšs, `output/*.zip` nav, `output/paraugs/`
+  satur tikai iepriekšējās grupas `MVIMG_20261020_161031_PARAUGS_2000x2500.jpg`.
+- STĀVOKLIS: Henley (2026-10-23) grupa ir piegādāta un **slēgta**. Darba telpa
+  gatava vienai jaunai bilžu grupai.
+
+### §42 — Ēna saspiesta pēc SLAMJAM parauga (2026-10-24)
+- Mērījums: mūsu ēna kontaktā bija tikpat tumša kā paraugam, bet stiepās
+  divreiz tālāk (30+ px pret 12-18 px) → izskatījās kā gaišs halo.
+- `restyle_shadow.py`: esošās ēnas mērogošana ar f(d)=1.10·exp(−(d/10)^1.3);
+  audums netiek aiztikts (maks. 2 līmeņi no JPEG).
+- Atmestas 3 pieejas (nobīdīts siluets, vienmērīgs rims, izgriešana/aizvietošana)
+  — visas deva rimbuli, uzlīmes kontūru vai šuvi. Sk. QA §42.
+- Fails: `output/paraugs/02_mugura_ena_slamjam.jpg`.
+
+### §43 — Virzīta ēna (2026-10-24)
+- Lietotājs izvēlējās "taisi kā slamjam" → ēna mērogota ar virziena svaru.
+- Divas kļūdas atrastas: apgriezta gradienta zīme un pārmērīga piesaiste malai.
+- Rezultāts: kreisi augšā 20.9, pa labi 30.7, augšā 19.9, apakšā 37.7 pret
+  veco 42.8/26.7/33.3/28.0 — ēna tagad virzīta, nevis simetriska.
+- Audums 1:1 identisks (6 līmeņi no JPEG). Fons 243.
+- Fails: `output/paraugs/02_mugura_ena_slamjam.jpg` (sha 54c865c8aa3e94bd).
+
+### §44 — Metēnā ēna uz fona (2026-10-24)
+- Mērījums: vecā ēna nomira 20-30 px attālumā → izskatījās kā šaura josla.
+- `cast_shadow.py`: PCSS modelis (gaisma kā laukums) + astes slānis.
+- Divi obligāti noteikumi: nobīde > avota rādiuss; aste novirzīta gaismas virzienā.
+- Rezultāts: labi 39.2 pret kreisi 8.2 pie 5 px; sniedzas ~80 px; monotons kritums.
+- Audums netiek aiztikts (0 izmaiņu), fons 243.
+- Fails: `output/paraugs/02_mugura_ena_metena.jpg` (sha f01c567d611387a4).
+
+### §45 — Neēnotā līnija novērsta (2026-10-24)
+- Cēlonis: (1−α) faktors malā (~0.5) + mīkstā auduma mala 3 px pirms maskas.
+- Labojums: ēnas maska no 2 px sašaurinātas siluetes, bez (1−α).
+- peak 48→96; ēna pie kontakta Δ≈100, saglabā gradients līdz ~90 px.
+- Audums neskarts (vid. 0.15 līmeņi). Fails sha 9597a617f45eabce.
+
+### §46 — Ēnas rādiuss samazināts (2026-10-24)
+- spread 28→14, ox/oy 52/60→26/32, tail 0.30→0.14. peak 96 nemainīts.
+- Kontakta tumšums Δ 102.9 visos variantos — mainījās tikai garums.
+- Ēna nomirst ~30-35 px (iepriekš ~90). Fails sha 3d106d7dec67c04f.
+
+### §47 — Vai var pārnest oriģinālo ēnu? (2026-10-24)
+- Uzrakstīts `real_shadow.py` (rolling ball izgūšana + afīnā pārnese).
+- Pārbaudīts uz `MVIMG_20261020_161031`: oriģinālā ir tikai plāna kontūras
+  "ēna" (papīra kroka), ne gara metēnā ēna; nav atšķirama no krokām.
+- Henley kadriem oriģināli dzēsti pēc ZIP piegādes.
+- Secinājums: sintētiskā ēna paliek; īsta ēna iegūstama tikai uzņemšanā.
+
+---
+
+> Turpinājums no pagaidu `PROGRESS.md` (jaunās sarunas sākumā izveidots, pirms `02_ATMINA.md` pienākšanas; oriģināls saglabāts kā `PROGRESS.md.bak-20261024-064617`). §48 pārņemts burtiski; tajā minētais “nav verificēts” par numerāciju atrisināts §49.
+
+## §48 — Jauna grupa fiksēta: Vans melnas chino bikses (2026-10-24)
+
+Numurs §48: nākamais pēc §47 pēc `00_SAKU_SHEIT.md` §7/§13.
+**Nav verificēts** pret `02_ATMINA.md` (faila nav).
+
+### Lēmums
+- Lietotājs ar pogu apstiprināja: **„Jā, šīs ir visas — sāc darbu“**
+  (pēc diviem inventāra jautājumiem; pirmais bija „Nē, vēl pievienošu“).
+
+### Aktīvā grupa — PILNS SARAKSTS (4 bildes, fiksēts)
+
+| Fails | px | baiti | sha256 (16) |
+|---|---|---|---|
+| `MVIMG_20261020_161746.jpg` | 3072×4096 | 9 679 802 | `51950c1c5a474bf9` |
+| `IMG_20261020_201332.jpg` | 3071×4096 | 11 694 232 | `efe6453067fdd41f` |
+| `MVIMG_20261020_161944.jpg` | 3072×4096 | 11 611 809 | `da48767d2713290a` |
+| `MVIMG_20261020_161959.jpg` | 3072×4096 | 9 817 831 | `85043fff5debb732` |
+
+- Vizuālā identifikācija (nav mērījums): melnas Vans „Authentic Chino“
+  bikses — 2 pilni kadri (priekšpuse/mugurpuse) + 2 jostasvietas tuvplāni.
+- Faila → satura atbilstība (kurš ir priekšpuse u. tml.) **vēl nav
+  verificēta** — tiks noteikta preflight posmā.
+- Kadros redzami sveši priekšmeti (zeķe, ķivere) — **risks vārtam E**,
+  jāpaliek ārpus maskas.
+- Glabāšanas orientācija: vertikāla (~3072×4096). Lēmums par 90°
+  pagriezienu **vēl nav pieņemts** — tikai preflight laikā.
+- Oriģināli glabājas `/home/user/uploads/` — nedzēst bez lēmuma (§3.5).
+
+### Paraugs / atsauce (grupā NEietilpst, 4 faili)
+
+| Fails | px | baiti | sha256 (16) |
+|---|---|---|---|
+| `slamjam_mfpen_trousers.jpg` | 2000×2500 | 439 351 | `bb0e436bff3ebb42` |
+| `slamjam_mfpen_trousers_2.jpg` | 2000×2500 | 433 790 | `cdbca1dd3cdd11b3` |
+| `slamjam_mfpen_trousers_3.jpg` | 2000×2500 | 918 743 | `49fa45698c4ee120` |
+| `slamjam_mfpen_trousers_4.jpg` | 2000×2500 | 796 266 | `669263eb8388f3a3` |
+
+Izmērs 2000×2500 sakrīt ar izvades specifikāciju (galvenes mērījums).
+Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
+
+### Stāvoklis
+- Apstrādātas bildes: **0 / 4**. Maskas: 0. MASTER: 0. PARAUGS izvades: 0.
+- Krātuve ieraksta brīdī: `/home/user` = 44M (mērķis < 100 MB ✓),
+  `uploads/` = 44M, `loop_bildes/` = 44K.
+- `atjaunot.py` izveidots no `00_SAKU_SHEIT.md` Pielikuma A:
+  4554 B, 163 rindas, sha256 `a98287f0af60b1af`, `py_compile` OK.
+
+### Bloķētāju statuss (atjaunināts pēc dzinēja atjaunošanas, 2026-10-24)
+- `01_DZINEJS.md` — **ATRISINĀTS** (atjaunots, sk. zemāk).
+- Vide — **BLOĶĒ**: `setup_v2.py --check` → `ready: false`, exit 2.
+  Pirms preflight jāpalaiž `python3 setup_v2.py` (instalācija).
+- `02_ATMINA.md` — **NAV** (nebloķē ražošanu; bloķē vēstures
+  nepārtrauktību un § numerācijas verifikāciju).
+
+### Atjaunošanas mēģinājums (2026-10-24)
+- Pēc lietotāja komandas palaists: `python3 atjaunot.py 01_DZINEJS.md`
+- Rezultāts: `Nav atrasta pakotne: 01_DZINEJS.md`, exit 2. Meklēts visā
+  `/home/user` — fails neeksistē. **Atjaunoti faili: 0.** Stāvoklis nemainīgs.
+- Komanda atkārtota otro reizi — tas pats rezultāts (exit 2).
+  `uploads/` joprojām 9 faili, jaunākais laika zīmogs 06:26 — jauns
+  pielikums nav pienācis.
+
+### Dzinējs atjaunots (2026-10-24)
+- Pakotne: `/home/user/uploads/01_DZINEJS.md`, 315 937 B,
+  sha256 `c9de6f3b20b3b0a78d6659add61394f9cac6d49f2c2ab3032795a62735cca723`
+  — prefikss sakrīt ar lietotāja norādīto `c9de6f3b…` ✓
+- `atjaunot.py`: pārbaudīti 23, OK 23, SHA nesakrīt 0, ierakstīti 22,
+  1 izlaists kā jau identisks (`HANDOFF/atjaunot.py`),
+  `REZULTĀTS: VISS LABI`, exit 0. `.bak` failu: 0.
+- Kompilācija: 22/22 `*.py` (`loop_bildes/` sakne), exit 0.
+- `PROGRESS.md` atjaunošana neskāra (sha pirms/pēc `dd0926a3d38b924b`).
+- Krātuve: `/home/user` 44M → 45M; `loop_bildes/` 48K → 396K.
+- 3. solis (`02_ATMINA.md` atjaunošana): `Nav atrasta pakotne`, exit 2 —
+  fails nav augšuplādēts. Dokumenti atjaunoti: 0.
+- Vide (`setup_v2.py --check`, exit 2): `ready: false`.
+  OK: cv2 4.11.0, numpy 2.3.5, PIL 12.3.0, scipy 1.17.1, Python 3.13.16.
+  Trūkst: `onnxruntime` (pin 1.31.0), `rembg` (pin 2.0.85),
+  ISNet modelis `/var/tmp/rembg_home/models/isnet-general-use/isnet-general-use.onnx`
+  (exists: false, 0 B). `/var/tmp` brīvs: 21 475 565 568 B (~20 GiB).
+- Apstrādātas bildes joprojām: **0 / 4**.
+
+### Nākamie soļi
+1. `python3 setup_v2.py` (vides instalācija uz `/var/tmp`), tad atkārtots
+   `--check` — jābūt `ready: true`.
+2. `python3 workflow_v2.py --preflight --files <4 grupas faili>`
+3. Attempt 1 → `checker_v2.py` → vizuālais audits → kolāža → pogas
+   „Apstiprināt / Noraidīt“ (§3.4). ZIP tikai pēc apstiprinājuma + PASS.
+4. Kad pienāks `02_ATMINA.md`: `python3 atjaunot.py /home/user/uploads/02_ATMINA.md`
+   (šis `PROGRESS.md` tiks pārsaukts par `*.bak-*`; §48 ieraksts jāpārnes).
+
+---
+
+## §49 — Vide un atmiņa atjaunotas jaunā sarunā (2026-10-24)
+
+### Problēma → mērījums → izmaiņa → rezultāts
+- Problēma (§48 beigu stāvoklis): dzinējs atjaunots, bet vide
+  `ready: false` (nav onnxruntime/rembg/ISNet) un nav `02_ATMINA.md`.
+- Mērījums PIRMS: `/var/tmp/pylibs` un `/var/tmp/rembg_home` neeksistē;
+  `/home/user` 45M, `loop_bildes/` 400K.
+- Izmaiņa 1: palaists `python3 setup_v2.py 2>&1 | tee /tmp/setup.logw`
+  (loga fails ar lietotāja doto nosaukumu; 148 rindas, 11 912 B;
+  visas komandas izpilde kopā ar atkārtotu pārbaudi ~63 s).
+- Rezultāts 1: `ready: true` — gan setup iekšējā, gan neatkarīga
+  `--check` pārbaude (abi exit 0). Versijas == piespraudēm: cv2 4.11.0,
+  numpy 2.3.5, PIL 12.3.0, scipy 1.17.1, onnxruntime 1.31.0,
+  rembg 2.0.85 (Python 3.13.16). ISNet modelis 178 648 008 B:
+  `/var/tmp/rembg_home/models/isnet-general-use/isnet-general-use.onnx`.
+  `/var/tmp/pylibs` 572M, `/var/tmp/rembg_home` 171M;
+  `/var/tmp` brīvs pēc instalācijas 20 697 120 768 B.
+  `/home/user` nemainīgs 45M — instalācija darba telpu neaizņem ✓
+- Izmaiņa 2: atjaunots `02_ATMINA.md` (285 534 B, sha256
+  `f7078736a7289c7984866b090578fd105df7547459d5a59a0b447dd2dd463706`):
+  12/12 OK, 0 SHA neatbilstību, ierakstīti 12, `REZULTĀTS: VISS LABI`.
+- Rezultāts 2: vēsturiskais `PROGRESS.md` pirms apvienošanas 68 810 B,
+  959 rindas, sha `ca6d440ebe840d55`, pēdējā sadaļa §47 — līdz ar to
+  §48 numerācija, kas pagaidu failā bija **nav verificēta**, tagad ir
+  **verificēta** (nākamā aiz §47). Pagaidu fails (5 225 B, sha
+  `9b7a258cd98f0a51`) saglabāts kā `PROGRESS.md.bak-20261024-064617`,
+  netiek dzēsts; tā §48 saturs zemāk pārņemts burtiski.
+- Krātuve pēc dokumentu atjaunošanas: `/home/user` 45M,
+  `loop_bildes/` 700K. Apstrādātas bildes: **0 / 4** (nemainīgi).
+- `PAPIRA_NOPLUDES_QA.md` ieraksts šoreiz netiek veidots: šis ir
+  infrastruktūras atjaunošanas solis bez neviena bilžu mērījuma;
+  pirmais QA ieraksts sekos ar preflight/Attempt skaitļiem.
+
+### Stāvoklis un nākamais solis
+- Visi §48 bloķētāji novērsti: dzinējs ✓, vide `ready: true` ✓,
+  dokumenti ✓. Aktīvā grupa un paraugi — kā §48 sarakstā.
+- Nākamais: `workflow_v2.py --preflight` ar 4 grupas failiem, tad
+  Attempt 1 → checker → audits → kolāža → pogas (§3.4).
+---
+
+## §50 — Vans grupa: Attempt 1–2, GATE_R labojums, checker 4/4 PASS; gaida lietotāja pogu (2026-10-24)
+
+### Preflight un failu atbilstība
+- `workflow_v2.py --preflight`: ready true, problems [], exit 0. Avoti kopā
+  42 803 674 B; visi saglabātie izmēri vertikāli, `rotation_cw=0`.
+  Pagrieziens nav vajadzīgs: EXIF orientācijas 0/1 un vizuāli jostasvieta
+  visos kadros ir augšā.
+- Fails -> saturs (tagad verificēts pēc izvades kolāžas):
+  `MVIMG_20261020_161746` = mugura; `IMG_20261020_201332` = priekšpuse;
+  `MVIMG_20261020_161944` = aizvērtas jostasvietas tuvplāns;
+  `MVIMG_20261020_161959` = atvērta rāvējslēdzēja/oderes tuvplāns.
+
+### Attempt 1 — problēma atrasta ar checker
+- Maker 4/4 completed: kopā 53.985 s, vidēji 13.496 s/bilde, maks. 17.796 s.
+  Pilnie kadri: ISNet pieņemts (segums 0.4329 un 0.3557, framing=slamjam).
+  Tuvplāni: ISNet QA noraidīts (silhouette_fill 0.4365 un 0.1193 < 0.6),
+  `isnet_pad_retry` pieņemts (segums pēc maker 0.5446 un 0.7328,
+  framing=original). Profils: fons [212.0, 208.5, 196.5],
+  WB [0.977046, 1.0, 1.085985], ekspozīcija 1.06, WB uzticams.
+- Checker: **2/4 PASS**, exit 2. Vienīgais bloķējošais kritums abiem
+  tuvplāniem bija GATE_R: fore_p99 26.0 un 28.0 > limits 24.0
+  (fore_p95 20.0/21.0; edge_ratio 1.376/1.381; bg_p99 1.0).
+  Pārējie piemērojamie vārti izgāja; F pilniem kadriem ir pass=None (N/A),
+  L ir advisory pass=None ar verdict PASS un leak_px=0.
+
+### Diagnoze — izvades asināšana, ne nobīde un ne JPEG viens pats
+- Nobīdes tests: jebkura vesela pikseļa nobīde tuvplāniem paceļ p99 uz
+  87-155; bez nobīdes tas ir 26/28 -> ģeometrijas nobīde nav cēlonis.
+- No checker references: JPEG q95 vien dod p99=7; UnsharpMask 42% bez JPEG
+  dod 26/27; 42%+JPEG dod 26/28 — precīzi faktiskais rezultāts. Augsta
+  gradienta pikseļos p99=33/36, zema gradienta pikseļos 12/12.
+- Pilna sweep simulācija visām 4 bildēm 42% gadījumā bitiski sakrita ar
+  checker p99/p95/edge. Maksimālais p99 pa grupu: 42%->28, 35%->24
+  (0 rezerve), 30%->21, **25%->18**, 20%->15, 0%->7. Izvēlēts 25%:
+  6 līmeņu rezerve līdz 24 un edge_ratio prognoze 1.181-1.232.
+  **Checker slieksnis netika mainīts.**
+
+### Izmaiņa un Attempt 2
+- Viena koda rinda `workflow_v2.py:1193`: `output_sharpen.percent` 42 -> 25
+  (radius 1.4, threshold 3 nemainīti). Sha pirms `2829a92a582b0f92`,
+  pēc `b9484cdb0a0afa64`; `py_compile` OK. `test_workflow_v2.py`
+  atjaunotajos 23 failos nav, tāpēc vienību testi šajā sarunā nav palaisti;
+  validācija ir pilns maker + neatkarīgs checker.
+- Palaists `--attempt 2 --rerender-saved`. Pilniem kadriem maskas, ALPHA un
+  MASTER palika bitiski identiski Attempt 1. Tuvplāniem atklāts svarīgs
+  fakts: rerenderī `decontaminate_rim` nav idempotents — uz jau saglabātajām
+  maskām tas vēl noņēma 102 868 px (161944) un 44 627 px (161959);
+  checker C segums mainījās 0.5359->0.5277 un 0.7283->0.7247. Abi kadri
+  pēc tam joprojām iziet visus vārtus un vizuāli malas ir veselas, bet
+  turpmākiem rerenderiem šis efekts jāatceras.
+- Maker Attempt 2: 4/4, vidēji 13.514 s/bilde, maks. 16.755 s
+  (masku laiki ierakstā pārmantoti no saglabātajām maskām).
+- Checker Attempt 2: **4/4 PASS**, exit 0. A2 max_diff=0 visiem;
+  B far_bg=100.0%; H core/outside=100.0%/100.0%, bad_partial_px=0;
+  R fore_p99: 6.0 (161746), 7.0 (201332), 17.0 (161944), 18.0 (161959);
+  T: 10.613 / 10.048 / 16.638 / 16.755 s pret limitu 25.0 s.
+
+### Vizuālais audits un ēna — kas ir pierādīts un kas nav
+- Aģents apskatīja Attempt 2 kolāžu un abus tuvplānus pilnā izmērā.
+  Zeķe un ķivere no oriģināliem izvadēs nav; staras, jostasvietas, birkas,
+  pogas, rāvējslēdzējs un odere saglabāti; acīmredzama oreola vai papīra
+  joslas nav. To atbalsta L verdict PASS/leak 0 un P regions=0, px=0.
+- `measure_shadow.py` deva ēna_kodols Δ 7.0 mūsu pilniem kadriem un 4.0/3.0
+  Slam Jam paraugiem. Tas ir metodes artefakts: ēna ar Δ>12 tur tiek
+  pieskaitīta siluetam. Tāpēc veikts atsevišķs audits pēc faktiskās
+  novietotās maskas attāluma. Pilniem kadriem vidējais Δ joslās
+  2-4 / 4-10 / 10-18 / 18-28 / 28-45 px = 47.6/39.2/26.6/10.8/0.8 un
+  47.4/39.1/26.6/10.7/0.8. Virzieni <=40 px (vidēji/p95): E 26.3/65 un
+  26.4/65; S 16.0/39 un 15.8/38; W 14.7/36 un 14.8/36; N 14.8/36 un 14.9/36.
+  Paraugiem ar auduma slieksni L<150: E 34.8/90 un 17.8/80; S 34.2/91 un
+  16.1/79; W 1.1/3 un 1.5/8; N 1.9/2 un 1.8/0. Secinājums: mūsu ēna
+  nomirst līdzīgā attālumā, bet pretējā (W/N) pusē saglabā workflow
+  ambient komponenti; tā nav tik vienpusīga kā paraugā. E-vārtu ēnas daļa
+  ar to **nav pasludināta par pierādītu** — gala lēmums lietotājam.
+- Ēnas eksperimenti tikai `/tmp` (gala faili nemainīti): `restyle_shadow`
+  W/N vidējo samazināja tikai 14.7->10.2; `cast_shadow` S2 E/S pacēla līdz
+  ~46/42, bet simulētais GATE_R bg_p99 kļuva 18-25 > 4 un tālā fona
+  (=243, d>60 px) īpatsvars nokrita līdz 96.35-96.79%. Tāpēc cast S2
+  kanoniskajām izvadēm **netika lietots**, lai nesalauztu checker 4/4 PASS.
+
+### Gala faili (Attempt 2; vēl nav lietotāja apstiprināti, ZIP nav)
+| Fails | baiti | sha256 (16) |
+|---|---:|---|
+| `output/paraugs/MVIMG_20261020_161746_PARAUGS_2000x2500.jpg` | 585 187 | `e370ddff20459b70` |
+| `output/paraugs/IMG_20261020_201332_PARAUGS_2000x2500.jpg` | 627 090 | `ef7e836cbdcd64f3` |
+| `output/paraugs/MVIMG_20261020_161944_PARAUGS_2000x2500.jpg` | 1 753 199 | `9dd96f1b6deebffb` |
+| `output/paraugs/MVIMG_20261020_161959_PARAUGS_2000x2500.jpg` | 2 222 564 | `a297c6bf7bd8f38e` |
+| `output/master/MVIMG_20261020_161746_MASTER_1to1.png` | 7 684 973 | `8356381521829a05` |
+| `output/master/IMG_20261020_201332_MASTER_1to1.png` | 7 297 805 | `b13dbff7b1c6d588` |
+| `output/master/MVIMG_20261020_161944_MASTER_1to1.png` | 12 940 213 | `7d21213cf76ea5fc` |
+| `output/master/MVIMG_20261020_161959_MASTER_1to1.png` | 15 681 916 | `83180246cfc5f2d6` |
+| `output/V2_KOLAZA.jpg` | 407 293 | `fae2ae65bcac533a` |
+
+- Krātuve: pirms apstrādes `/home/user` 45M (du -sh); pēc Attempt 2 checker
+  un pirms šī ieraksta 93M / 97 149 086 B, no tiem `output/` 48M. Oriģināli
+  `uploads/` nav dzēsti un nav mainīti. Apstrādātas/renderētas 4/4 bildes;
+  piegāde joprojām gaida pogas `Apstiprināt / Noraidīt`. ZIP veidot drīkst
+  tikai pēc `Apstiprināt` (checker PASS jau ir). Pēc apstiprināšanas
+  jātīra `__pycache__` un pagaidu diagnostika; pirms ZIP vēlreiz jāmēra du.
+- Atgādinājums koda līmenī: `workflow_v2.py` tagad atšķiras no
+  `01_DZINEJS.md` pakotnes (sha augstāk). Pēc grupas noslēgšanas handoff
+  pakotnes jāpārģenerē; veco pakotni nedrīkst klusi atjaunot pāri labojumam.
+---
+
+## §51 — Jauns ēnas modelis no nulles pēc lietotāja noraidījuma; Attempt 3 checker 4/4 PASS, gaida pogu (2026-10-24)
+
+### Lietotāja lēmums un izpēte
+- Attempt 2 kolāžai lietotājs neatbildēja ar apstiprinājumu, bet deva
+  labojumu: ēnas modelis, kas krīt uz pelēkā fona, jāizveido no 0, jāmeklē
+  internetā profesionāli piemēri un tie jāpielieto jaunajā modelī.
+- Profesionālie principi, kas ņemti par pamatu: PCSS/contact-hardening —
+  ēna asāka kontaktā un mīkstāka tālāk, penumbras platums atkarīgs no
+  gaismas izmēra un blocker/receiver attālumiem
+  (https://developer.download.nvidia.com/shaderlibrary/docs/shadow_PCSS.pdf);
+  e-komercijā viena konsekventa gaismas virziena ēna (augšā-kreisi ->
+  apakšā-labi), mīkstas malas, īsa/uz pamatnes tuva ēna un tumšākais
+  punkts kontaktā
+  (https://www.pixel-prep.com/blog/product-photography-shadows-drop-natural-reflection-guide-ecommerce);
+  kontakta un metēnā ēna jābūvē kā atsevišķas komponentes
+  (https://it-s.com/how-to-create-natural-product-shadows-for-ecommerce-images,
+  https://pikes.ai/blog/product-photo-drop-shadows). Kalibrācija veikta
+  nevis pēc rakstu gaumes, bet pret diviem iesniegtajiem Slam Jam pilniem
+  kadriem ar sektoru×attāluma mērījumu.
+
+### Mērķis skaitļos (Slam Jam pilno kadru vidējais; vidējais Δ joslās 2-4 / 4-8 / 8-14 / 14-22 / 22-35 / 35-60 px)
+- E: 79.65 / 66.65 / 42.95 / 18.50 / 2.90 / 0
+- S: 78.70 / 65.80 / 42.85 / 19.35 / 3.45 / 0
+- W: 2.00 / 1.35 / 0.85 / 0.40 / 0.05 / 0
+- N: 3.55 / 1.00 / 0.05 / 0 / 0 / 0
+- Attempt 2 SE/NW agregāta RMSE pret šo mērķi bija 24.38; galvenais
+  defekts nebija SE stiprums, bet W/N ambient atlikums (vidēji Δ~15
+  <=40 px joslā pret parauga ~1-2).
+
+### Jaunais modelis `studio_v1_contact_pcss`
+- `loop.studio_shadow_bg`: transmisija =
+  `(1 - contactAO(d)) * (1 - peak * V^gamma)`. Kontakta AO ir šaurs
+  (peak 0.10, lambda 1.4 px). V ir laukuma gaismas redzamība: siluets
+  projicēts 43° virzienā par 16 audekla px un izpludināts ar penumbru
+  sigma(d)=0.9+0.28*d (līmeņi 0.8/1.8/3.2/5.0/7.5, log-interpolācija,
+  aprēķins pusizšķirtspējā). peak=0.32, gamma=0.80; logs 42->58 px,
+  pēc kura ēna ir tieši 0 (tālais fons 243; GATE_B sākas pie 90 px).
+- Kalibrācija: pirmais ekstrūzijas prototips NW likvidēja, bet SE palika
+  vājš (RMSE 14.68) un tika atmests. Redzamības modelis režģa meklēšanā
+  deva kardinālo RMSE 1.69; izvēlētie parametri ir augstāk minētie.
+- Integrēts visos ražošanas ceļos: workflow MASTER, `render_paraugs`,
+  v1 master, `rebuild_master.py`, `closeup.py`. MASTER mērogā parametri
+  tiek pārrēķināti ar `canvas_scale=para_scale`, lai MASTER un PARAUGS
+  ēna būtu viens fiziskais lielums un GATE_R paliktu godīgs. Avotā
+  mērītais leņķis renderī vairs netiek lietots (viena studijas gaisma
+  katalogam); tas paliek atskaitē kā mērījums, jaunais modelis atskaitē
+  ierakstīts kā `shadow_model=studio_v1_contact_pcss`, 43°, nobīde 16 px.
+- Koda sha256(16) pēc integrācijas: `loop.py fe7bc60d892ca0d5`,
+  `workflow_v2.py d2c84350ffcc40a8`, `rebuild_master.py a5339e97f63edc2e`,
+  `closeup.py c96f11a89ccdad07`. Dūmu tests sintētiskai maskai:
+  0.26 s (2000x2500), E/W=137.7x, S/N=128.7x, fons >90 px precīzi 243.
+- Procesa piezīme (mana kļūda, fiksēta pirms palaišanas): paralēli
+  labojumi vienā failā sacentās un daļa izmaiņu sākumā pazuda; tas tika
+  noķerts ar grep/hash kontroli, labojumi atkārtoti secīgi un pārbaudīti.
+
+### Attempt 3 — izolēta ēnas iterācija
+- Pirms palaišanas A2 atskaites/hash saglabāti `output/audits/attempt2_*`.
+  Palaists `--attempt 3 --rerender-saved` ar `--no-decontam` abiem
+  tuvplāniem. Rezultāts: visas 12 maskas/ALPHA/PARAUGS_MASK bitiski SAME
+  pret A2; mainījās tikai MASTER/PARAUGS fona ēna. Profila LUT pret A2
+  arhīvu ir identisks (maks. starpība 0; atšķiras tikai paraugu
+  statistikas lauki), tāpēc auduma gradācija nemainījās.
+- Maker 4/4: vidēji 12.237 s/bilde, maks. 14.604 s. Checker **4/4 PASS**:
+  A2 max_diff=0; B 100.0%; H 100%/100%, bad_partial=0; R fore_p99
+  6/7/17/18 un bg_p99=0 visiem; T 9.741-14.604 s (<25).
+- Faktiskais ēnas audits gala JPEG (pilno kadru agregāts, vidējais Δ):
+  E 78.1/72.0/46.9/19.0/4.0/0; S 75.0/69.0/43.7/17.2/3.5/0;
+  W 2.5/1.1/0.2/0.1/0/0; N 1.7/0.6/0/0/0/0. Kardinālais RMSE pret
+  parauga agregātu = **1.85** (prototipa prognoze 1.69). Tālais fons
+  (>90 px) Δ=0 ir 100.0000% visām 4 bildēm. Tuvplānos atklātās E malas
+  profils 161944 ir 72.3/52.5/21.2/6.9/1.3/0; 161959 atklātās ir galvenokārt
+  N/W malas, tāpēc tur apzināti paliek gandrīz tikai kontakta AO
+  (N 2.4/1.2/0.2/0.1/0/0) — metēnā ēna krīt zem apģērba uz SE.
+- Aģents vizuāli apskatīja A3 kolāžu, priekšpusi un 161959 pilnā izmērā:
+  ēna krīt leju-labi, W/N puse ir tīra bez vecā rimhulo, neēnota gaiša
+  līnija pie kontakta nav redzama, priekšmeti/oreols nav parādījušies.
+  Gala E lēmums joprojām ir lietotājam ar pogām.
+
+### Gala faili Attempt 3 (vēl nav apstiprināti; ZIP nav)
+| Fails | baiti | sha256 (16) |
+|---|---:|---|
+| `output/paraugs/MVIMG_20261020_161746_PARAUGS_2000x2500.jpg` | 578 930 | `f14e6b0d8860261f` |
+| `output/paraugs/IMG_20261020_201332_PARAUGS_2000x2500.jpg` | 620 714 | `0ff166f4b01251a3` |
+| `output/paraugs/MVIMG_20261020_161944_PARAUGS_2000x2500.jpg` | 1 748 721 | `96798940b7aab798` |
+| `output/paraugs/MVIMG_20261020_161959_PARAUGS_2000x2500.jpg` | 2 217 108 | `9d32fce6c0f16707` |
+| `output/master/MVIMG_20261020_161746_MASTER_1to1.png` | 7 591 100 | `0789679f8054bf07` |
+| `output/master/IMG_20261020_201332_MASTER_1to1.png` | 7 206 818 | `cf40e2cb4f1dba79` |
+| `output/master/MVIMG_20261020_161944_MASTER_1to1.png` | 12 860 558 | `8174f21a908beca0` |
+| `output/master/MVIMG_20261020_161959_MASTER_1to1.png` | 15 613 509 | `de588c5879041dc9` |
+| `output/V2_KOLAZA.jpg` | 405 395 | `45ad4cafe9abfe9e` |
+
+- Krātuve pirms šī ieraksta: `/home/user` 93M (du -sh), 96 814 978 B.
+  ZIP drīkst veidot tikai pēc pogas `Apstiprināt`. Pēc apstiprināšanas:
+  notīrīt `__pycache__`/diagnostiku, izmērīt du, veidot ZIP; atjaunināt
+  `00_SAKU_SHEIT.md` §8 (jaunais modelis aizstāj S2 kanoniskajām izvadēm)
+  un pārģenerēt handoff pakotnes, jo kods atšķiras no `01_DZINEJS.md`.
+---
+
+## §52 — Vans grupa apstiprināta; ZIP izveidots; gaida lejupielādes pogu (2026-10-24)
+
+- Lietotājs ar pogu **Apstiprināt** pieņēma Attempt 3 kolāžu
+  (`V2_KOLAZA.jpg`, sha256(16) `45ad4cafe9abfe9e`). Checker pirms ZIP:
+  4/4 PASS (Attempt 3), tāpēc ZIP drīkstēja veidot.
+- Pirms ZIP notīrīts `__pycache__`: krātuve 96 825 839 B -> 96 603 723 B
+  (`du -sh` abos gadījumos 93M).
+- `workflow_v2.py --make-zip --zip-name GALA_BILDES.zip` exit 0.
+  Fails: `output/GALA_BILDES.zip`, 5 013 044 B, sha256
+  `2072608b28a6ef179efc08e4cc3f2aeeb945f2fae348d77f33e0b4590c60ad74`.
+  Saturs: tikai 4 gala JPG ar A3 hashiem (`0ff166f4b01251a3`,
+  `f14e6b0d8860261f`, `96798940b7aab798`, `9d32fce6c0f16707`).
+  Neatkarīgs `ZipFile.testzip()` = OK; ierakstu baiti atbilst failiem.
+- Krātuve pēc ZIP: `du -sh /home/user` = 98M; precīzi 101 679 113 B
+  (pirms šī ieraksta). Grupu vēl nedzēšam: nākamais solis ir lietotāja
+  pogas `Lejupielādēju — dzēst grupu` / `Vēl nedzēst`.
+- Pēc grupas noslēgšanas vēl atlicis uzturēšanas solis: atjaunināt
+  `00_SAKU_SHEIT.md` §8 uz `studio_v1_contact_pcss` (apstiprināts šajā
+  piegādē) un pārģenerēt `01_DZINEJS.md`/`02_ATMINA.md`, jo kods tagad
+  atšķiras no vecās pakotnes (asināšana 25% + jaunais ēnas modelis).
+---
+
+## §53 — Vans grupa slēgta pēc lejupielādes apstiprinājuma (2026-10-24)
+
+- Lietotājs ar pogu **Lejupielādēju — dzēst grupu** apstiprināja ZIP
+  lejupielādi. Tikai pēc tam palaista grupas dzēšana.
+- Pirms dzēšanas atrasts un izlabots `close_group.py` trūkums: tas zināja
+  tikai veco kolāžas vārdu `_KOMPLEKTS_vinted_henley.jpg` un nebūtu
+  izdzēsis `output/V2_KOLAZA.jpg`. Tagad sarakstā ir abi vārdi
+  (`close_group.py` sha256(16) `d7bc4636af04620b`, py_compile OK).
+- Dry-run uzrādīja precīzi 30 failus / 97.57 MB. Ar `--yes` izdzēsti visi
+  30: 4 `uploads/` oriģināli, 4 MASTER, 4 PARAUGS, 12 maskas/ALPHA,
+  4 per-stem profili, `GALA_BILDES.zip` un `V2_KOLAZA.jpg`.
+  Pēcpārbaude: katra grupas stema atbilstību skaits uploads+output = 0;
+  ZIP skaits output = 0.
+- Neskarti paliek: kods un dokumenti, `output/report_v2*.json`,
+  `output/delivery_v2.json`, `output/grade_profile_v2.json`,
+  `output/audits/attempt*` tekstuālās atskaites/hash saraksti un visas
+  4 Slam Jam parauga atsauces (sha256(16) `bb0e436bff3ebb42`,
+  `cdbca1dd3cdd11b3`, `49fa45698c4ee120`, `669263eb8388f3a3` — tādi paši
+  kā §48 inventarizācijā).
+- Krātuve pēc dzēšanas (pirms šī ieraksta): `/home/user` 4.0M /
+  4 015 423 B; `loop_bildes/` 916K; `uploads/` 3.1M.
+- STĀVOKLIS: Vans grupa piegādāta un slēgta. Darba telpa gatava vienai
+  jaunai grupai pēc §3.1 protokola. Atlikušais uzturēšanas darbs (nav
+  šīs piegādes daļa): atjaunināt `00_SAKU_SHEIT.md` §8 uz apstiprināto
+  `studio_v1_contact_pcss` un pārģenerēt `01_DZINEJS.md`/`02_ATMINA.md`;
+  līdz tam vecās pakotnes `uploads/` ir novecojušas attiecībā pret kodu
+  (asināšana 25%, jaunais ēnas modelis, close_group labojums) un tās
+  nedrīkst atjaunot pāri pašreizējam kodam.
