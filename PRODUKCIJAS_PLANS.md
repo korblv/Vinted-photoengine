@@ -39,8 +39,8 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
 
 ## Ātrie labojumi (jebkurā brīdī, katrs savā komitā)
 
-- [ ] ISNet modeļa sha256 pārbaude `setup_v2.py` (tagad pārbauda tikai
-      izmēru >100 MB).
+- [x] ISNet modeļa sha256 pārbaude `setup_v2.py` (PROGRESS §55; piespraude
+      krustota ar rembg 2.0.85 avota MD5 konstanti).
 - [ ] `00_SAKU_SHEIT.md` §8 atjaunināšana uz `studio_v1_contact_pcss`
       (atlikts no Vans piegādes).
 - [ ] `atjaunot.py` dublikāts saknē un `HANDOFF/` — atstāt vienu.

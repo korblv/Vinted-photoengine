@@ -7,6 +7,7 @@ skriptu un versiju piespraudes — darba telpā. `--check` neko neinstalē.
 Bez `--check` trūkstošās pakotnes/modeli tiek sagatavoti.
 """
 import argparse
+import hashlib
 import importlib
 import json
 import os
@@ -18,6 +19,12 @@ from pathlib import Path
 PYLIBS = Path("/var/tmp/pylibs")
 REMBG_HOME = Path("/var/tmp/rembg_home")
 MODEL_PATH = REMBG_HOME / "models" / "isnet-general-use" / "isnet-general-use.onnx"
+# Modeļa integritātes piespraude (2026-10-24, PROGRESS §55). Neatkarīgs krustojums:
+# lejupielādētā faila MD5 fc16ebd8b0c10d971d3513d564d01e29 sakrīt ar rembg 2.0.85
+# avotā ierakstīto konstanti `rembg/sessions/dis_general_use.py` ("md5:fc16..."),
+# un izmērs sakrīt ar iepriekšējā sesijā validētā modeļa izmēru.
+MODEL_BYTES = 178_648_008
+MODEL_SHA256 = "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a"
 PINS = {
     "rembg": "2.0.85",
     "onnxruntime": "1.31.0",
@@ -43,23 +50,43 @@ def _module_status(name: str) -> dict:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
+def _sha256_of(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _model_status() -> dict:
+    exists = MODEL_PATH.is_file()
+    size = MODEL_PATH.stat().st_size if exists else 0
+    # Hashē tikai tad, ja izmērs jau sakrīt — citādi fails tāpat ir nederīgs.
+    sha = _sha256_of(MODEL_PATH) if size == MODEL_BYTES else ""
+    ok = size == MODEL_BYTES and sha == MODEL_SHA256
+    return {
+        "path": str(MODEL_PATH),
+        "exists": exists,
+        "bytes": size,
+        "expected_bytes": MODEL_BYTES,
+        "sha256": sha,
+        "expected_sha256": MODEL_SHA256,
+        "ok": bool(ok),
+    }
+
+
 def check() -> dict:
     modules = {name: _module_status(name) for name in ["cv2", "numpy", "PIL", "scipy", "onnxruntime", "rembg"]}
     disk = shutil.disk_usage("/var/tmp")
-    model_ok = MODEL_PATH.is_file() and MODEL_PATH.stat().st_size > 100_000_000
-    ready = all(v["ok"] for v in modules.values()) and model_ok
+    model = _model_status()
+    ready = all(v["ok"] for v in modules.values()) and model["ok"]
     return {
         "ready": bool(ready),
         "python": sys.version.split()[0],
         "pylibs": str(PYLIBS),
         "rembg_home": str(REMBG_HOME),
         "modules": modules,
-        "isnet_model": {
-            "path": str(MODEL_PATH),
-            "exists": MODEL_PATH.is_file(),
-            "bytes": MODEL_PATH.stat().st_size if MODEL_PATH.is_file() else 0,
-            "ok": bool(model_ok),
-        },
+        "isnet_model": model,
         "var_tmp_free_bytes": int(disk.free),
         "pins": PINS,
     }
@@ -97,6 +124,13 @@ def download_model() -> None:
     _ = new_session("isnet-general-use")
     if not MODEL_PATH.is_file():
         raise RuntimeError(f"Modelis pēc lejupielādes nav atrasts: {MODEL_PATH}")
+    status = _model_status()
+    if not status["ok"]:
+        raise RuntimeError(
+            "Modeļa integritāte neatbilst piespraudei: "
+            f"bytes={status['bytes']} (gaidīti {MODEL_BYTES}), "
+            f"sha256={status['sha256'] or '-'} (gaidīts {MODEL_SHA256})"
+        )
 
 
 def main() -> int:

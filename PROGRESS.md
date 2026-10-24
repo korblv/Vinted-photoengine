@@ -1380,3 +1380,36 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   `python3 setup_v2.py`.
 - STĀVOKLIS: solis 1 izdarīts, gaida lietotāja apstiprinājumu solim 2
   (testi). Soļa 1 komits satur šo ierakstu; tā hash skatīt `git log`.
+
+---
+
+## §55 — Ātrais labojums: ISNet modeļa sha256 piespraude (2026-10-24)
+
+- Lietotājs ar pogām izvēlējās pirms soļa 2 izdarīt ātro labojumu.
+  Problēma: `setup_v2.py` modeli uzskatīja par derīgu, ja fails eksistē un
+  ir >100 MB. Pretpiemērs izmērīts: līdz 104 857 600 B saīsināts modeļa
+  fails veco kritēriju **izietu** (104,9 MB > 100 MB), tāpat jebkurš bojāts
+  pilna izmēra fails.
+- Vide pirms labojuma: `ready:false` (trūka `onnxruntime`, `rembg`, modeļa).
+  Palaists `python3 setup_v2.py` (54 s, tikai `/var/tmp`): visi moduļi OK,
+  modelis lejupielādēts, izmērs 178 648 008 B — identisks iepriekšējā
+  sesijā validētā modeļa izmēram.
+- Hash krustojums pirms piespraušanas (nevis aklu uzticība lejupielādei):
+  faila MD5 `fc16ebd8b0c10d971d3513d564d01e29` == rembg 2.0.85 avota
+  konstante `rembg/sessions/dis_general_use.py` 67. rindā
+  (`"md5:fc16ebd8..."`). Tikai pēc tam piesprausts SHA-256
+  `60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a`.
+- Izmaiņa tikai `setup_v2.py` (+42/−8 rindas): konstantes `MODEL_BYTES`,
+  `MODEL_SHA256`; `_model_status()` (hashē tikai, ja izmērs sakrīt);
+  `download_model()` pēc lejupielādes validē un pie neatbilstības krīt ar
+  `RuntimeError`; `--check` JSON pievienoti lauki `expected_bytes`,
+  `sha256`, `expected_sha256` (iepriekšējie lauki saglabāti).
+- Pierādījums: `py_compile` OK; `--check` → `ready:true`, modeļa sha256 ==
+  piespraude, viss pārbaudes laiks 2,48 s. Negatīvie testi ar pagaidu
+  kopijām `/tmp` (pēc tam izdzēstas): saīsināts fails → `ok=False`;
+  pilna izmēra kopija ar 1 apgrieztu byte (pozīcija 90 000 000) →
+  sha256(16) `df616ab2e70caa91`, `ok=False`.
+- Nemainīgi: visi pārējie faili (`git diff` tikai `setup_v2.py`, šis
+  reģistrs un plāna atzīme); pakotņu piespraudes, algoritmi, §5 sliekšņi.
+- STĀVOKLIS: ātrais labojums izdarīts; vide atkal `ready:true`. Nākamais
+  plānā: solis 2 (testi) — gaida lietotāja apstiprinājumu.
