@@ -2142,3 +2142,32 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   (piem., attīrīšanas slieksni piesiet klases iekšējiem attālumiem vai
   skalas koeficientam ~2.5) un TĀDIEM PAŠIEM uzvaras kritērijiem —
   tikai ar lietotāja lēmumu. Bez tā OKLab ražošanā neieliek.
+
+### §85 E8b: OKLab ar kalibrētiem sliekšņiem — tēma SLĒGTA, Lab labāks (2026-10-24)
+- Lietotāja izvēle (poga): E8b. Skripts `tmp_id/e8b_oklab.py`, rezultāti
+  `tmp_id/e8b_oklab.json`. Ražošanas kods nemainīts.
+- Kalibrēšana pēc iepriekš fiksēta noteikuma: s = centru savstarpējo
+  attālumu mediānu attiecība pret Lab (no train paletēm); sliekšņi
+  8.0*s un 5.0*s. Izmērītais s = 0.30-0.40 visos gadījumos; pēc
+  kalibrēšanas centri saglabājas 4/4 (E8 artefakts novērsts; S2 abas
+  telpas sevi izslēdz kā iepriekš). Kalibrācijas noteikumu apstiprina
+  M4 sakritība (122109 bāze: 0.0751 pret 0.0752). 3 sēklas, vidējie.
+- Rezultāts (bāze, 122248): M2 OKLab 5.99/6.24 pret Lab 9.44/8.01;
+  M3 0.0027 pret 0.0000 (grūts līmenis: 0.0113 pret 0.0006); M5 līcis
+  0.440 pret 0.669. M2 sliktāka 12 no 14 salīdzinājumiem (izņēmums:
+  S2 "grūts", kur Lab 2/3 sēklās sevi izslēdza — tur abas telpas ir
+  nederīgas, un pareizā ražošanas uzvedība ir tieši izslēgties).
+- **Spriedums pēc tā paša kritērija: NAV pierādīts (0/3).** E8 vienīgais
+  OKLab plus-signāls (M5 = 0.906) izrādījās paša E8 sliekšņu artefakts:
+  attīrīšana bija izdzēsusi FG centrus līča tuvumā; ar pilnu paleti
+  līcis OKLab telpā apģērbam ir VĒL tuvāks nekā Lab (0.44 pret 0.67).
+- **Secinājums (pierakstīt kā zināšanu):** uztveres vienmērība nav tas
+  pats, kas klašu atdalāmība. Lab "izstiepums" tumšajā zonā, ko kritizē
+  kā uztveres kļūdu, mūsu klasifikatoram darbojas kā pazīmju
+  pastiprinātājs: klašu attālumi aug straujāk nekā ēnojuma izkliede
+  klases iekšienē (M2 to mēra bez skalas ietekmes). OKLab tika
+  testēts godīgi divos eksperimentos — **tēma slēgta, paliek CIE Lab.**
+  OKLab vēl var noderēt uztveres metrikām (piem., ēnas kļūdai), ne
+  klasifikācijai.
+- Abu eksperimentu cena: ~sekundes CPU pret ražošanas refaktoru —
+  tieši šim studiju sistēma domāta.

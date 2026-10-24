@@ -225,6 +225,12 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
   skalas-neatkarīgais tests — OKLab telpā pārvietojas pareizā
   virzienā (0.67->0.91/1.13). Kandidāts **E8b**: tas pats tests ar
   katrai telpai kalibrētiem sliekšņiem, tie paši uzvaras kritēriji.
+  **E8b veikts 2026-10-24 (§85): tēma SLĒGTA.** Ar kalibrētiem
+  sliekšņiem (s=0.30-0.40; centri 4/4) OKLab zaudē visos trīs
+  kritērijos (M2 sliktāka 12/14; M3 122248: 0.0027 pret 0.0000;
+  M5 līcis 0.44 pret 0.67 — E8 "pluss" bija attīrīšanas artefakts).
+  Mācība: uztveres vienmērība ≠ klašu atdalāmība; Lab tumšais
+  izstiepums mūsu klasifikatoram ir priekšrocība. Paliek CIE Lab.
 
 ### N2 — Guided filter / joint upsampling malām
 - Guided filter (He, Sun, Tang): lokāli lineārs modelis q=aI+b,
