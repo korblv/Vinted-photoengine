@@ -2072,3 +2072,17 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   + 1 ROI labojumu (§80) + piegādes rīka paplašinājumu (§81).
   Sērija "3 grupas bez koda labojuma" paliek 0 — grupa bija ārpus
   papīra uzstādījuma, ko rīki sākotnēji sedza.
+
+## §82 — Grupa slēgta (2026-10-24)
+- Lietotājs ar pogu apstiprināja lejupielādi. `close_group.py`
+  dry-run: 34 faili / 120.50 MB (tikai grupas faili: 4 avoti,
+  MASTER/PARAUGS/maskas/profili, kolāža, ZIP). `--yes`:
+  izdzēsti 34 faili; krātuve 131 684 447 -> 11 181 758 B.
+  `uploads/` atkal tikai handoff .md + 4 Slam Jam paraugi.
+- Piegādāts: 3 bildes (priekšpuse, mugura, odere/birka). Kabatas
+  kadrs `122248` izslēgts pēc lietotāja lēmuma — ēnas līča robeža
+  netika līdz galam izšķirta bez ģenerēšanas (§77-§80).
+- Ilgstošais ieguvums no grupas: chroma rezerves ceļš (§76) +
+  tumšās zonas piegājiens (§78) + piegādes apakškopa (§81);
+  workflow 2.5; 81 tests. Nākamā grupa uz ne-papīra fona sāksies
+  ar šiem rīkiem jau iekšā; studiju sērija joprojām 0.
