@@ -300,6 +300,13 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
 - Kandidāt-eksperiments **E12**: sintētisks zils audums ar
   spīduma gradientu; punktu palete pret līnijas attālumu:
   atdalāmība un centru skaits pie vienādas kļūdas.
+  **E12 veikts 2026-10-24 (§89): NAV pierādīts, tēma slēgta.**
+  Ar patieso S segmenti perfekti (L2 kļūda 0.0), bet S novērtēšana
+  no datiem izgāzās: spilgtākie pikseļi apgriezti baltā
+  ([100,0,0] pret [98.8,0.3,3.3]) un 3.6 dE virziena kļūda svītru
+  iznīcina (spīduma kļūda 0.04-0.16 pret punktu 0.002-0.017).
+  Plus: segmenti beidzas vienā S -> palešu QA attālums 0 pēc
+  konstrukcijas. Punktu paletes paliek.
 
 ### N6 — Caurspīdīgi audumi: īsts matting (nākotnes specifikācija)
 - Tills, siets, mežģīnes: bināra maska pēc definīcijas melo —

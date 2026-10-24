@@ -2270,3 +2270,32 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   acs + tie paši malu mērījumi pret rokām vērtētu robežu nav iespējami
   bez patiesības - vērtējam ar GATE_H zonu un vizuālo kolāžu).
   Lēmums lietotājam; bez tā kodu neaiztiek.
+
+### §89 E12: dihromatiskās līnijas paletes — NAV pierādīts, tēma slēgta (2026-10-24)
+- Lietotāja izvēle (poga): E12. Skripts `tmp_id/e12_dichromatic.py`,
+  rezultāti `tmp_id/e12_dichromatic.json`. Ražošanas kods nemainīts.
+- **Modelis fizikāli pareizs, novērtēšana to nogalina.** Ar PATIESO
+  gaismas krāsu S (oracle) segmenti ir teju perfekti: L2 kļūda 0.0000 /
+  0.0041 pret P8 0.0003 / 0.0042, spīduma apakškopā pat labāki (0.0108
+  pret 0.0168) ar 2 segmentiem pret 8 punktiem. Bet ar S, kas novērtēts
+  no datiem (spilgtāko 0.5% mediāna), L2 spīduma kļūda ir 0.039 / 0.159
+  pret P8 0.002 / 0.017 - par kārtu sliktāk. Visi kritēriji krita.
+- Mehānisms: spilgtākie pikseļi ir APGRIEZTI baltā (uint8 griesti) -
+  novērtētais S = [100,0,0] pret patieso [98.8,0.3,3.3]. Tikai 3.6 dE
+  virziena kļūda segmenta tālajā galā izaug proporcionāli spīdumam un
+  visu svītru noliek garām datiem. Punktveida centri ir robusti, jo
+  sēž uz faktiskā (apgrieztā, izliektā) datu mākoņa, lai kur tas būtu.
+  Telefona HDR/tonu līknes šo novērtēšanu padarītu vēl sliktāku.
+- Strukturāls šķērslis ražošanai: abu klašu segmenti beidzas vienā S
+  punktā, tāpēc palešu savstarpējais attālums ir 0 pēc konstrukcijas -
+  esošais QA slieksnis (min_cross >= 15) uz segmentiem nepārnesas;
+  vajadzētu jaunu QA teoriju. Punktu paletēm P8 kļūda jau ir 0.0003-
+  0.0042 - uzlabojumam gandrīz nav vietas.
+- **Spriedums: NAV pierādīts; tēma slēgta.** Novērojums malā (nav
+  kandidāts bez jauna lēmuma): datu vadītas iegarenas kopas (katra
+  centra lokālais virziens no pašiem datiem) apietu S novērtēšanu,
+  bet tas ir cits eksperiments un cita sarežģītība; P8 rezervju te
+  tikpat kā nav.
+- Ierobežojums: sintētika ir modeļa labākais gadījums (viens
+  apgaismotājs, precīza dihromatiska fizika) - oracle pilnība tāpēc
+  gaidāma; pārnesamais atradums ir novērtēšanas trauslums.
