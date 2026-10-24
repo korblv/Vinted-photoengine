@@ -1610,3 +1610,12 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   visi ražošanas ceļi (`update()`); testa apgalvojumi identiski.
 - Pierādījums: AST hash 55/55 bez atšķirībām; 64 testi OK; `--help`
   identiska; e2e == §58 hash. STĀVOKLIS: turpinu ar 6.3.
+
+---
+
+## §63 — Solis 6.3: `engine/grade.py` (2026-10-24)
+
+- Pārvietotas 6 funkcijas (sRGB pārveides, `build_lut`,
+  `compute_grade_profile`, `apply_lut` u.c.), ķermeņi nemainīti.
+- Pierādījums: AST hash 55/55 bez atšķirībām; 64 testi OK; `--help`
+  identiska; e2e == §58 hash. STĀVOKLIS: turpinu ar 6.4.
