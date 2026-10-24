@@ -19,7 +19,7 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
 - [x] **1. Git + arhīvs** (PROGRESS §54): bāzes komits `77e9ac2` (tags `v2.1.0`);
       10 novecojuši moduļi (1 441 rinda) pārvietoti uz `archive/`; saknē paliek
       12 ražošanas `.py`. Saturs nemainīgs: 22/22 sha256 identiski.
-- [ ] **2. Testi no nulles**: `test_workflow_v2.py` — vienību testi tīrajām
+- [x] **2. Testi no nulles** (PROGRESS §57): `test_workflow_v2.py` — vienību testi tīrajām
       funkcijām (LUT, rotācija, ēna uz sintētiskas maskas) + golden regresijas
       tests ar deterministiski ģenerētiem sintētiskiem attēliem. Katra
       vēsturiskā kļūda (PROGRESS/QA) kļūst par testu. Mērķis: pilna palaišana

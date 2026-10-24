@@ -1431,3 +1431,40 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Pierādījums pēc labojuma: pilns komplekts 46 testi → `OK (expected
   failures=1)`, 1,37 s; `setup_v2.py --check` joprojām exit 0
   (`ready:true`, īstais modelis atbilst piespraudei).
+
+---
+
+## §57 — Produkcijas refaktors, solis 2: testi (2026-10-24)
+
+- Lietotājs ar pogām apstiprināja pilnu tvērumu (A vienību + B regresijas +
+  C golden). Izveidots `test_workflow_v2.py` (438 rindas, stdlib `unittest`,
+  0 jaunu atkarību; sandbox `pytest` versija nav piesprausta, tāpēc uz to
+  nepaļaujamies). Palaišana: `python3 -m unittest test_workflow_v2`.
+- Sastāvs: 46 gadījumi 13 klasēs. A: `fit_size`, rotāciju
+  parsings/`apply_quarter_turn` (bezzaudējumu Pierādījums), LUT/sRGB,
+  masku QA, `refine_alpha` bands invariants, `studio_shadow_bg`
+  (243 tālu, asimetrija, dilšana), I/O palīgi, modeļa statusa pārbaude.
+  B: asināšanas 25% + GATE_R sliekšņa 24 konstanšu sargi; decontam
+  idempotence kā `expectedFailure`. C: golden `render_paraugs`
+  (2000×2500, stūri 243, kodola krāsa, ēna tikai austrumos, byte-identisks
+  determinisms) — bez rakstīšanas ražošanas `output/` mapēs.
+- Characterization pirms testiem (izmērīts, nevis pieņemts): LUT zem ceļa
+  (blend=0) bitiska identitāte 0–219, `LUT[255]=242` (noklusējumā 244);
+  ēna uz sintētiska taisnstūra E kontakta Δ=80,3 pret W Δ=3,67
+  (attiecība 21,9); `refine_alpha` daļējie tikai |signed|≤6,5 (band_px);
+  sRGB apļceļa kļūda 2,8e-14. Mans sākotnējais plāna formulējums "neitrāla
+  LUT = identitāte" kodā izrādījās nepilnīgs (filma plecs + līkne strādā
+  vienmēr) — testi piesprauž patieso, dokumentēto kontraktu.
+- `expectedFailure` pamats: decontam defekts reproducēts sintētiski —
+  1. palaišana noņem 17 498 px (projektētais 14 px rims, pareizi),
+  2. palaišana tai pašai maskai vēl 6 611 px. Defekts tagad redzams katrā
+  testu palaišanā; labojums ir soļa 3 darbs.
+- Blakus atradums atsevišķā komitā jau salabots (§56). Komplekta laiks
+  1,37 s (mērķis bija <60 s). Fixtūras ģenerē kods ar fiksētu sēklu;
+  bināru failu repo nepievieno.
+- Nemainīgi: no 23 izsekotajiem `.py` hash salīdzinājums pirms/pēc rāda
+  mainītu tikai `setup_v2.py` (§56 apstiprinātais labojums). Algoritmi,
+  §3.2, §5 sliekšņi neskarti. ISNet maskas kvalitāte apzināti netestējas —
+  tā paliek attempt/checker procedūrā.
+- STĀVOKLIS: solis 2 pabeigts. Nākamais plānā: solis 3 (idempotenti posmi,
+  provenance) — gaida lietotāja apstiprinājumu.
