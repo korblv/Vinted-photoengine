@@ -111,11 +111,17 @@ def _persist_report(records: list[dict], attempt: int, stage: str,
     return report
 
 
-def make_zip(zip_name: str | None = None) -> int:
+def make_zip(zip_name: str | None = None,
+             only_stems: set[str] | None = None) -> int:
     """Izveido ZIP tikai tad, ja checker visām pabeigtajām bildēm saka PASS.
 
     Cilvēka apstiprinājums joprojām notiek ārpus koda ar pogu; šī funkcija
     ir tikai deterministiska piegādes darbība pēc apstiprinājuma.
+
+    `only_stems`: lietotājs ar pogu ir izslēdzis daļu kadru no piegādes
+    (PROGRESS §81: kabatas kadrs ar ēnas līci). Izslēgšana neko
+    neatvieglo — atlasītajām bildēm tik un tā vajag checker PASS, un
+    izslēgtās tiek ierakstītas `excluded_by_user` piegādes atskaitē.
     """
     maker = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
     checker = json.loads(CHECKER_REPORT_PATH.read_text(encoding="utf-8"))
@@ -131,6 +137,15 @@ def make_zip(zip_name: str | None = None) -> int:
     )
     if incomplete:
         raise RuntimeError(f"Grupā ir nepabeigtas bildes, ZIP netiek veidots: {incomplete}")
+    excluded: list[str] = []
+    if only_stems is not None:
+        unknown = sorted(set(only_stems) - set(completed))
+        if unknown:
+            raise RuntimeError(f"--files ar --make-zip: nav pabeigtas bildes {unknown}")
+        if not only_stems:
+            raise RuntimeError("--files ar --make-zip: tukša atlase")
+        excluded = sorted(set(completed) - set(only_stems))
+        completed = {s: completed[s] for s in sorted(set(only_stems))}
     missing_checker = sorted(set(completed) - set(checker))
     if missing_checker:
         raise RuntimeError(f"Checker atskaitē trūkst: {missing_checker}")
@@ -178,6 +193,8 @@ def make_zip(zip_name: str | None = None) -> int:
         "workflow_version": WORKFLOW_VERSION,
         "attempt": maker.get("attempt"),
     }
+    if excluded:
+        delivery["excluded_by_user"] = excluded
     atomic_write_json(DELIVERY_REPORT_PATH, delivery)
     print(json.dumps(delivery, indent=2, ensure_ascii=False))
     return 0

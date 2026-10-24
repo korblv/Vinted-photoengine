@@ -247,7 +247,10 @@ def main() -> int:
         a = args.isnet_auto
         return isnet_auto_worker(a[0], a[1], a[2], float(a[3]), a[4] == "1", a[5])
     if args.make_zip:
-        return make_zip(args.zip_name or None)
+        only = None
+        if args.files:
+            only = {Path(f).stem for f in _selected_files(args)}
+        return make_zip(args.zip_name or None, only)
 
     for d in ["master", "paraugs", "masks", "audits"]:
         Path(OUT, d).mkdir(parents=True, exist_ok=True)

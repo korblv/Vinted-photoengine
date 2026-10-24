@@ -956,5 +956,41 @@ class TestChromaPath(unittest.TestCase):
         self.assertFalse(structural_qa(frag)["accept"])
 
 
+class TestMakeZipSubset(unittest.TestCase):
+    """PROGRESS §81: lietotājs drīkst izslēgt kadru no piegādes; ZIP
+    satur tikai atlasītās, izslēgtā tiek ierakstīta delivery atskaitē,
+    un nezināms stems ir kļūda (ne klusa ignorēšana)."""
+
+    def test_subset_excludes_and_records(self):
+        import zipfile as zf
+
+        import engine.report as rep
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            (out / "paraugs").mkdir()
+            stems = ["STEM_A", "STEM_B", "STEM_C"]
+            for s in stems:
+                (out / "paraugs" / f"{s}_PARAUGS_2000x2500.jpg").write_bytes(
+                    s.encode() * 10)
+            (out / "report_v2_maker.json").write_text(json.dumps(
+                {"attempt": 4,
+                 "images": {s: {"status": "completed"} for s in stems}}))
+            (out / "report_v2.json").write_text(json.dumps(
+                {s: {"ALL_PASS": True} for s in stems}))
+            with mock.patch.object(rep, "OUT", str(out)), \
+                    mock.patch.object(rep, "REPORT_PATH", out / "report_v2_maker.json"), \
+                    mock.patch.object(rep, "CHECKER_REPORT_PATH", out / "report_v2.json"), \
+                    mock.patch.object(rep, "DELIVERY_REPORT_PATH", out / "delivery_v2.json"):
+                rep.make_zip(only_stems={"STEM_A", "STEM_C"})
+                with zf.ZipFile(out / "V2_GALA_BILDES.zip") as z:
+                    names = sorted(z.namelist())
+                delivery = json.loads((out / "delivery_v2.json").read_text())
+                with self.assertRaises(RuntimeError):
+                    rep.make_zip(only_stems={"STEM_X"})
+            self.assertEqual(names, ["STEM_A_PARAUGS_2000x2500.jpg",
+                                     "STEM_C_PARAUGS_2000x2500.jpg"])
+            self.assertEqual(delivery["excluded_by_user"], ["STEM_B"])
+
+
 if __name__ == "__main__":
     unittest.main()

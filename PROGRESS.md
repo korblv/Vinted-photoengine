@@ -2053,3 +2053,22 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   `tmp_id/zoom_a4_122248.jpg`: līcis tīrs, robeža pa aproci un
   ķermeņa malu; savienojumā daži 2-4 px pakāpieni (GrabCut pilnā
   izšķirtspējā). Gala lēmums (GATE_E) lietotājam ar kolāžu.
+
+## §81 — Piegāde: 3 bildes (lietotājs kabatas kadru izslēdza) (2026-10-24)
+- `make_zip` ieguva `only_stems` (CLI: `--make-zip --files ...`):
+  lietotāja izslēgšana neko neatvieglo (atlasītajām vajag checker
+  PASS; nezināms/tukšs saraksts = kļūda) un tiek ierakstīta
+  delivery atskaitē kā `excluded_by_user`. +1 tests; kopā 81 OK.
+- ZIP: `output/V2_GALA_BILDES.zip`, 4 161 694 B, sha256
+  `285d4a9e602a21ed...`, workflow 2.5, attempt 4. Iekšā:
+  `121349` (1 072 452 B, `3f960a3c...`), `121740` (1 188 039 B,
+  `22fc74f6...`), `122109` (2 011 354 B, `1642e005...`).
+  Izslēgts pēc lietotāja lēmuma: `122248` (kabata) — tā A4
+  artefakti paliek output/, līdz grupa tiks slēgta.
+- Nākamais: lietotāja poga "Lejupielādēju — dzēst grupu" ->
+  `close_group.py` dry-run, tad `--yes`.
+- STUDIJAS KPI kopsavilkums šai grupai: A1 checker 2/4; vajadzēja
+  2 ražotnes soļus (§76 chroma ceļš, §78 tumšās zonas piegājiens)
+  + 1 ROI labojumu (§80) + piegādes rīka paplašinājumu (§81).
+  Sērija "3 grupas bez koda labojuma" paliek 0 — grupa bija ārpus
+  papīra uzstādījuma, ko rīki sākotnēji sedza.
