@@ -2330,3 +2330,19 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Ierobežojumi: regulārs sintētisks tīkls (īstas mežģīnes
   neregulārākas), viens fona veids, renders mērīts bez ēnas un krāsu
   profila (izolēts tikai caurspīdīguma efekts).
+
+### §91 Lietotāja lēmums: caurspīdīgo audumu specifikācija atlikta (2026-10-24)
+- Poga pēc §90 mērījumiem: **"Atlikt lēmumu"** - izlemjam, kad pienāks
+  pirmais tills/siets/mežģīnes apģērbs. Ražošana nemainās.
+- Operatīvā sekas man (§3.1 papildinājums praksē): pie katras jaunas
+  grupas inventarizācijas PĀRBAUDĪT, vai apģērbam ir caurspīdīgas
+  daļas; ja ir - pirms apstrādes atgādināt §90 skaitļus un prasīt
+  specifikācijas lēmumu ar pogu. Klusi laist cauri binārajam ceļam
+  NEDRĪKST (maldinošs izvads, §90/N9).
+- Studiju 2. kārtas (M8) bilance uz šo brīdi: E8/E8b (OKLab) slēgts;
+  E11 (invariante) slēgts; E12 (dihromatiskās līnijas) slēgts;
+  E9 (guided) nepierādīts, atlikums E9b; E10 (SLIC) formāli
+  nepierādīts, bet V1 precizitāte +28-33% -> kandidāts E10b uz īstas
+  grupas; E13 izmērīts, lēmums atlikts. Ražošanas kods visā 2. kārtā
+  NAV mainīts (workflow 2.5, 81 tests). Visi eksperimenti kopā:
+  ~2 min CPU pret piecām atmestām ražošanas izmaiņām.

@@ -397,6 +397,14 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
 5. **E12** dihromatiskā līnija paletēm.
 6. **E13** caurspīdīgo audumu mērījums + lietotāja lēmums.
 
+**Statuss 2026-10-24 (2. kārta pabeigta, §84-§91):** visi seši
+eksperimenti veikti. Slēgti ar pierādījumu: E8/E8b, E11, E12.
+Nepierādīts: E9 (atlikums E9b tikai uz ISNet mīkstā ceļa).
+Atvērtais ieguvums: **E10b** (SLIC V1) - vērtēt uz nākamās īstās
+ne-papīra grupas. E13: lietotājs lēmumu atlika (§91) - pie
+inventarizācijas caurspīdīgu apģērbu KAROGOT un jautāt pirms
+apstrādes. Ražošana 2. kārtā nemainīta.
+
 ## KPI žurnāls (papildināt pēc katras grupas)
 
 | Grupa | Attempt 1 maskas | Attempt 1 checker | Koda labojumi pa ceļam | s/bilde |
