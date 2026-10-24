@@ -320,6 +320,14 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
   Kandidāt-eksperiments **E13** (bez ražošanas izmaiņām):
   sintētisks tills pār rakstu; izmērīt binārā ceļa alfa kļūdu,
   lai lēmums būtu ar skaitli.
+  **E13 veikts 2026-10-24 (§90): izmērīts, gaida lietotāja
+  specifikācijas lēmumu.** ISNet alfa tīklā kļūdās par 0.47-0.60
+  (melnu tillu sauc par necaurspīdīgu, baltu par fonu). Chroma
+  melnā tillā sevi noraida (FG palete saindēta caur caurumiem:
+  56% masas = fons). Pašreizējā rendera kļūda tīkla zonās:
+  dE mediāna 50-56 (melns) / 10-16 (balts) - vecā fona spoks.
+  Varianti lēmumam: STOP-eskalācija / E13b matting prototips /
+  pieņemt ierobežojumu / atlikt līdz pirmajai tādai grupai.
 
 ### N7 — Dekontaminācija (E3 apstiprinājums no nozares)
 - rembg 2.x dokumentācija tagad eksplicīti apraksta krāsu

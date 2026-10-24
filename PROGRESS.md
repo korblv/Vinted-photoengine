@@ -2299,3 +2299,34 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Ierobežojums: sintētika ir modeļa labākais gadījums (viens
   apgaismotājs, precīza dihromatiska fizika) - oracle pilnība tāpēc
   gaidāma; pārnesamais atradums ir novērtēšanas trauslums.
+
+### §90 E13: caurspīdīgie audumi izmērīti — vajadzīgs specifikācijas lēmums (2026-10-24)
+- Lietotāja izvēle (poga): E13. Skripts `tmp_id/e13_tulle.py`, rezultāti
+  `tmp_id/e13_tulle.json`, pierādījums `tmp_id/e13_evidence.png`
+  (foto | efektīvais ražošanas iznākums | patiesais uz #F3F3F3 | dE karte).
+  Ražošanas kods nemainīts; mērījumi ar īsto ISNet un `chroma_mask`.
+- **M1 - ISNet alfa caurspīdīgumu neredz:** melnā tilla zonā alfa
+  0.97/0.90 (patiesā 0.38/0.46), baltā 0.15/0.10 (patiesā 0.56/0.66);
+  MAE 0.47-0.60. ISNet mīkstā maska NEDER kā matte alfa.
+- **M2 - trīs dažādi ražotnes likteņi:** (A, melns tills) chroma ceļš
+  sevi NORAIDA - FG palete saindēta caur tīklu: 56% tās masas ir koks,
+  kas redzams caur caurumiem (centri [23.6,11,15] u.tml.), gredzena
+  d_fg mediāna 5.7 < 18 -> 0 fona sēklu. Noraidījums ir DROŠA uzvedība
+  (rezerves ķēde/STOP, nevis miskastes maska). ISNet binārā A: IoU
+  0.9953. (B, balts tills) chroma pieņem (ambiguous 0.002, IoU 0.9947),
+  bet ISNet binārā svārkus zaudē PILNĪBĀ (atgūstamība 0.0).
+- **M3 - pašreizējās (necaurspīdīgās) specifikācijas rendera kļūda**
+  pret patieso preces izskatu uz #F3F3F3: A tīkla zonās dE mediāna
+  56.2/49.9 (>10 veseliem 99.8% pikseļu) - caur melnu tillu izvadā
+  spīd VECĀ koka grīda uz pelēkā fona; B 15.9/9.6 (>10: 82%/48%).
+  Necaurspīdīgā kontrole: mediāna 0.5-0.9 (mērījums valīds).
+- Secinājums: ar bināro specifikāciju tills/siets/mežģīnes izvadā
+  maldina pircēju (vecā fona spoks nav preces izskats; sal. N9 Vinted
+  precizitātes prasību) vai pazūd. Īsts labojums = alfa novērtēšana +
+  alfu zinošs renders un checker (liela specifikācijas maiņa; ISNet
+  alfa tam neder - vajadzīgs E13b PyMatting prototipa mērījums vispirms).
+  Alternatīva: šādus apģērbu STOP-eskalēt lietotājam. **Lēmums tiek
+  prasīts lietotājam ar pogu; līdz tam ražošana nemainās.**
+- Ierobežojumi: regulārs sintētisks tīkls (īstas mežģīnes
+  neregulārākas), viens fona veids, renders mērīts bez ēnas un krāsu
+  profila (izolēts tikai caurspīdīguma efekts).
