@@ -2614,3 +2614,28 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   (a) maker trigeris + checker vārts; (b) līču/kanālu atgūšana;
   (d) ārējs serviss kā maskas avots (lietotāja lēmums).
   Krātuve: /home/user 117285010 B.
+
+### §102 GATE_Q: checker vārts zaudētajam audumam ārpus maskas (A solis) (2026-10-24)
+
+- Poga start_gate (ieteikums apstiprināts). Kritēriji pirms darba:
+  A6 160550 krīt, 160538/160601 iziet; sabotāžas testi; visi testi
+  iziet; esošie sliekšņi nemainās. Visi izpildīti.
+- Jauns bloķējošs vārts GATE_Q_lost_fabric (checker_v2.py, lokāla
+  matemātika — neatkarības princips saglabāts): 1:4 mērogā zona
+  aizvērts(siluets, elipse R=10 ds px) − siluets; aizdomīgs pikselis,
+  ja tekstūra >= max(2.5x fona, fona+2.0, 0.5x auduma kodola).
+  Slieksnis 1.0% no FG (GATE_Q_LIMIT_PCT, piesprausts testā).
+  Pirmais prototips ar bbox kritēriju izmests: plate ("labais")
+  deva 5.48% kakla izgriezuma paneļa dēļ — aizvēršanas ģeometrija
+  logus pēc konstrukcijas izslēdz. Kalibrācija (4 kadri): sliktais
+  4.27%, labie 0.031/0.065/0.101% — robeža apzināti četru paraugu,
+  pārskatīt ar vairāk grupām.
+- Testi: 94/94 OK (4 jauni TestGateQ: tīrs iziet, kanāla sabotāža
+  krīt, papīra logs iziet, slieksnis piesprausts).
+- Reālā validācija: checker **2/3 PASS** — 160550 ALL_PASS=False
+  tikai Q dēļ (4.266%); 160538 0.101%, 160601 0.065%. PASS-ar-pleķi
+  no šī brīža nav iespējams: tiesnesis defektu redz.
+- Nemainīts: maker (2.7), visi esošie vārtu sliekšņi, oriģināli.
+  Krātuve: /home/user 118255591 B. Nākamais pēc pogas: B solis (maker
+  trigeris ar Q metriku -> plate/chroma) vai Uniqlo pabeigt ar zināmo
+  plate maršrutu bez vispārīgā trigera.

@@ -1122,5 +1122,52 @@ class TestHoleRepair(unittest.TestCase):
         self.assertEqual(info["holes_total"], 0)
 
 
+# ---------------------------------------------------------------------------
+# GATE_Q: zaudētais audums ārpus maskas (PROGRESS §102)
+# ---------------------------------------------------------------------------
+class TestGateQ(unittest.TestCase):
+    def _scene(self):
+        """Teksturēts apģērba taisnstūris uz gluda fona; alfa = audums."""
+        H, W = 1000, 800
+        rgb = np.tile(np.array([170, 168, 160], np.uint8), (H, W, 1))
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 6) + (yy // 6)) % 2) * 44 - 22
+        fabric = np.clip(np.array([210, 206, 198], np.int16) + tex[..., None],
+                         0, 255).astype(np.uint8)
+        rgb[80:920, 100:700] = fabric[80:920, 100:700]
+        alpha = np.zeros((H, W), np.uint8)
+        alpha[80:920, 100:700] = 255
+        return rgb, alpha
+
+    def test_clean_garment_passes(self):
+        rgb, alpha = self._scene()
+        res = ck.lost_fabric_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+        self.assertLess(res["lost_fabric_pct"], ck.GATE_Q_LIMIT_PCT)
+
+    def test_fabric_channel_sabotage_fails(self):
+        """Maska pa vidu audumam izmet 40 px kanālu (ieleju svītras
+        replika 160550): saturs ir audums, kanāls šaurs -> jākrīt."""
+        rgb, alpha = self._scene()
+        alpha[80:920, 380:420] = 0
+        res = ck.lost_fabric_gate(rgb, alpha)
+        self.assertFalse(res["pass"], res)
+        self.assertGreater(res["lost_fabric_pct"], ck.GATE_Q_LIMIT_PCT)
+
+    def test_paper_window_passes(self):
+        """240 px gluda papīra logs auduma vidū (izgriezuma replika):
+        plats un gluds -> nav zaudētais audums, jāiziet."""
+        rgb, alpha = self._scene()
+        rgb[380:620, 280:520] = np.array([170, 168, 160], np.uint8)
+        alpha[380:620, 280:520] = 0
+        res = ck.lost_fabric_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+
+    def test_limit_pinned(self):
+        # §3.6/§5: slieksni nedrīkst klusi pārvietot, lai "izietu".
+        # Kalibrācija §102: labie <= 0.101%, sliktais 4.27%.
+        self.assertEqual(ck.GATE_Q_LIMIT_PCT, 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()

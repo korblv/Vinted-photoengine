@@ -14,6 +14,8 @@ Vārti:
   L : **brīdinājums, nevis bloķētājs** — papīra noplūde maskā.
       `pass` vienmēr ir None, tāpēc tas nekad neietekmē ALL_PASS.
       Skatīt `advisory_verdict` / `leak_pct_of_fg` un `PAPIRA_NOPLUDES_QA.md`.
+  Q : audums ārpus maskas — auduma tekstūras pikseļi šauros silueta
+      līčos/kanālos (pretējais virziens P). Sk. `lost_fabric_gate`.
 
 Checker apstrādā tikai maker ierakstus ar statusu `completed`.
 `needs_seed_review`/`failed` ieraksti tiek uzskaitīti `_meta` sadaļā,
@@ -97,6 +99,31 @@ GATE_R_P99_MAX = 24.0
 GATE_R_BG_P99_MAX = 4.0
 GATE_R_EDGE_MIN = 0.80
 GATE_R_EDGE_MAX = 1.85
+
+# --- GATE_Q: audums, kas palicis ĀRPUS maskas (zaudētais audums) ----------
+# Kāpēc: visas pārējās gātes soda fonu maskas IEKŠPUSĒ (G, L, P) vai
+# ieslēgtus caurumus (C). Neviens nemērīja pretējo kļūdu — audumu, ko
+# maska pa ieleju kanāliem un līčiem gar robežu ir izmetusi ĀRĀ.
+# MVIMG_20261020_160550 (A6) izgāja ar ALL_PASS, lai gan pret plate
+# atsauci ārpus maskas bija 704 292 px auduma (baltais pleķis un
+# svītras gatavajā kadrā; audits PROGRESS §99).
+#
+# Mērījums (lokāla matemātika, 1:4 mērogs): morfoloģiski aizvērta
+# silueta (elipse R=10 ds px ~ 80 px kanāls) un maskas starpība ir
+# kanālu/līču zona — lieli logi (kakla izgriezums) tur neietilpst.
+# Zona ir aizdomīga, ja tās tekstūra līdzinās audumam, ne fonam.
+#
+# Kalibrēts uz 4 kadriem (2026-10-24, §102) — aizdomīgo px % no FG:
+#   sliktais (160550 pad_retry A6): 4.27
+#   labie: 160550 plate 0.031, 160601 0.065, 160538 0.101
+# Robeža 1.0% ir ~10x virs labāko maksimuma un ~4x zem sliktā.
+# Tā ir ČETRU paraugu robeža: pārskatīt, tiklīdz ir vairāk grupu.
+GATE_Q_LIMIT_PCT = 1.0
+GATE_Q_SCALE = 0.25
+GATE_Q_CLOSE_R_DS = 10
+GATE_Q_TEX_BG_RATIO = 2.5
+GATE_Q_TEX_BG_ABS = 2.0
+GATE_Q_TEX_FG_RATIO = 0.5
 RECONCILE_CANVAS = (2000, 2500)   # (platums, augstums) — kā CANVAS loop.py
 REPORT_PATH = Path(OUT) / "report_v2.json"
 
@@ -350,6 +377,62 @@ def gate_p_verdict(regions) -> dict:
     }
 
 
+def lost_fabric_gate(rgb: np.ndarray, alpha: np.ndarray) -> dict:
+    """GATE_Q: auduma tekstūras pikseļi, ko maska pazaudējusi šauros
+    līčos/kanālos gar silueta robežu (pretējā kļūda GATE_P virzienam).
+
+    Zona = aizvērts(siluets) − siluets 1:4 mērogā (elipse
+    R=GATE_Q_CLOSE_R_DS): ietilpst kanāli līdz ~80 px platumā,
+    neietilpst īsti logi (kakla izgriezums, spraugas starp piedurkni
+    un korpusu). Zonas pikselis ir aizdomīgs, ja tā lokālā tekstūra
+    (pelēktoņu std, logs 5 ds px) sasniedz vismaz pusi no auduma
+    kodola tekstūras un būtiski pārsniedz ārējā fona tekstūru.
+    Slieksnis un kalibrācija: sk. GATE_Q_* komentāru faila augšā.
+    """
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    g = cv2.resize(gray, None, fx=GATE_Q_SCALE, fy=GATE_Q_SCALE,
+                   interpolation=cv2.INTER_AREA)
+    m1 = ndimage.uniform_filter(g, 5, mode="nearest")
+    m2 = ndimage.uniform_filter(g * g, 5, mode="nearest")
+    tex = np.sqrt(np.maximum(m2 - m1 * m1, 0.0))
+    fg = cv2.resize((alpha > 127).astype(np.float32),
+                    (g.shape[1], g.shape[0]),
+                    interpolation=cv2.INTER_AREA) > 0.5
+    if int(fg.sum()) < 100:
+        return {"pass": False, "lost_fabric_pct": None,
+                "limit_pct": GATE_Q_LIMIT_PCT,
+                "note": "maska praktiski tukša — nav ko vērtēt"}
+    ker = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (2 * GATE_Q_CLOSE_R_DS + 1, 2 * GATE_Q_CLOSE_R_DS + 1))
+    closed = cv2.morphologyEx(fg.astype(np.uint8), cv2.MORPH_CLOSE, ker) > 0
+    bg_lab, _ = ndimage.label(~fg)
+    bords = (set(bg_lab[0].tolist()) | set(bg_lab[-1].tolist())
+             | set(bg_lab[:, 0].tolist()) | set(bg_lab[:, -1].tolist()))
+    bords.discard(0)
+    outer = np.isin(bg_lab, list(bords)) if bords else np.zeros_like(fg)
+    tex_bg = float(np.median(tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    core = ndimage.binary_erosion(fg, iterations=3)
+    tex_fg = float(np.median(tex[core])) if core.any() \
+        else float(np.median(tex[fg]))
+    thr = max(GATE_Q_TEX_BG_RATIO * tex_bg, tex_bg + GATE_Q_TEX_BG_ABS,
+              GATE_Q_TEX_FG_RATIO * tex_fg)
+    cand = closed & (~fg) & (ndimage.distance_transform_edt(~fg) > 1)
+    susp = cand & (tex >= thr)
+    pct = 100.0 * float(susp.sum()) / float(fg.sum())
+    return {
+        "pass": bool(pct <= GATE_Q_LIMIT_PCT),
+        "lost_fabric_pct": round(pct, 3),
+        "limit_pct": GATE_Q_LIMIT_PCT,
+        "suspicious_px_est": int(susp.sum()) * 16,
+        "tex_bg": round(tex_bg, 2),
+        "tex_fg": round(tex_fg, 2),
+        "tex_threshold": round(thr, 2),
+        "note": ("auduma tekstūras fons šauros silueta kanālos/līčos; "
+                 "lieli logi (izgriezums) pēc konstrukcijas neietilpst"),
+    }
+
+
 def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     if maker_rec.get("status", "completed") != "completed":
         return {
@@ -557,6 +640,20 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
             gate_l = {"pass": None, "advisory": True, "skipped": True,
                       "error": f"{type(exc).__name__}: {exc}"}
             border_leak = {"pass": None, "error": f"{type(exc).__name__}: {exc}"}
+
+    # Q (bloķējoša): audums ĀRPUS maskas šauros līčos/kanālos.
+    # Pretējais virziens P: tur fons ieiet maskā, te audums izkrīt ārā.
+    # Kļūda šeit NEDRĪKST klusām pārvērsties par izlaistu pārbaudi
+    # (kā brīdinājuma L), tāpēc izņēmums = vārti krīt.
+    try:
+        _src = Image.open(source).convert("RGB")
+        _rot = int(maker_rec.get("rotation_cw") or 0)
+        if _rot:
+            _src = _src.rotate(-_rot, expand=True)
+        gate_q = lost_fabric_gate(np.asarray(_src), alpha)
+        del _src
+    except Exception as exc:  # noqa: BLE001
+        gate_q = {"pass": False, "error": f"{type(exc).__name__}: {exc}"}
     del alpha
 
     # D/F: gala formāts un tuvplāna pilnkadra pārklājums.
@@ -757,6 +854,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
         "GATE_K_chroma_honesty": chroma_check,
         "GATE_L_paper_leak": gate_l,
         "GATE_P_paper_at_border": border_leak,
+        "GATE_Q_lost_fabric": gate_q,
         "GATE_R_reconcile": gate_r,
         "GATE_T_speed": {
             "pass": bool(isinstance(total_s, (int, float)) and float(total_s) <= SPEED_LIMIT_S),
