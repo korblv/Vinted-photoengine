@@ -1808,3 +1808,23 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   mugura `e317d70c804d2882`; grade profils `771e8e148a2a8e68`.
 - Krātuve pirms piegādes: 96 765 843 B (jāatbrīvo vieta ZIP dublikātam;
   kandidāti: tmp_id diagnostika, output/audits saturu pārbaudīt).
+
+## §71 — Henley piegāde: lietotājs apstiprināja, ZIP izveidots (2026-10-24)
+- §3.4 plūsma: kolāža parādīta -> poga "Apstiprināt" (checker 5/5 PASS
+  jau bija pirms rādīšanas).
+- Vietas jautājums: ZIP prasīja +8.1 MB pie 97.4 MB. Lietotājs
+  precizēja: Arena vienas sarunas krātuves griesti ir 128 MB;
+  rīcība kā iepriekš — pēc lejupielādes dzēšam ZIP (close_group).
+  MASTER pārspiešana/dzēšana NAV darīta. Pīķis ar ZIP: 104 341 065 B
+  (virs 00 §3.5 iekšējā 100 MB darba limita, zem 128 MB griestiem;
+  pēc grupas slēgšanas gaidāms atkal ~5-6 MB). Apsvērumam citreiz:
+  00 §3.5 limita saskaņošana ar 128 MB (lietotāja lēmums).
+- `output/GALA_BILDES.zip`: 7 997 787 B, sha256
+  `bebe8337e23203890ff015bb83b6cc91e18ae8cf072f53eb0b11746f87ab0b27`.
+  Saturs = 5 PARAUGS; katra faila SHA-256 ZIP iekšienē salīdzināts
+  ar §70 checker apstiprinātajiem — 5/5 atbilst.
+- tmp_id diagnostika (id lapa, kartes, hasu saraksti, 1 012 177 B)
+  pēc apstiprinājuma izdzēsta; tās skaitļi saglabāti §67-§70.
+- Gaida pogu "Lejupielādēju — dzēst grupu" -> tad close_group par
+  visiem 5 stemiem (oriģināli, maskas/alpha/provenance, MASTER,
+  PARAUGS, kolāža, ZIP) un beigu mērījums.
