@@ -415,9 +415,20 @@ def plate_mask(orig: Image.Image) -> tuple[np.ndarray, dict]:
     outer_ratio = float(np.median(E7[b_out])) / gi if b_out.any() else 0.0
 
     # fons maskas iekšpusē: nospiest L* no vietējās plaknes + zema tekstūra
+    # + papīra krāsa. Krāsas nosacījums pielikts 2026-10-24 (birkas makro
+    # `124406358`, PROGRESS §69): "gluds + plakans" vien karogoja vafeļu
+    # rindu ēnu līnijas (2.8 % sīku plankumiņu, L* med 66.8), kas nav
+    # papīrs (īstais papīrs L* 49-61). Logs = tas pats `L_TOL`, ar ko
+    # `_keep_garment` nošķir papīru no gludas krokas. Ja papīra līmeni
+    # nevar izmērīt (gredzenā <200 px), paliek vecais skaitījums bez
+    # krāsas — nekad ne mīkstāks par iepriekšējo.
     from scipy.ndimage import gaussian_filter
     base = gaussian_filter(L, 60)          # pusizmērā: lokālais L* līmenis
     bg_like = interior & (E7 < 0.55 * gi) & (np.abs(L - base) < 4.0)
+    paper_L, paper_E = _ps._paper_level(L, m.astype(np.uint8))
+    if np.isfinite(paper_E):
+        lo, hi = _ps.L_TOL
+        bg_like &= (L >= paper_L + lo) & (L <= paper_L + hi)
     bg_inside = float(bg_like.sum() / max(int(interior.sum()), 1))
 
     hover = float(m.mean())
@@ -426,6 +437,7 @@ def plate_mask(orig: Image.Image) -> tuple[np.ndarray, dict]:
         "inner_ratio": round(inner_ratio, 3),
         "outer_ratio": round(outer_ratio, 3),
         "bg_inside": round(bg_inside, 4),
+        "paper_L": round(float(paper_L), 1) if np.isfinite(paper_E) else None,
         "interior_E7": round(gi, 2),
         "edge_calib_px": info.get("edge_calib_px"),
         "offset_before_calib": info.get("offset_before_calib"),

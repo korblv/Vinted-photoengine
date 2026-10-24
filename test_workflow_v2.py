@@ -25,8 +25,10 @@ from PIL import Image
 
 import checker_v2 as ck
 import loop
+import plate_segment as ps
 import setup_v2
 import workflow_v2 as wf
+from engine.masks import plate_mask
 
 SEED = 12345
 
@@ -689,6 +691,78 @@ class TestSetupModelStatus(unittest.TestCase):
             s = self._status_with(td, None)
             self.assertFalse(s["ok"])
             self.assertFalse(s["exists"])
+
+
+class TestPlateThresholdFallback(unittest.TestCase):
+    """PROGRESS §69: Otsu kritiens uz birkas makro `124406358`.
+
+    Sintētika atveido izmērīto sadalījumu: vāja auduma tekstūra
+    (E med ~3) + neliels ekstrēmas enerģijas bloks (E 45), kas Otsu
+    aizvelk uz 20.8 — virs auduma. Fallback slieksnis no enkuriem
+    atgūst patieso segumu 0.8125; veselīgs sadalījums paliek pie Otsu.
+    """
+
+    def _plane(self, amp, checker):
+        rng = np.random.default_rng(42)
+        h, w = 600, 800
+        L = np.full((h, w), 59.0, np.float32)
+        L += rng.normal(0, 0.6, (h, w)).astype(np.float32)
+        yy, xx = np.mgrid[0:h, 0:w]
+        L[:, :650] = (64.0 + amp * np.sin(yy[:, :650] * 2 * np.pi / 14)
+                      + amp * np.sin(xx[:, :650] * 2 * np.pi / 14)
+                      + rng.normal(0, 0.6, (h, 650)))
+        if checker:
+            chk = ((yy // 3 + xx // 3) % 2) * 90.0 - 45.0
+            L[200:310, 250:360] = 60.0 + chk[200:310, 250:360]
+        return L.astype(np.float32)
+
+    def test_anchored_fallback_recovers_coverage(self):
+        m, info = ps._detect(self._plane(amp=3.0, checker=True), 25)
+        self.assertEqual(info["thr_method"], "anchored_fallback")
+        self.assertAlmostEqual(float(m.mean()), 0.8125, delta=0.05)
+
+    def test_healthy_distribution_stays_on_otsu(self):
+        m, info = ps._detect(self._plane(amp=7.0, checker=False), 25)
+        self.assertEqual(info["thr_method"], "otsu")
+        self.assertAlmostEqual(float(m.mean()), 0.8125, delta=0.05)
+
+    def test_anchored_threshold_is_geometric_mean(self):
+        E = np.full((400, 400), 10.0, np.float32)
+        E[:4, :] = E[-4:, :] = 2.0
+        E[:, :4] = E[:, -4:] = 2.0
+        thr = ps._anchored_threshold(E)
+        self.assertIsNotNone(thr)
+        self.assertAlmostEqual(thr, float(np.sqrt(2.0 * 10.0)), places=4)
+
+
+class TestPlateBgInsideColor(unittest.TestCase):
+    """PROGRESS §69: bg_inside skaita tikai papīra krāsas plakano daļu.
+
+    Negatīvā kontrole: papīra krāsas pleķis auduma vidū QA joprojām
+    noraida (bg_inside 0.17 > 0.02). Pozitīvā: gaiša gluda "birka"
+    netiek karogota (0.0) un maska tiek pieņemta.
+    """
+
+    def _rgb(self, patch_gray):
+        rng = np.random.default_rng(42)
+        hf, wf_ = 1200, 1600
+        img = np.full((hf, wf_), 190.0) + rng.normal(0, 2, (hf, wf_))
+        yy, xx = np.mgrid[0:hf, 0:wf_]
+        tex = (200 + 26 * np.sin(yy * 2 * np.pi / 16)
+               + 26 * np.sin(xx * 2 * np.pi / 16) + rng.normal(0, 2, (hf, wf_)))
+        img[100:1100, 100:1500] = tex[100:1100, 100:1500]
+        img[400:800, 600:1000] = patch_gray + rng.normal(0, 2, (400, 400))
+        return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).convert("RGB")
+
+    def test_paper_colored_patch_inside_still_rejected(self):
+        _, qa = plate_mask(self._rgb(190))
+        self.assertGreater(qa["bg_inside"], 0.02)
+        self.assertFalse(qa["accept"])
+
+    def test_bright_smooth_label_not_counted_as_paper(self):
+        _, qa = plate_mask(self._rgb(245))
+        self.assertLess(qa["bg_inside"], 0.005)
+        self.assertTrue(qa["accept"])
 
 
 if __name__ == "__main__":

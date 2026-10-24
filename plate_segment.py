@@ -108,6 +108,45 @@ def _keep_garment(m: np.ndarray, L: np.ndarray | None = None,
     return (~bg).astype(np.uint8)
 
 
+# Otsu maskas seguma grīda, zem kuras ieslēdzas enkurētais slieksnis.
+# Tā pati vērtība, ko plāksnes QA prasa kā seguma minimumu
+# (config.toml [plate] cover_min=0.25): zem tās Otsu masku QA tāpat
+# noraidītu, tāpēc fallback neko nezaudē, bet var glābt kadru.
+DETECT_COVER_FLOOR = 0.25
+
+
+def _anchored_threshold(E: np.ndarray) -> float | None:
+    """Slieksnis no izmērītiem līmeņiem, ja Otsu izkropļo sadalījumu.
+
+    Papīra līmenis = malas gredzena gludās daļas (E <= p40) mediāna
+    (tas pats paraugs, ko `_paper_level` ņem L* līmenim); auduma
+    līmenis = visa kadra E p90. Slieksnis = ģeometriskais vidējais:
+    tekstūras enerģija ir reizinājuma mēroga lielums, tāpēc viduspunkts
+    log skalā ir tas pats, ko dotu Otsu log-domēnā (uz `124406358` abi
+    deva 4.6 pret Otsu 13.7).
+
+    Mērīts 2026-10-24 uz `PXL_20261022_124406358` (birkas makro):
+    papīrs 2.24, audums p90 9.38 -> slieksnis 4.58, segums 0.8717
+    (Otsu 13.73 deva 0.0237: virs auduma mediānas 7.06, jo E maksimumu
+    31.3 nosaka reti ekstrēmi — birkas melnā druka un vīļu ēnas).
+    Kalibrācijas bildē `124339475` Otsu segums ir 0.71, tāpēc fallback
+    tur NEIESLĒDZAS un maska paliek bitiski identiska vecajai.
+    """
+    h, w = E.shape
+    ring = np.zeros((h, w), bool)
+    s = max(4, int(0.012 * min(h, w)))
+    ring[:s, :] = ring[-s:, :] = True
+    ring[:, :s] = ring[:, -s:] = True
+    ring_E = E[ring]
+    if ring_E.size < 200:
+        return None
+    bg = float(np.median(ring_E[ring_E <= np.percentile(ring_E, 40)]))
+    fg = float(np.percentile(E, 90))
+    if bg <= 0 or fg <= bg:
+        return None
+    return float(np.sqrt(bg * fg))
+
+
 def _detect(L: np.ndarray, win: int) -> tuple[np.ndarray, dict]:
     E = _local_std(L, win)
     thr, _ = cv2.threshold(
@@ -115,14 +154,26 @@ def _detect(L: np.ndarray, win: int) -> tuple[np.ndarray, dict]:
         cv2.THRESH_BINARY + cv2.THRESH_OTSU,
     )
     thr = float(thr) / 255 * E.max()
-    m = (E > thr).astype(np.uint8)
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((win, win), np.uint8))
-    n, cc, st, _ = cv2.connectedComponentsWithStats(m, 8)
-    if n > 1:
-        m = (cc == 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
-    m = _keep_garment(m, L)
+
+    def build(t: float) -> np.ndarray:
+        m = (E > t).astype(np.uint8)
+        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((win, win), np.uint8))
+        n, cc, st, _ = cv2.connectedComponentsWithStats(m, 8)
+        if n > 1:
+            m = (cc == 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        return _keep_garment(m, L)
+
+    m = build(thr)
+    thr_used, method = thr, "otsu"
+    if float(m.mean()) < DETECT_COVER_FLOOR:
+        anchored = _anchored_threshold(E)
+        if anchored is not None:
+            m2 = build(anchored)
+            if float(m2.mean()) > float(m.mean()):
+                m, thr_used, method = m2, anchored, "anchored_fallback"
     return m, {"win": win, "otsu": round(thr, 3),
+               "thr": round(float(thr_used), 3), "thr_method": method,
                "bg_med": round(float(np.median(E[_bg_sample(m)])), 2),
                "fg_med": round(float(np.median(E[binary_erosion(m > 0, iterations=12)])), 2)
                if binary_erosion(m > 0, iterations=12).any() else None}

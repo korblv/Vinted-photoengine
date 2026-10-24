@@ -1741,3 +1741,37 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   grupas stemiem ir "IGINAL" (tas pats `.PORTRAIT.ORIGINAL` gals,
   kas §67 lauza `--rotate` īsās atslēgas) — šai grupai nekaitē
   (sēklu nav), bet jāfiksē kopējā mazā labojumā.
+
+## §69 — Plate ceļa divi mērīti labojumi birkas kadram (2026-10-24)
+- Lietotājs ar pogām apstiprināja: (a) labot plate slieksni ražotnē,
+  (b) pielikt QA `bg_inside` papīra krāsas nosacījumu. Neviens
+  skaitliskais vārtu slieksnis nav mainīts.
+- Labojums 1 (`plate_segment._detect`): ja Otsu maskas segums
+  < `DETECT_COVER_FLOOR=0.25` (tā pati grīda, ko QA tāpat prasītu),
+  slieksni pārrēķina no enkuriem — ģeometriskais vidējais starp
+  papīra E (malas gredzena gludā daļa) un auduma E (p90). Uz birkas:
+  2.24 un 9.38 -> 4.58; segums 0.0219 -> 0.8696 (Otsu 13.73 bija virs
+  auduma mediānas 7.06; sadalījuma asti nosaka birkas melnā druka un
+  vīļu ēnas, E maks. 31.3). Info vārdnīcai pievienoti `thr` un
+  `thr_method` (`otsu`|`anchored_fallback`); vecais `otsu` saglabāts.
+- Regresija = 0: kalibrācijas kadriem fallback neieslēdzas un
+  `plate_mask` binārās maskas ir bitiski identiskas pirms/pēc —
+  apakšmala `f51f9f8941232a33`, kakls `81f504ab9524c0f8`.
+- Pēc 1. labojuma QA birku joprojām noraidīja: `bg_inside`
+  0.0284 > 0.02. Karte + komponentu mērījums pierādīja: karogotie
+  66 383 px ir vafeļu rindu ēnu līnijas un vīle — tūkstošiem sīku
+  plankumiņu (lielākais 3 965 px), L* mediāna 66.8, kamēr īstais
+  papīrs ārpus maskas ir L* 49-61. "Gluds + plakans" bez krāsas
+  makro kadrā audumu sauc par fonu.
+- Labojums 2 (`engine/masks.plate_mask`): `bg_like` papildus prasa
+  papīra L* logu `L_TOL` (-14..+8) ap izmērīto papīra līmeni (tas
+  pats logs, ko `_keep_garment` jau lieto papīra/krokas dalījumam);
+  ja papīra līmenis nav izmērāms, paliek vecais skaitījums. Birka:
+  0.0284 -> 0.0145, accept False -> True. Kontroles: apakšmala
+  0.0067 -> 0.0053, kakls 0.0024 -> 0.0007 (abi paliek accept=True,
+  binārās nemainītas). QA vārdnīcai pievienots `paper_L` (birkā 59.0).
+- Sintētiskās kontroles (tagad unit testi): vāja tekstūra +
+  ekstrēms bloks reproducē Otsu kritienu (20.8) un fallback atgūst
+  segumu 0.8275 (patiesais 0.8125); papīra krāsas pleķis auduma vidū
+  joprojām tiek noraidīts (`bg_inside` 0.1719), gaiša gluda "birka"
+  netiek karogota (0.0, accept=True). Testi: 64 -> **69 OK** (2.60 s).
