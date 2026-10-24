@@ -2031,3 +2031,25 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   ražotnē nelikts. GATE_E galavārds lietotājam: apstiprināt A3 /
   122248 atpakaļ uz A2 variantu / piegādāt 3 bildes.
 - Krātuve: ~126 MB; pēc apstiprināšanas un slēgšanas atbrīvosies.
+
+## §80 — 122248 līča robeža: ROI GrabCut (lietotāja izvēle), Attempt 4 (2026-10-24)
+- Lietotājs A3 vizuāli noraidīja ("izskatās ļoti slikti") un jautāja,
+  vai vietu var AI reģenerēt. Atbilde fiksēta: audumu ģenerēt
+  nedrīkst (00 §3.2); drīkst tikai masku. Pierādījums ar kontūru uz
+  oriģināla (`tmp_id/evidence_122248.jpg`): A3 atlikušās daivas guļ
+  uz grīdas (dzīslojums iekšā). Lauka sadalījumi pārklājas (daivas
+  med 8.1 pret piedurkni 13.0) — globāls slieksnis neder.
+- Lietotāja izvēle: algoritmiski precizēt robežu tikai zonā.
+  ROI atvasināts no nedrošās zonas lielākās komponentes (ne ar
+  roku); GrabCut 5 iter., sēklas: sureFG = maska & dist>=25 &
+  (tumšais lauks>12 | L>25), sureBG = ~maska & dist>=15; rezultāts
+  pieņemts tikai dilatētā nedrošajā zonā (ROI mala citādi ielika
+  šuvi — izmērīts prototipā). Pielietots maskas failam ar
+  provenance posmu `roi_grabcut` (ķēde mask -> roi_grabcut,
+  history_known true): d-46 199 / +2 919 px pret A3 masku.
+  Skripts: `tmp_id/roi_fix_122248.py`.
+- Attempt 4 (`--rerender-saved`): maker 4/4, profils nemainīgs
+  ([180,173,159], [1,1,1], 1.06), checker 4/4 ALL_PASS. Zoom
+  `tmp_id/zoom_a4_122248.jpg`: līcis tīrs, robeža pa aproci un
+  ķermeņa malu; savienojumā daži 2-4 px pakāpieni (GrabCut pilnā
+  izšķirtspējā). Gala lēmums (GATE_E) lietotājam ar kolāžu.
