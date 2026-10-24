@@ -2565,3 +2565,29 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   (c) jauns checker vārts šim aklajam punktam; (d) modeļa benchmarks
   (Photoroom līmenis ir servera modelis; lokāli ISNet 768px proxy
   ielejas zaudē). Krātuve: /home/user 103258788 B.
+
+### §100 Modeļa benchmarks (poga model_benchmark): lokāls modelis Photoroom līmeni nesasniedz (2026-10-24)
+
+- Kritērijs pirms mērījuma: IoU >= 0.95 un zaudētais audums <= 50 000 px
+  pret plate uz 160550, RAM <= 1800 MB, <= 60 s/kadrs. Tikai mērījumi
+  tmp_id/bench (metrics.json, diff pārklājumi); ražošana nemainīta.
+  Vide bija jāatjauno (setup_v2; /var/tmp starp sesijām notīrīts).
+- Neiespējami pie 1982 MB RAM (exit 137, OOM): bria-rmbg (RMBG-2.0,
+  fails 1.02 GB; turklāt komerclicence), birefnet-general-lite
+  (214 MB; OOM arī ar 1024px proxy ievadi), u2net_cloth_seg (169 MB;
+  fiksēta 768x768 ievade, OOM arī tiešā onnxruntime skrējienā).
+  BiRefNet pārējie varianti lielāki — nemērīti kā bezcerīgi.
+- Izmērītie (viens piegājiens, slieksnis 0.5, bez pēcapstrādes):
+  ISNet plain: 160550 IoU 0.186 (zaud. 6.50 Mpx), 160601 IoU 0.037
+  (segums 0.032), 160538 IoU 0.974 bet +134 038 px lieki; 3.6-4.0 s,
+  1215-1228 MB. u2net: 0.249 / 0.659 / 0.869 (160538 zaud. 572 975 px);
+  1.5-2.0 s, ~900 MB. Ražošanas A6 (pad_retry+labojumi) pret plate:
+  IoU 0.812, zaud. 704 292 px — labākais lokālais rezultāts uz 160550
+  pēc pašas plate.
+- **Secinājums:** modeļa maiņa rembg/2 GB ietvaros problēmu neatrisina;
+  Photoroom ir servera klases modelis, kam lokālas atbildes šajā
+  atmiņas budžetā nav. Reālistiskie ceļi paliek no §99: (a) maker
+  trigeris + checker vārts aklajam punktam; (b) līču/kanālu atgūšana
+  pēc satura; (c) flīzēta (tiled) ISNet inference dzimtajā izšķirtspējā
+  (jauna, nemērīta ideja); (d) ārējs serviss kā maskas avots
+  (lietotāja lēmums par mākoņi/maksu). Krātuve: /home/user 107778026 B.
