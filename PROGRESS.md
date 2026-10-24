@@ -2440,3 +2440,32 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   Piegādājams šobrīd: 1/5 (`160538`). Nākamais solis — tikai pēc
   lietotāja pogas (sk. ziņu: `--pad` tests bez koda / plate ķēdē /
   plate QA makro precizējums / kadru izslēgšana).
+
+### §96 Uniqlo pad tests (poga `pad_test`): 160550 PASS caur plate, 160601 pie 0.70 STOP (2026-10-24)
+
+- Kritērijs pirms mērījuma (fiksēts ziņā): caurumi ≤ 2000 px kopā katrai
+  bildei un segums ±0.03 no A2. **Kopā kritērijs nav izpildīts** (160601),
+  bet 160550 iznākums ir labākais iespējamais — sk. zemāk.
+- Komanda: `--attempt 3 --wb-mode identity --pad 0.70 --no-decontam
+  MVIMG_20261020_160550 --files 160550.jpg 160601.jpg`.
+  `--pad` = daļa no 768 audekla (config `pad_retry=0.90`); mazāka
+  vērtība = vairāk papīra konteksta.
+- **Korekcija §95:** apgalvojums "plate netiek mēģināta" bija nepareizs.
+  Ķēde ir ISNet → pad_retry → plate → chroma → STOP; A1/A2 plate līdz
+  mēģinājumam netika, jo pad_retry tika pieņemta. Bez tam eksistē
+  `--overrides` JSON ar pad katram stem atsevišķi.
+- `160550` pie pad 0.70: pad_retry noraidīta → **plate pieņemta**
+  (metode `plate_texture`, segums 0.6460, kā offline mērījums §95).
+  ALPHA caurumi ≥100 px: **0** (A2: 53 877 + 121 px). Checker:
+  **ALL_PASS**, GATE_L PASS 0.161% (bija DUBIOUS 0.527%).
+- `160601` pie pad 0.70: **STOP** — pad_retry segums 1.000 noraidīts,
+  plate 0.999 noraidīta, chroma: fona sēklas 261 px par maz. Pie
+  pad 0.90 (A2) tai bija pad_retry ar 610 px caurumu. Starpvērtības
+  0.80/0.85 nav mērītas.
+- Stāvoklis: checker **2/2 PASS** (`160538` A2 + `160550` A3; abiem
+  identity WB, ekspozīcija 1.06 — profilu vērtības sakrīt). Atklāts:
+  `160601` caurums un 2 makro STOP (§95 diagnostika). Pirms piegādes
+  tāpat vajadzēs vienu apvienotu mēģinājumu visam komplektam ar
+  per-stem iestatījumiem (`--overrides`).
+- Krātuve: `/home/user` 101513979 B; `loop_bildes` 51.74 MiB (maker
+  atskaite). Kods un sliekšņi nemainīgi. Nākamais — pēc pogas.
