@@ -2591,3 +2591,26 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   pēc satura; (c) flīzēta (tiled) ISNet inference dzimtajā izšķirtspējā
   (jauna, nemērīta ideja); (d) ārējs serviss kā maskas avots
   (lietotāja lēmums par mākoņi/maksu). Krātuve: /home/user 107778026 B.
+
+### §101 Eksperments: flīzēts ISNet — hipotēze noraidīta ar mērījumu (2026-10-24)
+
+- Poga tiled_isnet. Kritērijs tas pats (IoU >= 0.95, zaudētais
+  audums <= 50 000 px pret plate uz 160550). Tikai tmp_id/bench.
+- Metode: ražošanas isnet_native (arēna izslēgta; rembg sesija flīzēs
+  mira ar OOM — tas pats 1215 MB arēnas efekts, ko ražošana jau bija
+  izmērījusi), flīzes 1024x1024 solis 768, jēlā izvade bez flīžu
+  min-max, spalvu vidējošana + max variants; V1 pa oriģinālu
+  (20 flīzes, 64.6 s, 1114 MB), V2 ar 512 px papīra apmali
+  (35 flīzes, 115.6 s, 1231 MB).
+- Rezultāts: IoU 0.043-0.069, segums 0.03-0.09, zaudētais audums
+  7.55-7.78 Mpx — sliktāk par vienpiegājiena ISNet (0.186).
+  Kontrole pret inversiju: vidējā soft vērtība audumā 0.059, fonā
+  0.082 — modelis flīžu mērogā uz papīra graudu reaģē pat vairāk
+  nekā uz audumu.
+- **Secinājums:** ISNet tuvplānu neveiksme nav izšķirtspējas, bet
+  semantikas jautājums: bez visa objekta skata modelis auduma
+  tekstūru par objektu neatzīst nevienā mērogā. Flīzēšana to nelabo
+  un maksā 65-116 s/kadrs. Tēma slēgta. Paliek §99 ceļi:
+  (a) maker trigeris + checker vārts; (b) līču/kanālu atgūšana;
+  (d) ārējs serviss kā maskas avots (lietotāja lēmums).
+  Krātuve: /home/user 117285010 B.
