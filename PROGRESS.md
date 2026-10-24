@@ -2086,3 +2086,25 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   tumšās zonas piegājiens (§78) + piegādes apakškopa (§81);
   workflow 2.5; 81 tests. Nākamā grupa uz ne-papīra fona sāksies
   ar šiem rīkiem jau iekšā; studiju sērija joprojām 0.
+
+### §83 Studiju 2. kārta (M8): padziļināta izpēte pirms nākamajām bildēm — 2026-10-24
+- Pēc lietotāja uzdevuma: internets + YouTube + Telegram apskats pufjakas grupas
+  atklātajām vājajām vietām. **Kods netika mainīts**; 15 web meklējumi + 2 lapas
+  (Vinted catalog-rules, t.me/s/AI_DeepLearning priekšskatījums).
+- `STUDIJAS.md` papildināts ar M8 (N1–N9) un kandidāteksperimentiem E8–E13:
+  OKLab (E8), guided joint-upsampling malām (E9), SLIC superpikseļi (E10),
+  ēnas invariante (E11), dihromatiskais spīduma modelis (E12), matting
+  caurspīdīgiem audumiem + specifikācijas jautājums (E13). Prioritāšu secība:
+  E9 > E8 > E11 > E10 > E12 > E13.
+- Modeļu karte: rembg noklusējums tagad bria-rmbg (~1.02 GB; komerciālai
+  lietošanai vajag licenci) — mums neder; ISNet lēmums nemainīgs.
+- **Biznesa atradums (N9)**: Vinted noteikumi burtiski aizliedz attēlu
+  rediģēšanu, bet Vinted preses pozīcija (2026-10-23) atļauj vizuālu uzlabojumu
+  (piem., fona noņemšanu), ja bilde paliek precīza un neslēpj stāvokli.
+  Ieteikums lietotājam: vismaz viena neapstrādāta bilde sludinājumā + godīga
+  deklarācija. ES AI akta marķēšana no 2026-08-02 (mūsu pikseļi ir oriģināli).
+- KPI žurnālā pielikta pufjakas rinda (A1 checker 2/4; 10.77 s/bilde).
+  Video avoti apskatīti aprakstu/metadatu līmenī (godīgi atzīmēts dokumentā);
+  Telegram kanāli lasāmi caur t.me/s priekšskatījumiem.
+- Nākamie soļi pēc lietotāja izvēles: kāds no E8–E13 eksperimenta prototipiem
+  (§3 kārtība: mērījums -> poga -> solis) vai nākamā bilžu grupa pēc §3.1.

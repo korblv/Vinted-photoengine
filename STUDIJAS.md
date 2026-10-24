@@ -197,12 +197,160 @@ Ko tas nozīmē mums:
   mūsu resize + asināšanas ķēdei; overshoot budžets skaitlī, nevis
   "25 % izskatījās labi uz vienas grupas".
 
+## M8 — Padziļinātā sesija pēc pufjakas grupas (2026-10-24)
+
+Pufjakas grupa (§74–§82) atklāja četras vājās vietas, kuras papīra
+grupas neskāra: (a) tumšajā zonā CIE Lab krāsas sabrūk (līcis pret
+audumu neatdalījās); (b) maskas dzimst pusmērogā un mala ir
+interpolēta, ne piesieta foto malām; (c) pikseļu līmeņa lēmumi dod
+raupju robežu gradientā; (d) metālisks spīdums paletēm ir "daudz
+krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
+
+### N1 — OKLab tumšajai zonai
+- CIE Lab zilajos/tumšajos toņos nokrāsa līkumo (hue bending);
+  OKLab (Ottosson 2020) to labo: vienādības RMS kļūdas pret
+  uztveres datiem Lab 1.70 (L), 1.84 (C), 0.69 (H) -> OKLab 0.20,
+  0.81, 0.49. Transformācija: 2 matricas + kubsakne — lēta.
+- Mūsu līcis bija tieši Lab vājajā zonā (tumši zils pret tumši
+  siltu). Kandidāt-eksperiments **E8**: tumšo palešu atdalāmība
+  (min. savstarpējais attālums, sēklu malu attiecība) Lab pret
+  OKLab uz sintētikas un §77 izmērītajiem centriem. Pieņemt tikai
+  ar skaitli un tikai tumšajai zonai (bool config slēdzis).
+
+### N2 — Guided filter / joint upsampling malām
+- Guided filter (He, Sun, Tang): lokāli lineārs modelis q=aI+b,
+  ∇q=a∇I — izvadei mala ir tikai tur, kur vadattēlam; O(N);
+  teorētiska saistība ar matting Laplacian. Joint upsampling:
+  lēti pusmērogā rēķinātu lauku (mūsu maskas lauku) paceļ pilnā
+  izšķirtspējā, struktūru ņemot no oriģināla. Fast GF: >10x
+  paātrinājums ar apakšizlasi.
+- Mums tas ir tiešs kandidāts `LANCZOS` maskas vilkšanas vietā.
+  Kandidāt-eksperiments **E9** (= E4 etalona turpinājums):
+  sintētiska zināma mala; salīdzināt Lanczos pret guided
+  upsampling ar Boundary IoU un malas nobīdi pikseļos.
+
+### N3 — Superpikseļi (SLIC) pret robežas troksni
+- SLIC reģioni seko attēla malām un vidējo pikseļu troksni; SLIC+
+  GrabCut/Bayes literatūrā dod gludākas robežas nekā pikseļu
+  grafs. Risks: līdzīgu krāsu reģionos SLIC veido viltus zonas
+  (maskēšanās) — tāpēc mums tikai kā lēmuma vienība `chroma`
+  nedrošajā zonā, nevis globāli.
+- Kandidāt-eksperiments **E10**: nedrošajā zonā lauku un E7
+  vērtēt superpikseļa mediānai; sintētikā mērīt robežas
+  robainību (perimetrs pret ideālo) un kļūdu laukumu.
+
+### N4 — Ēnas invariante (Finlayson)
+- Log-hromas telpā apgaismojuma izmaiņa guļ uz vienas taisnes
+  (virziens atkarīgs tikai no kameras); projekcija ortogonāli
+  tai dod attēlu bez ēnām. Virzienu atrod bez kalibrācijas:
+  pareizā projekcija minimizē entropiju (Finlayson et al.,
+  PAMI 2006; IJCV 2009 — kvadrātiskā entropija, viens minimums).
+- Brīdinājums no literatūras: metode krīt uz gandrīz
+  ahromatiskām virsmām.
+- Kandidāt-eksperiments **E11**: sintētiska ēna pāri divu krāsu
+  robežai; vai invarianta pazīme tumšajā piegājienā atdala
+  labāk nekā (a*,b*) attālums (mērīt sēklu malu attiecību).
+
+### N5 — Dihromatiskais modelis spīdumam
+- Shafer: pikselis = m_b * ķermeņa krāsa + m_s * gaismas krāsa.
+  Vienas virsmas pikseļi veido "T" klasteri: matēto līniju
+  (ķermeņa virziens) un spīduma līniju (gaismas virziens).
+- Mūsu mediān-griezuma paletes metāliskam audumam tērē centrus
+  gar abām līnijām; fizikāli precīzāk būtu attālums līdz līnijai
+  (ķermeņa krāsa -> gaismas krāsa), nevis līdz punktiem — mazāk
+  centru, mazāka "zagšanas" virsma.
+- Kandidāt-eksperiments **E12**: sintētisks zils audums ar
+  spīduma gradientu; punktu palete pret līnijas attālumu:
+  atdalāmība un centru skaits pie vienādas kļūdas.
+
+### N6 — Caurspīdīgi audumi: īsts matting (nākotnes specifikācija)
+- Tills, siets, mežģīnes: bināra maska pēc definīcijas melo —
+  pikseļi ir maisījums. PyMatting (closed-form/KNN) ar trimap
+  no mūsu maskas (erozija=drošs FG, dilatācija=drošs BG) to
+  risina; KNN matting etalona ir spēcīgs tieši caurspīdīgiem
+  objektiem (alfa ~0.5, nevis 0/1).
+- Bet mūsu renderis un GATE_H ir bināri. Vajadzīgs lietotāja
+  specifikācijas lēmums PIRMS koda: ko rādīt pircējam
+  (caurspīdīgumu pret #F3F3F3 vai necaurspīdīgu siluetu).
+  Kandidāt-eksperiments **E13** (bez ražošanas izmaiņām):
+  sintētisks tills pār rakstu; izmērīt binārā ceļa alfa kļūdu,
+  lai lēmums būtu ar skaitli.
+
+### N7 — Dekontaminācija (E3 apstiprinājums no nozares)
+- rembg 2.x dokumentācija tagad eksplicīti apraksta krāsu
+  dekontamināciju ar to pašu formulu F=(I-(1-a)B)/a — nozare
+  iet F-atjaunošanas, nevis griešanas ceļu. Mūsu E3 kandidāts
+  paliek spēkā; nestabilitāte pie a->0 attiecas tikai uz
+  ~5 px malas joslu (GATE_H zona).
+
+### N8 — Modeļu ainava 2026-10 (bez maiņas)
+- rembg noklusējums tagad bria-rmbg (~1.02 GB; RMBG-2.0
+  komerciālai lietošanai prasa maksas licenci) — neder ne RAM,
+  ne licences dēļ. birefnet-general-lite ~214 MB ONNX (MIT),
+  bet kopā ar mūsu ķēdi joprojām riskants pie 1982 MB RAM.
+  Kopienas INT8 ISNet (~44 MB) maina svaru, ne malu klasi.
+- Secinājums nemainīgs: ISNet + izmērīti rezerves ceļi.
+  Modeļa maiņa tikai caur E4/E9 etalonu ar skaitli.
+
+### N9 — Platformas noteikumi (svarīgs biznesa risks)
+- Vinted Catalog Rules (burtiski): "They have to represent the
+  item as it is - no image editing is allowed." Pirmajai bildei
+  jāparāda visa prece; bildēm jābūt paša uzņemtām.
+  https://www.vinted.com/catalog-rules
+- Vinted preses komentārs (2026-10-23): AI kā uzlabošanas rīks
+  (piem., fona noņemšana) pats par sevi nav aizliegts, ja
+  bilde paliek precīza; maldināšana par stāvokli ir aizliegta
+  (sankcijas līdz konta apturēšanai). Pārdevēju pieredze
+  papildina: tīri balts fons var iedarbināt "stock photo"
+  automoderāciju.
+- ES AI akts: no 2026-08-02 AI-ģenerētam saturam jābūt
+  atpazīstamam/marķētam. Mūsu izvade nav ģenerēta (pikseļi
+  oriģināli, mainīts fons), bet godīga deklarācija sludinājumā
+  ("fons digitāli notīrīts, prece bez retušas") ir drošākā
+  pozīcija. **Praktisks ieteikums lietotājam** (lēmums viņa):
+  mūsu bildes kā papildu foto + vismaz viena neapstrādāta
+  bilde sludinājumā; defektus vienmēr tuvplānā (darām jau).
+
+### Video avoti (YouTube; skatīts aprakstu/metadatu līmenī — kadrus skatīties nevaru)
+- Apģērbu foto uzstādījums eBay/Vinted: youtube.com/watch?v=jeriM7YyLm0
+  un DIY foto dēlis: watch?v=y7TskuVvp6w — uzņemšanas puse
+  (vienmērīgs fons+gaisma) noņem vairāk segmentācijas darba
+  nekā jebkurš algoritms pēc fakta.
+- Baltā fona apgaismojums: watch?v=1wS6rdH8gzI, watch?v=MNnIvZu-PQ0
+  — fons gaišāks par preci, prece atdalīta no fona (tieši mūsu
+  fona mērījumu pieņēmumi).
+- Flatlay e-komercijai ar 2 gaismām: watch?v=u2SjB-mF6ec.
+- OpenCV GrabCut: watch?v=aOqOwM-Qbtg; GIMP matting izvēle:
+  watch?v=QG5NYDp-kj8 — ROI rīku uzvedības salīdzinājumam.
+- Gabor filtri tekstūrai: watch?v=QEz4bG9P3Qs — virzienjutīga
+  tekstūras pazīme (kandidāts E7 paplašinājumam pret mūsu E7 std).
+- Lejupizlases lekcija: watch?v=mDDp6qoG7dA (M7 papildinājums).
+
+### Telegram kanāli (publiskie priekšskatījumi t.me/s/<kanāls> lasāmi bez konta)
+- @AI_DeepLearning ("AI with Papers") — CV/DL raksti ar arXiv+repo
+  saitēm; pārbaudīts 2026-10-24, aktīvs un akadēmisks.
+- @gradientdude — CV rakstu TL;DR no praktiķa (FAIR/CVPR).
+- @computer_science_and_programming — plašs ML/CV/Python (139k),
+  kvalitāte jaukta. RU OpenCV kopienas (piem. @opencv_ru) —
+  praktiski piemēri, valoda RU.
+- Brīdinājums: "AI tools" kanālu vairākums ir mārketings; vērtība
+  tikai rakstu kanālos, un arī tie ir ideju, ne pierādījumu avots.
+
+### Prioritātes pirms nākamās grupas (cena/ieguvums)
+1. **E9** guided upsampling uz sintētiskā etalona (ar E4 metrikām).
+2. **E8** OKLab tumšajai zonai (sintētika + §77 centri).
+3. **E11** ēnas invariante kā tumšā piegājiena pazīme.
+4. **E10** superpikseļi nedrošajā zonā.
+5. **E12** dihromatiskā līnija paletēm.
+6. **E13** caurspīdīgo audumu mērījums + lietotāja lēmums.
+
 ## KPI žurnāls (papildināt pēc katras grupas)
 
 | Grupa | Attempt 1 maskas | Attempt 1 checker | Koda labojumi pa ceļam | s/bilde |
 |---|---|---|---|---|
 | Vans (4) | 4/4 | 2/4 | asināšana 42->25 %; ēnas modeļa pārbūve | ~12 |
 | Henley (5) | 4/5 | 4/4 (no pabeigtajām) | plate slieksnis; bg_inside krāsa; GATE_P | 11.08 |
+| Pufjaka (4, koks) | 4/4 | 2/4 | chroma ceļš (2.4); tumšais piegājiens (2.5); ROI GrabCut labojums; ZIP apakškopa | 10.77 |
 
 ## Lasāmsaraksts (izlasīts vai rindā)
 
@@ -215,8 +363,19 @@ Ko tas nozīmē mums:
 - Finlayson & Trezzi 2004, Shades of Gray; van de Weijer, Gray-Edge.
 - NVIDIA PCSS (shadow_PCSS.pdf) — mūsu ēnas fizikas pamats.
 - Cao et al., USM overshoot detektēšana.
+- Ottosson 2020, "A perceptual color space for image processing"
+  (OKLab) — N1/E8.
+- He, Sun, Tang, "Guided Image Filtering" (PAMI 2013); Fast GF
+  arXiv:1505.00996 — N2/E9.
+- Achanta et al. 2012, "SLIC Superpixels" (PAMI) — N3/E10.
+- Finlayson et al., PAMI 2006 (invariantais attēls); IJCV 2009
+  (entropijas minimizācija bez kalibrācijas) — N4/E11.
+- Shafer 1985 dihromatiskais modelis; Klinker T-klasteris — N5/E12.
+- Chen, Li, Tang, "KNN Matting" (PAMI 2013) — N6/E13.
+- Vinted Catalog Rules (vinted.com/catalog-rules); ES AI akta
+  marķēšanas prasības no 2026-08-02 — N9.
 
 Nākamā studiju sesija (pēc nākamās grupas vai lietotāja vārda):
-M4 padziļināti (uzbūvēt E4 sintētiskā etalona prototipu bez
+M4 padziļināti (uzbūvēt E4+E9 sintētiskā etalona prototipu bez
 ražošanas izmaiņām) — tas ir lētākais ceļš no "izgāja QA" uz
 "izmērīti laba mala".

@@ -2,3 +2,4 @@ __pycache__/
 output/
 PROGRESS.md.bak-*
 *.zip
+tmp_id/
