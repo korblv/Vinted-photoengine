@@ -1896,3 +1896,31 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   Preflight ready:true, 0 problēmu.
 - Krātuve: 6 389 384 -> 56 134 214 B (ar tmp_id lapu). Pīķis pēc
   Attempt 1 jāvēro: avoti vien ir 49.4 MB.
+
+## §75 — Pufjakas Attempt 1: pilnie kadri PASS, slīpie kadri ārpus instrumentārija (2026-10-24)
+- Maker 4/4 (10.77 s/bilde). Profila prognoze no §74 piepildījās:
+  fons [180, 173, 159], `wb_trusted: false`, WB=[1,1,1],
+  ekspozīcija 1.059829 — krāsa no koka nav vilkta.
+- Checker 2/4 PASS: priekšpuse `121349` un mugura `121740` abi
+  ALL_PASS (arī vizuāli kolāžā tīri; pēda kadrā pazudusi līdzi fonam).
+- `122109` (odere, slīps): GATE_C silhouette_fill 0.4058 < 0.55.
+  Pārklājums parāda īstu defektu, ne vārtu kaprīzi: retry maska
+  (segums 0.2841) satur tikai jakas fragmentus; lieli paneļi
+  (apakšējais centrs, kreisā puse ar spiedpogām) ārpus tās.
+- `122248` (kabata, slīps): GATE_C iekšējs caurums 576 px. Pārklājums:
+  maska zaudē rāvējslēdzēja kreiso joslu un kabatas kreisos paneļus,
+  un apakšmalā pārskrien uz grīdas. Abi GATE_E (vizuāli) arī krīt.
+- Offline mērījumi (kods nemainīts), kāpēc esošie glābšanas ceļi te
+  nestrādā: papīra krāsas novērtējums uz koka dod (52,59,51) un
+  (37,34,41) — pad-retry polsterē ar šo krāsu un tā sargi
+  (overflow/uncovered ~0) zaudē nozīmi. Pad slaucīšana: 0.35 ->
+  segums 1.0 (viss kadrs), 0.9 -> 0.277/0.828, 1.6 -> 0.040/0.001.
+  Plate: segums 0.998/0.997 — koka dzīslojums tekstūras E kartē ir
+  "audums" (pareizi noraidīts). Secinājums: papīram būvētais
+  instrumentārijs (ISNet konteksts, papīra polsterējums, tekstūras
+  slieksnis) slīpos kadrus uz koka segmentēt nevar; pilnie kadri
+  iziet, jo siluets ir slēgts un ISNet to redz kā objektu.
+- Krātuve pēc Attempt 1: 108 364 926 B.
+- STUDIJAS KPI rindai: Attempt 1 checker 2/4; koda labojumu pagaidām
+  0 (lēmums lietotājam: piegādāt 2 / pārfotografēt uz papīra /
+  būvēt krāsu-attāluma ceļu kā atsevišķu soli).
