@@ -49,8 +49,8 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
 
 - [x] ISNet modeļa sha256 pārbaude `setup_v2.py` (PROGRESS §55; piespraude
       krustota ar rembg 2.0.85 avota MD5 konstanti).
-- [ ] `00_SAKU_SHEIT.md` §8 atjaunināšana uz `studio_v1_contact_pcss`
-      (atlikts no Vans piegādes).
+- [x] `00_SAKU_SHEIT.md` sinhronizācija (PROGRESS §66): §8 ēna, §6/§7
+      struktūra un stāvoklis, §2/§14 pakotņu statuss.
 - [ ] `atjaunot.py` dublikāts saknē un `HANDOFF/` — atstāt vienu.
 - [ ] Lēmums par `uploads/01_DZINEJS.md` / `02_ATMINA.md`: ar git tie vairs
       nav vajadzīgi; līdz lietotāja lēmumam paliek kā sasalusi v2.1 kopija.

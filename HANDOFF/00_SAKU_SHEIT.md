@@ -1,6 +1,7 @@
 # SAKU ŠEIT — Vinted bilžu dzinējs
 
-**Dokumenta versija:** 2026-10-24 (pēc §47)
+**Dokumenta versija:** 2026-10-24 (pēc §65 — produkcijas refaktors pabeigts;
+ēnas modelis `studio_v1_contact_pcss`, kods pakotnē `engine/`, versijas git)
 **Kam:** jaunam aģentam, kurš atver sarunu no nulles un nezina neko par projektu.
 **Kas šis ir:** visa projekta atmiņa vienā failā. Izlasi to pilnībā (~10 min) un
 vari turpināt darbu tā, it kā būtu strādājis pie tā nedēļu.
@@ -35,11 +36,12 @@ ir `slamjam_mfpen_trousers*.jpg` (Slam Jam veikala foto).
 
 1. Pajautā lietotājam, ko viņš grib: **jauns komplekts**, **turpināt iepriekšējo**,
    vai **labot kādu konkrētu bildi**.
-2. Ja vajag kodu — palūdz viņu augšuplādēt `01_DZINEJS.md` un palaid:
-   ```bash
-   cd /home/user/loop_bildes && python3 atjaunot.py 01_DZINEJS.md
-   ```
-   (sk. 14. sadaļu). Ja vajag vēsturi/mērījumus — tas pats ar `02_ATMINA.md`.
+2. Kods un dokumenti dzīvo darba telpas git repozitorijā (`loop_bildes/`) —
+   parasti nekas nav jāatjauno. `.md` pakotnes `uploads/` ir **sasalusi
+   v2.1 kopija no laika pirms produkcijas refaktora**: tās nedrīkst
+   atjaunot pāri pašreizējam kodam (sk. 14. sadaļu). Pirms darba pārbaudi
+   `git -C /home/user/loop_bildes log --oneline | head` un
+   `python3 -m unittest test_workflow_v2` (64 testi, ~2 s).
 3. **Neuzsāc jaunu grupu**, pirms neesi uzdevis starta jautājumu ar pogām (3.1).
 4. Pirms jebkādas apstrādes pārbaudi vidi: `python3 setup_v2.py --check`.
 
@@ -150,20 +152,20 @@ atvasināti no mērījumiem, neizdomāti — tos nepazemina.
 
 | Fails | Loma |
 |---|---|
-| `workflow_v2.py` | **Galvenais ražošanas dzinējs** (~2100 r.). Maskas → QA → GrabCut fallback → krāsu LUT → renderēšana → atskaite → kolāža → ZIP |
-| `checker_v2.py` | Neatkarīga pārbaude (vārti A2/B/C/D/F/H/T). Maker to nevar apiet |
-| `setup_v2.py` | Atjauno vidi pēc sandbox atiestatīšanas (rembg 2.0.85, onnxruntime 1.31.0, ISNet modelis uz `/var/tmp`) |
+| `workflow_v2.py` | **CLI ieeja un fasāde** (741 r.): argumenti, `main` orķestrācija, vārdu re-eksports no `engine/` |
+| `engine/` | Ražošanas loģika: `config.py` (ielāde+validācija), `infra.py` (rotācijas, I/O, preflight), `provenance.py` (masku sidecar vēsture), `masks.py` (ISNet, QA, pad/plate/closeup), `grade.py` (LUT/profils), `render.py` (MASTER/PARAUGS, kolāža), `report.py` (atskaite, ZIP) |
+| `config.toml` | Visi parametri (39 vērtības; stingra validācija; CLI > config). Vārti/specifikācija apzināti paliek kodā |
+| `checker_v2.py` | Neatkarīga pārbaude (vārti A2/B/C/D/F/H/T + R). **Neimportē maker moduļus**; lokāls LUT/pagrieziens, spec konstantes |
+| `test_workflow_v2.py` | 64 vienību/regresijas/golden testi (`python3 -m unittest`, ~2 s) |
+| `setup_v2.py` | Atjauno vidi pēc sandbox atiestatīšanas (rembg 2.0.85, onnxruntime 1.31.0, ISNet uz `/var/tmp`); modelis piesprausts ar sha256 |
 | `isnet_native.py` | ISNet worker atsevišķā procesā (novērš ONNX atmiņas uzkrāšanos) |
-| `cast_shadow.py` | **Metēnā ēna** — PCSS modelis (sk. 8. sadaļu) |
-| `real_shadow.py` | Īstas ēnas izgūšana no oriģināla (rolling ball) + pārnese. Strādā, bet mūsu kadros nav ko ņemt — sk. 10.5 |
-| `measure_shadow.py` | Ēnas profila mērīšana (Δ pret fonu, attālums, halo) |
-| `directional_shadow.py`, `restyle_shadow.py`, `shadow_studio_v2.py` | Agrākie ēnas modeļi; `restyle_shadow` = esošās ēnas mērogošana |
-| `loop.py`, `checker.py`, `loop_engine.py` | v1 dzinējs + koplietojamās deterministiskās funkcijas |
+| `loop.py` | Koplietojamās deterministiskās funkcijas: ēnas modelis `studio_shadow_bg` (8. sadaļa), `refine_alpha`, `decontaminate_rim`, `render_paraugs`, masku tīrīšana |
 | `plate_segment.py`, `paper_leak.py` | Papīra/fona segmentācija un noplūdes QA |
 | `closeup.py` | Tuvplānu apstrāde (GrabCut, sēklas) |
 | `close_group.py` | Grupas slēgšana pēc lejupielādes (`--yes` lai tiešām dzēstu) |
 | `rebuild_master.py` | MASTER pārbūve no saglabātajām maskām |
-| `make_zip_vinted.py`, `make_collage_vinted.py` | Piegādes ZIP un kolāža |
+| `measure_shadow.py` | Ēnas diagnostika (uzmanību: tā "kodola Δ" siluetē ieskaita arī tumšu ēnu — kalibrācijai neder, sk. 8.4) |
+| `archive/` | Sasalusi vēsture: vecie ēnu modeļi (`cast_shadow` S2 u.c.), v1 dzinējs, vecais checker. Ražošanā netiek importēti |
 
 ### 6.2 Pamatkomandas
 
@@ -185,7 +187,8 @@ python3 measure_shadow.py BILDE [...]          # ēnas skaitļi
 python3 workflow_v2.py --make-zip --zip-name GALA_BILDES.zip
 
 python3 close_group.py STEM --yes              # dzēst grupu PĒC lejupielādes pogas
-python3 test_workflow_v2.py                    # 8 vienību testi
+python3 -m unittest test_workflow_v2           # 64 testi, ~2 s (pirms katras koda maiņas)
+git log --oneline | head                       # versiju vēsture (repozitorijs loop_bildes/)
 ```
 
 ### 6.3 Plūsma
@@ -214,85 +217,90 @@ pārkārtojums, nevis transformācija.
 
 ## 7. Pašreizējais stāvoklis (2026-10-24)
 
-- **Aktīvā grupa:** Henley krekls. Pēdējais piegādātais gala fails:
-  `output/paraugs/02_mugura_ena_metena.jpg`, sha `3d106d7dec67c04f`,
-  2000×2500, 1,32 MB, fons 243.
-- **Pēdējais darbs (§42–46):** ēnas pārtaisīšana pēc parauga. Secība:
-  saspiesta ēna → virzīta ēna → metēnā ēna (PCSS) → novērsta neēnotā līnija →
-  saīsināts rādiuss (S2).
-- **§47 (pēdējais):** pārbaudīts, vai var pārnest īstu ēnu no oriģinālā foto.
-  Atbilde: tehniski jā, bet mūsu kadros nē (sk. 10.5). Lietotājs pieņēma un
-  pārcēla šo jautājumu malā — **necel to atkal, ja viņš pats nejautā**.
-- **Gaidošais nezināmais:** `uploads/` ir četri neapskatīti oriģināli
-  (`IMG_20261023_075010.jpg`, `IMG_20261023_082656.jpg`,
-  `IMG_20261023_110348.jpg`, `IMG_20261023_122322.jpg`). Nav zināms, vai tie
-  pieder kādai grupai vai ir atsevišķi kadri. **Pirms tos apstrādāt, jājautā.**
-- **Vēl nav apstiprināts:** vai šie jaunie kadri ir vienreizēji labojumi, vai
-  jauna grupa ar savu pilno ciklu.
+- **Aktīva produktu grupa: nav.** Pēdējā piegādātā un slēgtā grupa —
+  Vans bikses (4 kadri, Attempt 3, checker 4/4 PASS, ZIP lejupielādēts,
+  faili izdzēsti; visas gala hash vērtības `PROGRESS.md` §48–§53).
+  Darba telpa gatava vienai jaunai grupai pēc 3.1 protokola.
+- **Produkcijas refaktors pabeigts (§54–§65):** git versijas; 64 testi;
+  modeļa sha256 piespraude; masku provenance (rerender vairs nepārgriež
+  masku, `--no-decontam` kā drošības līdzeklis vairs nav vajadzīgs);
+  `config.toml` + koda/config hash atskaitēs; pilnībā neatkarīgs
+  checker; `engine/` pakotne ar fasādi. Plāns un statuss:
+  `PRODUKCIJAS_PLANS.md`.
+- **Ēnas modelis:** `studio_v1_contact_pcss`, lietotāja apstiprināts
+  Vans piegādē (8. sadaļa). Vecie modeļi — arhīvā.
+- **`uploads/`** satur tikai 4 Slam Jam paraugus un sasaldētās
+  `00/01/02` pakotnes. Neapskatītu produktu oriģinālu pašlaik nav.
+- **§47 tēma** (īstās ēnas pārnese) lietotāja lēmumā atlikta —
+  **necel to atkal, ja viņš pats nejautā**.
 
 ---
 
 ## 8. Ēnas apakšsistēma — viss, kas zināms
 
-Šī ir visvairāk iterētā daļa. Izlasi to uzmanīgi, lai neatkārtotu vecās kļūdas.
+Pašreizējais ražošanas modelis ir **`studio_v1_contact_pcss`**
+(`loop.studio_shadow_bg`). To izsauc MASTER renderis (`engine/render.py`,
+ar `canvas_scale=para_scale`) un `loop.render_paraugs` gala audeklā
+(`canvas_scale=1.0`), tāpēc ēna abos mērogos ir viens un tas pats fiziskais
+lielums. Visi citi modeļi (`cast_shadow` S2 u.c.) ir **vēsture `archive/`
+mapē** un kanoniskajām izvadēm netiek lietoti.
 
-### 8.1 Modelis (`cast_shadow.py`, PCSS)
-Gaisma ir **laukums**, nevis punkts. Katrs fona punkts redz daļu no avota, tāpēc:
+### 8.1 Modelis
+
+Divi komponenti samazina fona caurlaidību:
 
 ```
-ēna(p) = (1/N) · Σ_k  M(p + d + r_k)
+transmission = (1 − contactAO(d)) · (1 − 0.32 · V^0.80)
+contactAO(d) = 0.10 · exp(−d/1.4)
 ```
 
-- `d` = ēnas nobīde (gaisma no **augšas-kreisās** — apstiprināts virziens),
-- `r_k` = punkti uz gaismas diska,
-- `M` = cietā silueta maska, 2 px sašaurināta.
+- `d` = attālums ārpus maskas **audekla pikseļos**;
+- `V` = laukuma-gaismas redzamība: siluets projicēts **43°** (attēla
+  koordinātēs — leju-labi; viena studijas gaisma no augšas-kreisās visam
+  katalogam) par **16** audekla px; penumbra aug ar attālumu
+  **σ(d) = 0.9 + 0.28·d** (PCSS princips: ēna asākā kontaktā, mīkstāka
+  tālāk), rēķināta pusizšķirtspējā ar 5 līmeņiem (0.8/1.8/3.2/5.0/7.5);
+- metēnā daļa logā **42→58 px** izdziest līdz nullei — tālāk fons ir
+  tieši 243.
 
-Dabiskā secība: blīva tumša ēna pie kontakta → pakāpeniska mīksta mala →
-platums, kas aug ar attālumu. Vecā ēna netiek noņemta; abas apvieno ar
-**gludo maksimumu (p-norma)** — citādi `max()` atstāj redzamu šuvi.
+### 8.2 Kalibrācija un godīguma piezīme
 
-### 8.2 Apstiprinātie parametri (S2 — pašreizējais)
-Piegādātais variants S2 tika ģenerēts ar šiem parametriem:
-```
-spread 14 · ox 26 · oy 32 · soft 1.8 · tail 0.14
-```
-```bash
-python3 cast_shadow.py IEVADE IZVADE --spread 14 --ox 26 --oy 32 --soft 1.8 --tail 0.14
-```
+Konstantes pielāgotas diviem pilniem Slam Jam paraugiem pēc
+sektoru×attāluma profiliem (E/W/N/S joslas pret maskas attālumu).
+Piegādātā Vans komplekta pilno kadru agregāts pret paraugu mērķi:
+E pie kontakta Δ≈78 (mērķis 79,7), W ≈2,5 (mērķis 2,0); RMSE pa
+joslām **1,85**. Tuvplānu paraugi skaitliski **netika** kalibrēti
+(velveta ribiņas šķeļ sliekšņa masku) — tos vērtēja vizuāli.
 
-> **Uzmanību:** `main()` noklusējumi **nav** S2 — tie ir
-> `spread 14 · ox 22 · oy 26 · soft 1.4 · tail 0.22 · peak 52`.
-> Ja palaid bez karodziņiem, iegūsi citu (nedaudz garāku un gaišāku) ēnu.
-> Lai atkārtotu piegādāto failu, vienmēr padod parametrus tieši.
+**Nav vēl pierādīts:** modelis nav validēts uz neatkarīga (holdout)
+komplekta — kalibrācija un pārbaude notika uz tiem pašiem diviem
+paraugiem. Pie pirmās jaunas grupas salīdzini sektoru profilus, pirms
+maini konstantes.
 
-### 8.3 Izmērītais profils (Δ = 243 − L pēc attāluma no siluetes)
-```
-1–4 px  29.4     18–28 px  2.7
-4–10 px 14.9     28–45 px  1.0
-10–18 px 5.1     45–70 px  0.1
-```
-Kontakta tumšums **Δ ≈ 102,9** (peak 96) — tas nedrīkst samazināties.
-Ēna nomirst ~30–35 px. Iepriekš tā nomira ~90 px, un lietotājs to noraidīja
-kā pārāk garu ("samazini rādiusu pārāk gara"). **Neatgriez garumā.**
+### 8.3 Noteikumi, kas nedrīkst atgriezties
 
-### 8.4 Četri noteikumi, kas iegūti ar kļūdām
-1. **Nobīdei jābūt lielākai par avota rādiusu** (`spread < ox, oy`), citādi ēna
-   "pielīp" pie malas un izskatās kā rimbulis.
-2. **Astei jābūt novirzītai tālāk gaismas virzienā**, citādi ēna izskatās
-   simetriska — lietotājs to noraidīja.
-3. **Ēnas masku nedrīkst reizināt ar `(1−α)`** un nedrīkst ņemt mīksto auduma
-   malu — tas atstāj **neēnotu gaišu līniju** starp audumu un ēnu (bija §45
-   defekts). Ēnas maska nāk no 2 px sašaurinātas cietās siluetes.
-4. **Nekad neveido ēnu, pārbīdot visu siluetu** (nobīdīts siluets), ne
-   vienmērīgu rāmi (rim), ne izgriešanu/aizvietošanu — visi trīs dod rimuli,
-   uzlīmes kontūru vai šuvi.
+1. Simetriska/ambient ēna vai vienmērīgs halo visapkārt — lietotājs
+   noraidīja (Vans Attempt 2). Virzienam jābūt vienam: tumšs kontakts
+   gaismas pusē gandrīz nulle, metēnā daļa leju-labi.
+2. Ēna kā JPEG pēcapstrāde virs gatava faila nedrīkst: simulētais
+   GATE_R `bg_p99` bija 18–25 pret limitu 4. Ēnai jāiet caur integrēto
+   MASTER+PARAUGS renderi.
+3. Ēnas veidošanu nedrīkst balstīt uz nobīdītu siluetu ar vienmērīgu
+   blur (plato ar gaišu joslu) vai maskēt `(1−α)` (neēnota līnija).
+4. Veco `cast_shadow` S2 (tagad `archive/`) neliec virs pašreizējām
+   izvadēm. S2 parametri vēsturei: `spread 14 · ox 26 · oy 32 ·
+   soft 1.8 · tail 0.14` (tā `main()` noklusējumi bija citi).
 
-### 8.5 Praktiskā pārbaude pēc katra ēnas labojuma
-```bash
-python3 measure_shadow.py output/paraugs/BILDE.jpg
-```
-Pārbaudi trīs lietas: (a) kontakta Δ ≥ 100; (b) profils monotoni krīt;
-(c) ēna nav simetriska (labā puse tumšāka par kreiso, ja gaisma no kreisās).
+### 8.4 Pārbaude pēc katra ēnas labojuma
+
+- Invarianti piesprausti testos (`TestStudioShadow`, palaišana
+  `python3 -m unittest test_workflow_v2`): tālais fons tieši 243;
+  austrumu kontakts Δ 60–95, rietumu <8; Δ monotoni dilst ar attālumu;
+  ārpus 58 px loga Δ=0.
+- Ražošanas bildē mēri sektorus pēc **faktiskās maskas attāluma**.
+  `measure_shadow.py` "kodola Δ" kalibrācijai neder: tas siluetu sāk
+  ar `gray < bg−12`, tāpēc tumšu ēnu ieskaita apģērbā (paraugiem deva
+  Δ 3–4, kas nav kontakta mērījums).
 
 ---
 
@@ -371,32 +379,37 @@ Metode strādā (rolling-ball izgūšana + afīnā pārnese), **bet**:
 
 ```
 /home/user/
-  uploads/                     lietotāja oriģināli + paraugs (nedzēst bez lēmuma)
-  loop_bildes/
-    workflow_v2.py  checker_v2.py  setup_v2.py  isnet_native.py
-    cast_shadow.py  real_shadow.py  measure_shadow.py
+  uploads/                     lietotāja oriģināli + paraugi + sasaldētās .md
+                               pakotnes (nedzēst bez lēmuma)
+  loop_bildes/                 git repozitorijs (versiju avots)
+    workflow_v2.py             CLI ieeja + fasāde (741 r.)
+    engine/                    config, infra, provenance, masks, grade,
+                               render, report — ražošanas loģika
+    config.toml                parametri (vārti/spec nav šeit)
+    checker_v2.py  setup_v2.py  isnet_native.py  loop.py
+    test_workflow_v2.py        64 testi
     closeup.py  close_group.py  plate_segment.py  paper_leak.py
-    loop.py  loop_engine.py  checker.py  rebuild_master.py
-    make_zip_vinted.py  make_collage_vinted.py
+    rebuild_master.py  measure_shadow.py
+    archive/                   vecie ēnu modeļi un v1 — sasalusi vēsture
     LOOP.md                 v1 noteikumi, starta protokols, sarkanās līnijas
     WORKFLOW_V2.md          v2.1 specifikācija un izmērītie modeļu fakti
     LOOP_KOMANDAS.md        lietotāja komandu ceļvedis (ko viņš var rakstīt)
-    PROGRESS.md             hronoloģiskā vēsture (§1–§47) — lasi pēdējos §
-    PAPIRA_NOPLUDES_QA.md   lielākais mērījumu dokuments (§1–§47, 2300 r.)
+    PRODUKCIJAS_PLANS.md    refaktora plāns un statuss (soļi 1–6 pabeigti)
+    PROGRESS.md             hronoloģiskā vēsture (§1–§6x) — lasi pēdējos §
+    PAPIRA_NOPLUDES_QA.md   lielākais mērījumu dokuments (2400+ r.)
     PROFESIONALAS_METODES.md  profesionālo tehniku audits + noraidījumi
     MASKU_AUDITS.md, MALU_AUDITS_ITER7.md, ATMINAS_UN_ATRUMA_TESTI.md
     output/
       master/        MASTER_1to1 PNG
       paraugs/       PARAUGS_2000x2500 JPG
-      masks/         binārās maskas + *_ALPHA.png
-      audits/        sēklu priekšlikumi, zoom auditi
+      masks/         binārās maskas + *_ALPHA.png + *_MASK.json provenance
+      profiles/      per-bildes profili
+      audits/        sēklu priekšlikumi, attempt atskaites/hash
       report_v2.json, report_v2_maker.json, grade_profile_v2.json
       V2_KOLAZA.jpg
     HANDOFF/
-      00_SAKU_SHEIT.md   šis fails
-      01_DZINEJS.md      viss kods, atjaunojams ar atjaunot.py
-      02_ATMINA.md       visi dokumenti, atjaunojami
-      atjaunot.py        atjaunošanas rīks
+      00_SAKU_SHEIT.md   šis fails (kanoniskā kopija)
+      atjaunot.py        vecās pakotņu sistēmas rīks (vairs nelieto atjaunošanai)
 ```
 
 ---
@@ -415,6 +428,13 @@ Metode strādā (rolling-ball izgūšana + afīnā pārnese), **bet**:
 ---
 
 ## 14. Pakotnes un atjaunošana
+
+> **Statuss kopš produkcijas refaktora (2026-10-24):** primārais
+> versiju avots ir **git repozitorijs** `loop_bildes/` darba telpā.
+> `01_DZINEJS.md` / `02_ATMINA.md` mapē `uploads/` ir sasaldēts v2.1
+> momentuzņēmums no laika pirms refaktora — **neatjaunot tos pāri
+> pašreizējam kodam**. Zemāk esošā atjaunošanas instrukcija ir vēsture
+> gadījumam, ja darba telpa kādreiz ir tukša.
 
 Lai jaunā sarunā būtu kods un dokumenti, lietotājs augšuplādē:
 
@@ -438,12 +458,12 @@ saturu, vecais tiek pārsaukts par `*.bak-<laiks>`, nevis pazaudēts.
 nesēji. Nepūlies tos lasīt ar acīm; palaid `atjaunot.py` un lasi oriģinālos
 failus.
 
-### Pārģenerēšana (ja esi kaut ko mainījis)
+### Pārģenerēšana
 
-```bash
-cd /home/user/loop_bildes/HANDOFF
-python3 izveidot_pakotni.py
-```
+**Pašlaik nav iespējama:** `izveidot_pakotni.py` darba telpā nav (ne
+saknē, ne `HANDOFF/`). Ar git kā primāro avotu pakotnes pārģenerēšana
+nav nekā vajadzīga; ja lietotājs kādreiz lūdz, ģenerators vispirms
+jāizveido no jauna un jāpārbauda pret `atjaunot.py` formātu.
 
 ---
 
@@ -451,7 +471,8 @@ python3 izveidot_pakotni.py
 
 - Fons `#F3F3F3` (243), 2000×2500, apģērbs centrēts.
 - Apģērbu nepār-zīmē. Tikai fonu un ēnu.
-- Ēna: augšā-kreisi, kontakta Δ ≈ 100, nomirst 30–35 px, nav neēnotas līnijas.
+- Ēna: `studio_v1_contact_pcss` — viena gaisma no augšas-kreisās (metēnā daļa
+  43° leju-labi), ass tumšs kontakts, logs līdz 58 px, tālāk tieši 243.
 - Apstiprinājumi ar pogām. Kolāža → ZIP → dzēst tikai pēc lejupielādes.
 - Pirms jaunas grupas vienmēr: "Vai šīs ir visas šīs grupas bildes?"
 - Skaitļi, nevis gaume. Godīgums, nevis pārliecība.
@@ -640,7 +661,9 @@ python3 atjaunot.py 01_DZINEJS.md
 
 ```bash
 cd /home/user/loop_bildes
-python3 atjaunot.py 01_DZINEJS.md --check     # jābūt: REZULTĀTS: VISS LABI
-python3 -c "import glob,py_compile;[py_compile.compile(f,doraise=True) for f in glob.glob('*.py')]"
+git status --short                            # jābūt tukšam (tīrs repo)
+python3 -m py_compile *.py engine/*.py        # viss kompilējas
+python3 -m unittest test_workflow_v2          # 64 testi, OK
+python3 setup_v2.py --check                   # vide gatava apstrādei
 du -sh /home/user
 ```

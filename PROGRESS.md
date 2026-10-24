@@ -1653,3 +1653,30 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - STĀVOKLIS: produkcijas refaktora plāna soļi 1–6 pabeigti. Atlikuši
   ātrie labojumi (00 §8, atjaunot.py dublikāts, lēmums par .md
   pakotnēm) un atliktais `main()` fāžu dalījums.
+
+---
+
+## §66 — Ātrais labojums: 00 dokumenta sinhronizācija ar kodu (2026-10-24)
+
+- Lietotājs ar pogām izvēlējās 00 §8 atjaunināšanu. Mainīta tikai
+  kanoniskā `HANDOFF/00_SAKU_SHEIT.md` (+129/−106 rindas diff);
+  `uploads/00_SAKU_SHEIT.md` apzināti nemainīta (lietotāja fails;
+  abas pirms tam bija identiskas, sha256(16) `5d914b64b8a17159`).
+- §8 pārrakstīta uz `studio_v1_contact_pcss` (formula, 43°/16 px,
+  σ(d), 42→58 px logs; kalibrācija 2 paraugi, RMSE 1,85; **holdout
+  validācija vēl nav** — ierakstīts godīgi). Vecie modeļi markēti kā
+  arhīvs; `measure_shadow` "kodola Δ" brīdinājums pārnests.
+- Sinhronizētas arī vietas, kuras §8 maiņa padarīja klaji nepatiesas
+  vai bīstamas: versijas rinda; §2 (vairs neliek atjaunot vecās
+  pakotnes pāri kodam); §6.1 failu tabula (`engine/`, `config.toml`,
+  testi, `archive/`); §6.2 testu komanda (64, ne 8); §7 stāvoklis
+  (aktīvas grupas nav; Vans pabeigts; refaktors pabeigts); §12 karte;
+  §14 pakotņu statuss + konstatējums, ka `izveidot_pakotni.py` darba
+  telpā nav; §15 ēnas rinda; Pielikuma B pašpārbaude (tagad git +
+  unittest + setup, izpildīta: visi punkti zaļi).
+- Nemainīti: §3 dzelzs noteikumi un §5 vārti (sinhronizācija tos
+  neskāra — pārbaudīts ar diff tvērumu: tikai dokumentācijas fails,
+  šis reģistrs un plāna atzīme). Kods: 0 izmaiņu; 64 testi pirms
+  komita OK.
+- Atlikuši ātrie labojumi: `atjaunot.py` dublikāts; lēmums par `.md`
+  pakotņu likteni; atliktais `main()` fāžu dalījums.
