@@ -750,3 +750,180 @@ def save_seed_proposal(stem: str, small: Image.Image, sure_bg: np.ndarray,
     path = Path(OUT) / "audits" / f"{stem}_SEED_PROPOSAL.jpg"
     save_image_atomic(img, Path(path), quality=92)
     return str(path)
+
+
+# ---------------------------------------------------------------------------
+# Iekšējo caurumu klasificēšana pēc satura (PROGRESS §97)
+# ---------------------------------------------------------------------------
+def _hole_channel_cut(m: np.ndarray, hole: np.ndarray, outer_bg: np.ndarray,
+                      max_cut: int) -> list[tuple[int, int]] | None:
+    """Lētākais 4-savienotais ceļš no cauruma līdz ārējam fonam (0-1 BFS
+    ierobežotā ROI): solis pa fonu maksā 0, pa priekšplānu 1. Atgriež
+    ceļā esošos FG pikseļus (izgriežamais tiltiņš) vai None, ja ārējais
+    fons ROI nav sasniedzams vai tiltiņš pārsniedz `max_cut`."""
+    from collections import deque
+
+    H, W = m.shape
+    ys, xs = np.where(hole)
+    pad = int(CFG["mask"]["hole_border_px"]) + 16
+    ry0, ry1 = max(0, int(ys.min()) - pad), min(H, int(ys.max()) + pad + 1)
+    rx0, rx1 = max(0, int(xs.min()) - pad), min(W, int(xs.max()) + pad + 1)
+    sub_m = m[ry0:ry1, rx0:rx1]
+    sub_hole = hole[ry0:ry1, rx0:rx1]
+    sub_tgt = outer_bg[ry0:ry1, rx0:rx1]
+    if not sub_tgt.any():
+        return None
+    h, w = sub_m.shape
+    dist = np.full((h, w), 10 ** 9, np.int32)
+    prev = np.full((h, w), -1, np.int32)
+    dq: deque[tuple[int, int]] = deque()
+    hy, hx = np.where(sub_hole)
+    for y, x in zip(hy.tolist(), hx.tolist()):
+        dist[y, x] = 0
+        dq.append((y, x))
+    target = None
+    while dq:
+        y, x = dq.popleft()
+        d = int(dist[y, x])
+        if sub_tgt[y, x]:
+            target = (y, x)
+            break
+        if d > max_cut:
+            break
+        for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+            if 0 <= ny < h and 0 <= nx < w:
+                nd = d + (1 if sub_m[ny, nx] else 0)
+                if nd < dist[ny, nx]:
+                    dist[ny, nx] = nd
+                    prev[ny, nx] = y * w + x
+                    if sub_m[ny, nx]:
+                        dq.append((ny, nx))
+                    else:
+                        dq.appendleft((ny, nx))
+    if target is None:
+        return None
+    cut: list[tuple[int, int]] = []
+    cy, cx = target
+    while prev[cy, cx] >= 0:
+        if sub_m[cy, cx]:
+            cut.append((cy + ry0, cx + rx0))
+        cy, cx = divmod(int(prev[cy, cx]), w)
+    return cut if len(cut) <= max_cut else None
+
+
+def repair_interior_holes(binary: np.ndarray,
+                          orig: Image.Image) -> tuple[np.ndarray, dict]:
+    """Ieslēgtus maskas caurumus (>= config [mask].hole_min_px) klasificē
+    pēc SATURA, salīdzinot cauruma mediānu Lab/tekstūru ar divām no paša
+    attēla ņemtām referencēm: auduma gredzenu ap caurumu un lokālo ārējo
+    fonu. Audumam līdzīgu caurumu aizpilda (maska audumu bija pazaudējusi);
+    fonam līdzīgu caurumu tuvu kadra malai atver ar šauru kanālu pāri
+    tiltiņam; fonam līdzīgu tālu no malas (īsts logs starp apģērba daļām)
+    un neskaidru saturu NEAIZTIEK — checker GATE_C paliek tiesnesis.
+    Parametri: config.toml [mask] hole_*. Atgriež (binary, info); ja nekas
+    nemainās, atgriež ieejas masīvu nemainītu."""
+    from scipy import ndimage
+
+    from paper_leak import lab_chunked, texture_map
+
+    t0 = time.perf_counter()
+    C = CFG["mask"]
+    info: dict = {"holes_total": 0, "holes_ge_min": 0, "actions": [],
+                  "seconds": 0.0}
+    m = binary > 0
+    if not m.any():
+        info["seconds"] = round(time.perf_counter() - t0, 3)
+        return binary, info
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(
+        m.astype(np.uint8), connectivity=8)
+    if n <= 1:
+        info["seconds"] = round(time.perf_counter() - t0, 3)
+        return binary, info
+    largest = lab == (1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA])))
+    holes = ndimage.binary_fill_holes(largest) & ~largest
+    if not holes.any():
+        info["seconds"] = round(time.perf_counter() - t0, 3)
+        return binary, info
+    hl, hn = ndimage.label(holes)
+    sizes = ndimage.sum(holes, hl, range(1, hn + 1))
+    info["holes_total"] = int(hn)
+    min_px = int(C["hole_min_px"])
+    cand = [i for i in range(1, hn + 1) if sizes[i - 1] >= min_px]
+    info["holes_ge_min"] = len(cand)
+    if not cand:
+        info["seconds"] = round(time.perf_counter() - t0, 3)
+        return binary, info
+
+    bg_lab, _ = ndimage.label(~m)
+    border_ids = (set(bg_lab[0].tolist()) | set(bg_lab[-1].tolist())
+                  | set(bg_lab[:, 0].tolist()) | set(bg_lab[:, -1].tolist()))
+    border_ids.discard(0)
+    outer_bg = np.isin(bg_lab, list(border_ids)) if border_ids \
+        else np.zeros_like(m)
+    lab3 = lab_chunked(np.asarray(orig.convert("RGB")))
+    tex = texture_map(lab3[..., 0])
+    H, W = m.shape
+    margin = float(C["hole_margin_de"])
+    out = m.copy()
+    changed = False
+    for i in cand:
+        hole = hl == i
+        area = int(sizes[i - 1])
+        ys, xs = np.where(hole)
+        bbox = [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())]
+        rec_h: dict = {"area": area, "bbox": bbox, "action": "left"}
+        inner = ndimage.binary_erosion(hole, iterations=2)
+        if not inner.any():
+            inner = hole
+        ring = (ndimage.binary_dilation(hole, iterations=8) & largest
+                & ~ndimage.binary_dilation(hole, iterations=2))
+        ex = 128
+        x0e, x1e = max(0, bbox[0] - ex), min(W, bbox[2] + ex + 1)
+        y0e, y1e = max(0, bbox[1] - ex), min(H, bbox[3] + ex + 1)
+        bg_local = outer_bg[y0e:y1e, x0e:x1e]
+        if not ring.any() or int(bg_local.sum()) < 200:
+            rec_h["reason"] = "nav references parauga"
+            info["actions"].append(rec_h)
+            continue
+        h_med = np.median(lab3[inner], axis=0)
+        f_med = np.median(lab3[ring], axis=0)
+        b_med = np.median(lab3[y0e:y1e, x0e:x1e][bg_local], axis=0)
+        d_fg = float(np.linalg.norm(h_med - f_med))
+        d_bg = float(np.linalg.norm(h_med - b_med))
+        t_h = float(np.median(tex[inner]))
+        t_b = float(np.median(tex[y0e:y1e, x0e:x1e][bg_local]))
+        rec_h.update(d_fg=round(d_fg, 2), d_bg=round(d_bg, 2),
+                     tex_hole=round(t_h, 2), tex_bg=round(t_b, 2))
+        if d_fg + margin < d_bg:
+            if area <= float(C["hole_max_fill_frac"]) * H * W:
+                out[hole] = True
+                rec_h["action"] = "filled_fabric"
+                changed = True
+            else:
+                rec_h["reason"] = "auduma caurums pārsniedz hole_max_fill_frac"
+        elif (d_bg + margin < d_fg
+              and t_h <= max(t_b * float(C["hole_tex_ratio"]),
+                             t_b + float(C["hole_tex_abs"]))):
+            dist_border = min(bbox[0], bbox[1], W - 1 - bbox[2],
+                              H - 1 - bbox[3])
+            rec_h["border_dist"] = int(dist_border)
+            if dist_border <= int(C["hole_border_px"]):
+                cut = _hole_channel_cut(out, hole, outer_bg,
+                                        int(C["hole_max_cut_px"]))
+                if cut:
+                    for y, x in cut:
+                        out[y, x] = False
+                    rec_h["action"] = "opened_bg"
+                    rec_h["cut_px"] = len(cut)
+                    changed = True
+                else:
+                    rec_h["reason"] = "kanāls nav atrasts limita ietvaros"
+            else:
+                rec_h["reason"] = "fona caurums tālu no malas"
+        else:
+            rec_h["reason"] = "neskaidrs saturs"
+        info["actions"].append(rec_h)
+    info["seconds"] = round(time.perf_counter() - t0, 3)
+    if changed:
+        return out.astype(np.uint8), info
+    return binary, info

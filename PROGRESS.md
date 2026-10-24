@@ -2469,3 +2469,34 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   per-stem iestatījumiem (`--overrides`).
 - Krātuve: `/home/user` 101513979 B; `loop_bildes` 51.74 MiB (maker
   atskaite). Kods un sliekšņi nemainīgi. Nākamais — pēc pogas.
+
+### §97 Koda solis 2.6: caurumu klasificēšana pēc satura — ieviests, reālos kadros daļēji (2026-10-24)
+
+- Poga code_holes. Jauns repair_interior_holes (engine/masks.py),
+  izsaukts pirms strukturālā trigera visiem kandidātiem; 7 jauni
+  parametri config [mask] hole_* (vecās vērtības nemainītas; migrācijas
+  sarga tabula papildināta apzināti ar šo ierakstu); WORKFLOW_VERSION
+  2.6. Testi **88/88 OK** (7 jauni TestHoleRepair; zelta e2e hashes
+  nemainīgi). Darbības tiek ierakstītas maker atskaitē (hole_repair).
+- Validācija Attempt 4 (pad 0.90, identity WB, 160550+160601):
+  - 160550: mazais caurums 610 px filled_fabric (d_fg 2.46, d_bg 14.76)
+    — pareizi. Lielā josla 53 829 px -> opened_bg (d_fg 22.35,
+    d_bg 5.75, tex 2.68 pret fonu 2.61, izgriezti tikai 4 px).
+    Pilnizšķirtspējas griezums (tmp_id/diag_gt_160550.jpg) rāda: josla
+    ir **auduma ielejas**, klasifikācija kļūdīga. Cēlonis izmērīts:
+    cauruma mediāna ir ieļeju L~67 pret gredzena ribu virsotnēm, un
+    win=5 tekstūra pie ribu perioda ~30 px audumu mēra kā gludu.
+    Sekas: renderis kā A2 (baltais pleķis paliek), bet GATE_C iziet —
+    skaitlisks PASS ar vizuālu defektu; A3 plate variants paliek
+    labākais šim kadram. GATE_E pēc acs šo noķer, vārti ne.
+  - 160601: left "neskaidrs saturs" (d_fg 2.24, d_bg 3.55, tex 0.91
+    pret 0.72) — defokusēta mala; arī pēc acs griezumā neatdalāms.
+  - Checker pēc A4: 2/3 PASS (160538, 160550); 160601 GATE_C.
+- Repair laiks 2.9/2.2 s kadros ar caurumiem (kopā 16.7/22.9 s/bilde).
+- Mācība precizējumam: tekstūra jāmēra samazinātā mērogā (plate ceļš
+  strādā pusizmērā tieši tāpēc) un Lab mediāna pret mediānu ribu
+  audumiem ir sistemātiski šķība — vajadzīgs sadalījuma pārklājums
+  (gredzena L percentīļu diapazons), nevis mediāna.
+- Krātuve: /home/user 102709580 B. Nemainīts: checker, vārtu sliekšņi,
+  oriģināli. Nākamais — pēc pogas (klasifikatora precizējums /
+  paturēt + plate maršruts / atcelt 2.6 / piegādāt 2/5).

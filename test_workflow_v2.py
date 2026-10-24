@@ -31,7 +31,7 @@ import setup_v2
 import workflow_v2 as wf
 from engine.chroma import (_dark_uncertain, _median_cut_palette,
                            chroma_mask, structural_qa)
-from engine.masks import plate_mask
+from engine.masks import plate_mask, repair_interior_holes
 
 SEED = 12345
 
@@ -400,8 +400,9 @@ class TestMaskProvenance(unittest.TestCase):
 
     def test_workflow_version_bumped_for_new_rerender_semantics(self):
         # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4);
-        # 2.4 = chroma rezerves ceļš (§76); 2.5 = tumšās zonas piegājiens (§78).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.5")
+        # 2.4 = chroma rezerves ceļš (§76); 2.5 = tumšās zonas piegājiens (§78);
+        # 2.6 = iekšējo caurumu klasificēšana pēc satura (§97).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.6")
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +424,13 @@ class TestConfig(unittest.TestCase):
                      "pad_tex_relaxed": 2.5, "ai_qa_coverage_min": 0.15,
                      "ai_qa_coverage_max": 0.65, "ai_qa_largest_min": 0.95,
                      "ai_qa_bbox_area_min": 0.35, "ai_qa_bbox_w_min": 0.45,
-                     "ai_qa_bbox_h_min": 0.35},
+                     "ai_qa_bbox_h_min": 0.35,
+                     # caurumu klasificēšana (§97) — jauni parametri,
+                     # neviena vecā vērtība nav mainīta
+                     "hole_min_px": 400, "hole_margin_de": 3.0,
+                     "hole_tex_ratio": 1.8, "hole_tex_abs": 1.0,
+                     "hole_border_px": 96, "hole_max_cut_px": 250,
+                     "hole_max_fill_frac": 0.02},
             "plate": {"inner_min": 0.50, "outer_max": 0.60,
                       "bg_inside_max": 0.02, "cover_min": 0.25,
                       "cover_max": 0.95},
@@ -990,6 +997,91 @@ class TestMakeZipSubset(unittest.TestCase):
             self.assertEqual(names, ["STEM_A_PARAUGS_2000x2500.jpg",
                                      "STEM_C_PARAUGS_2000x2500.jpg"])
             self.assertEqual(delivery["excluded_by_user"], ["STEM_B"])
+
+
+# ---------------------------------------------------------------------------
+# Iekšējo caurumu klasificēšana pēc satura (PROGRESS §97)
+# ---------------------------------------------------------------------------
+class TestHoleRepair(unittest.TestCase):
+    BG = (150, 148, 140)
+    FG = (225, 222, 215)
+
+    def _scene(self, size=240, garment=(40, 40, 200, 200), hole=None,
+               hole_fill=None):
+        """Sintētiska aina: gluds pelēks fons, teksturēts gaišs apģērba
+        taisnstūris, bināra maska ar ieslēgtu caurumu `hole`=(x0,y0,x1,y1),
+        kura SATURS oriģinālā ir `hole_fill` (krāsa vai "fabric")."""
+        rgb = np.tile(np.array(self.BG, np.uint8), (size, size, 1))
+        gx0, gy0, gx1, gy1 = garment
+        yy, xx = np.indices((size, size))
+        tex = (((xx // 4) + (yy // 4)) % 2) * 36 - 18
+        fabric = np.clip(np.array(self.FG, np.int16) + tex[..., None],
+                         0, 255).astype(np.uint8)
+        rgb[gy0:gy1, gx0:gx1] = fabric[gy0:gy1, gx0:gx1]
+        binary = np.zeros((size, size), np.uint8)
+        binary[gy0:gy1, gx0:gx1] = 1
+        if hole is not None:
+            hx0, hy0, hx1, hy1 = hole
+            binary[hy0:hy1, hx0:hx1] = 0
+            if hole_fill == "fabric":
+                pass  # saturs jau ir audums (maska to pazaudējusi)
+            elif hole_fill is not None:
+                rgb[hy0:hy1, hx0:hx1] = np.array(hole_fill, np.uint8)
+        return rgb, binary
+
+    def test_fabric_hole_is_filled(self):
+        rgb, binary = self._scene(hole=(90, 90, 120, 110),
+                                  hole_fill="fabric")
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(bool((out[90:110, 90:120] > 0).all()))
+        self.assertEqual(info["actions"][0]["action"], "filled_fabric")
+
+    def test_bg_hole_near_border_is_opened(self):
+        from scipy import ndimage
+        rgb, binary = self._scene(garment=(10, 40, 200, 200),
+                                  hole=(20, 90, 45, 110), hole_fill=self.BG)
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertEqual(info["actions"][0]["action"], "opened_bg")
+        self.assertLessEqual(info["actions"][0]["cut_px"], 250)
+        largest = (out > 0)
+        holes_left = ndimage.binary_fill_holes(largest) & ~largest
+        self.assertEqual(int(holes_left[90:110, 20:45].sum()), 0)
+
+    def test_bg_hole_far_from_border_left(self):
+        rgb, binary = self._scene(size=400, garment=(100, 30, 370, 370),
+                                  hole=(150, 185, 176, 211),
+                                  hole_fill=self.BG)
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(np.array_equal(out, binary))
+        self.assertEqual(info["actions"][0]["action"], "left")
+
+    def test_ambiguous_hole_left(self):
+        rgb, binary = self._scene(hole=(90, 90, 120, 110),
+                                  hole_fill=(188, 185, 178))
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(np.array_equal(out, binary))
+        self.assertEqual(info["actions"][0]["action"], "left")
+
+    def test_small_hole_ignored(self):
+        rgb, binary = self._scene(garment=(10, 40, 200, 200),
+                                  hole=(20, 90, 30, 100), hole_fill=self.BG)
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(np.array_equal(out, binary))
+        self.assertEqual(info["holes_ge_min"], 0)
+
+    def test_too_large_fabric_hole_left(self):
+        # 40x40 = 1600 px > 2% no 240x240 (1152 px) -> eskalācija, nelabo
+        rgb, binary = self._scene(hole=(90, 90, 130, 130),
+                                  hole_fill="fabric")
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(np.array_equal(out, binary))
+        self.assertEqual(info["actions"][0]["action"], "left")
+
+    def test_no_holes_identity(self):
+        rgb, binary = self._scene()
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(np.array_equal(out, binary))
+        self.assertEqual(info["holes_total"], 0)
 
 
 if __name__ == "__main__":

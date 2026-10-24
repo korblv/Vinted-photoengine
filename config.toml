@@ -29,6 +29,15 @@ ai_qa_largest_min = 0.95
 ai_qa_bbox_area_min = 0.35
 ai_qa_bbox_w_min = 0.45
 ai_qa_bbox_h_min = 0.35
+# Iekšējo caurumu klasificēšana pēc satura (PROGRESS §97): audums ->
+# aizpilda, fons tuvu malai -> atver ar šauru kanālu, pārējais -> atstāj.
+hole_min_px = 400          # mazākos GATE_C nesoda; tos neaiztiekam
+hole_margin_de = 3.0       # Lab attāluma rezerve; bez tās "neskaidrs" -> atstāj
+hole_tex_ratio = 1.8       # fona caurums nedrīkst būt daudz teksturētāks par fonu
+hole_tex_abs = 1.0
+hole_border_px = 96        # fona caurumu atver tikai tuvu kadra malai
+hole_max_cut_px = 250      # maks. FG pikseļu skaits, ko drīkst izgriezt kanālam
+hole_max_fill_frac = 0.02  # lielāku auduma caurumu nelabo (eskalācija)
 
 [plate]
 inner_min = 0.50      # iekšmalas tekstūra pret iekšpusi; zema = iekšā ir fons

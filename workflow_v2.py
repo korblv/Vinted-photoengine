@@ -98,8 +98,8 @@ from engine.config import (  # noqa: E402,F401
 from engine.masks import (  # noqa: E402,F401
     TMP_SOFT, _mask_polygons, _mask_stats, ai_mask_qa, closeup_mask_qa,
     isnet_auto_worker, isnet_padded_mask, isnet_worker, pad_guards,
-    paper_profile, plan_closeup_crop, plate_mask, run_isnet,
-    run_isnet_auto, save_seed_proposal,
+    paper_profile, plan_closeup_crop, plate_mask, repair_interior_holes,
+    run_isnet, run_isnet_auto, save_seed_proposal,
 )
 
 
@@ -369,6 +369,7 @@ def main() -> int:
         plate_info = None
         chroma_info = None
         pre_chroma_struct = None
+        hole_info = None
         no_auto_crop = False
         try:
             soft_path = TMP_SOFT / f"{stem}_{source_sha[:10]}_isnet_soft.png"
@@ -570,6 +571,23 @@ def main() -> int:
                 if "grabcut" in method:
                     print(f"  GrabCut fallback: {fallback_s:.2f} s", flush=True)
 
+            # --- Iekšējo caurumu klasificēšana pēc satura (PROGRESS §97) --
+            # Kandidāts var izturēt sava ceļa QA un tomēr ieslēgt caurumu:
+            # vai nu maska pazaudējusi audumu (vafeļadījuma ieleju josla,
+            # 160550 pie pad 0.90: 53 877 px), vai īss tiltiņš pie malas
+            # ieslēdz papīra šķēlumu (160601: 610 px). Pirms strukturālās
+            # pārbaudes caurumu klasificē pēc satura pret auduma gredzenu
+            # un lokālo fonu: audumu aizpilda, fonu tuvu malai atver,
+            # pārējo atstāj — checker GATE_C paliek tiesnesis.
+            binary, hole_info = repair_interior_holes(binary, orig)
+            for a in hole_info.get("actions", []):
+                print(f"  caurums {a['area']} px bbox={a['bbox']}: "
+                      f"{a['action']}"
+                      + (f" ({a.get('reason')})" if a["action"] == "left"
+                         else "")
+                      + f"; d_fg={a.get('d_fg')} d_bg={a.get('d_bg')}",
+                      flush=True)
+
             # --- Strukturālais trigeris chroma ceļam ----------------------
             # Maker QA (ISNet/apmales/plate) ir per-ceļa un var pieņemt
             # masku, kas strukturāli ir fragmenti vai ar caurumu — tieši to
@@ -691,6 +709,8 @@ def main() -> int:
                 rec["chroma_qa"] = chroma_info
             if pre_chroma_struct is not None:
                 rec["pre_chroma_structural"] = pre_chroma_struct
+            if hole_info is not None and hole_info.get("holes_ge_min"):
+                rec["hole_repair"] = hole_info
             rec["framing"] = framing_info
             rec["no_auto_crop"] = bool(no_auto_crop)
             if auto_info is not None:

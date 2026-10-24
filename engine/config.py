@@ -8,7 +8,7 @@ import json
 import tomllib
 from pathlib import Path
 
-WORKFLOW_VERSION = "2.5"
+WORKFLOW_VERSION = "2.6"
 
 # ---------------------------------------------------------------------------
 # Konfigurācija (solis 4): parametri dzīvo config.toml, specifikācija —
@@ -24,7 +24,10 @@ _CONFIG_SCHEMA: dict[str, dict[str, type]] = {
              "pad_tex_relaxed": float, "ai_qa_coverage_min": float,
              "ai_qa_coverage_max": float, "ai_qa_largest_min": float,
              "ai_qa_bbox_area_min": float, "ai_qa_bbox_w_min": float,
-             "ai_qa_bbox_h_min": float},
+             "ai_qa_bbox_h_min": float, "hole_min_px": int,
+             "hole_margin_de": float, "hole_tex_ratio": float,
+             "hole_tex_abs": float, "hole_border_px": int,
+             "hole_max_cut_px": int, "hole_max_fill_frac": float},
     "plate": {"inner_min": float, "outer_max": float, "bg_inside_max": float,
               "cover_min": float, "cover_max": float},
     "chroma": {"scale": int, "palette_k": int, "fg_alpha": float,
