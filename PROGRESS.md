@@ -2535,3 +2535,33 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Atklāts: 2 birku makro STOP (§95 diagnostika: plate QA). Pirms
   piegādes vajadzīgs apvienots mēģinājums (160550 ar pad 0.70 caur
   --overrides, pārējie noklusēti, identity WB). Nākamais — pēc pogas.
+
+### §99 Audits pēc lietotāja aizrādījuma: checker PASS ar redzamu caurumu — akls punkts izmērīts (2026-10-24)
+
+- Lietotājs pamatoti aizrādīja: A6 checker 3/3 PASS, bet 160550 kadrā
+  acīmredzams balts pleķis/svītras; Photoroom to pašu kadru apstrādā
+  bez caurumiem sekundēs. Uzdevums: pārbaudīt aprēķinus vai atrast
+  citu pieeju. Audits = tikai mērījumi, kods nemainīts.
+- Posmu izsekošana 160550: MASK -> ALPHA zaudē tikai 1707 px
+  (atšķirības kopā 2999 px): renderis pleķi NERADA. Aritmētiskas
+  kļūdas starp posmiem nav; kļūda ir maskā un vērtējuma definīcijā.
+- Salīdzinājums ar plate masku (accept=True): plate-only = 704 292 px
+  ar tekstūru mērogā 7.27 (auduma atsauce 6.76, papīra 0.66) — gatavā
+  maska pazaudē ~0.70 Mpx auduma, no tiem 263 536 px apakšējā labajā
+  kvadrantā. Pārklājums: tmp_id/audit_160550_lost.jpg (sarkans =
+  zaudētais audums: ieleju svītras + pleķis).
+- 4 līči pie labās/apakšējās malas (5.4-11.0 tūkst. px): tex_s
+  6.2-7.4, E pret papīru 7.0-11.5 — pēc satura audums, bet savienoti
+  ar kadra malu, tāpēc GATE_C tos pēc definīcijas neskaita.
+- **Secinājums (korekcija §98 optimistam):** checker ir akls pret
+  audumu, kas palicis ĀRPUS maskas gar robežu (līči un ieleju kanāli).
+  GATE_C soda tikai ieslēgtus caurumus; "3/3 PASS" bija paties pēc
+  definīcijas, nevis vizuāli. Cēlonis ķēdē: pie pad 0.90 pad_retry QA
+  masku pieņēma, plate netika mēģināta; strukturālajam trigerim nav
+  signāla "teksturēts fons silueta iekšienē".
+- Novēršami ceļi (izvēle ar pogu): (a) maker trigeris/kandidātu
+  salīdzinājums ar plate, mērot zaudēto teksturēto audumu;
+  (b) līču/kanālu atgūšana pēc satura (caurumu labotāja vispārinājums);
+  (c) jauns checker vārts šim aklajam punktam; (d) modeļa benchmarks
+  (Photoroom līmenis ir servera modelis; lokāli ISNet 768px proxy
+  ielejas zaudē). Krātuve: /home/user 103258788 B.
