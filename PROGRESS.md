@@ -2374,3 +2374,30 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   pārbaude: NAV tilla/sieta paneļu, neattiecas.
 - Lietotāja poga: "Jā, šīs ir visas - sākt apstrādi."
 - Krātuve pirms: uploads 47 225 059 B; kopā ~60.1 MB.
+
+### §94 Uniqlo Henley Attempt 1: maker 3/5, checker 0/3 (2026-10-24)
+- Vide: setup ready (ISNet SHA-256 sakrīt), 81 tests OK, preflight tīrs
+  (visiem rotation_cw=0). Attempt 1: 78 s kopā; krātuve pēc: 102.2 MB
+  (iekšējais 100 MB griesti pārsniegti, Arena 128 MB vēl nav; sekot!).
+- **Kopīgais atteikums visām 3 pabeigtajām: GATE_K** (krāsu godīgums):
+  auduma b* nobīde -3.31/-3.24/-3.21 pret limitu 2.5. Cēlonis: profils
+  no siltā pelēkā papīra (fons [146,145,137]) paceļ zilo kanālu par
+  1.0798 un krēmkrāsas audumu "izbalina" vēsāku, nekā tas ir.
+  Kandidāts bez koda maiņas: `--wb-mode identity` (CLI jau eksistē).
+- `160538` (pilns): maska isnet, visi pārējie vārti iziet; bloķē tikai K.
+- `160550` (apkakle): maska isnet_pad_retry; K + GATE_L DUBIOUS
+  (noplūde 45 511 px = 1.03%). Kolāžā REDZAMS defekts: baltas
+  vertikālas svītras kreisajā pusē un balts pleķis apakšējā labajā
+  daļā - dekontaminācija noņēmusi 120 040 px (vafeļribu tekstūru
+  acīmredzot lasa kā malas piesārņojumu). Kandidāts: `--no-decontam`.
+- `160601` (slīpais tuvplāns): K + GATE_C: 1 iekšējs caurums 619 px;
+  izmērīts alfā: 610 px šķēlums (31..45, 1078..1133) pie kreisās malas.
+- `160608` un `160645` (birku makro): STOP needs_review - ISNet dod
+  fragmentus (0.0135/0.2449 segums), pad retry un plate noraidīti
+  (plate: "ārpusē audums 0.833" / "fons iekšpusē 0.036"), chroma bez
+  fona sēklām. Baltā makro problēmas ģimene (sal. Henley §67).
+- Godīgs kopsavilkums: šobrīd piegādājama nav neviena no 5. Nākamais
+  solis tikai pēc lietotāja pogas: (A) Attempt 2 ar identity WB
+  (pārrenderēšana no saglabātajām maskām) + 160550 bez dekontaminācijas
+  + makro un cauruma diagnostika ar mērījumiem pirms jebkāda koda
+  soļa; vai (B) šaurāks apjoms pēc lietotāja izvēles.
