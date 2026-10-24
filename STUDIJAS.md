@@ -261,6 +261,14 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
 - Kandidāt-eksperiments **E10**: nedrošajā zonā lauku un E7
   vērtēt superpikseļa mediānai; sintētikā mērīt robežas
   robainību (perimetrs pret ideālo) un kļūdu laukumu.
+  **E10 veikts 2026-10-24 (§88): formāli NAV pierādīts** -
+  robainības kritērijs bija tukšs (ražošanas robeža sintētikā jau
+  gludāka par patieso: 0.9916). BET variants V1 (SLIC mediāna
+  galvenā lauka |lauks|<5 zonā) precizitātē uzvarēja abos
+  līmeņos: kļūdas -33%/-28%, Boundary IoU 0.59->0.73. V2 (tumšā
+  zona) sliktāks. Replika pret īsto chroma: IoU 1.00000.
+  Kandidāts **E10b**: V1 A/B uz īstas ne-papīra grupas aiz
+  config slēdža (SLIC ~4.5 s/bilde).
 
 ### N4 — Ēnas invariante (Finlayson)
 - Log-hromas telpā apgaismojuma izmaiņa guļ uz vienas taisnes

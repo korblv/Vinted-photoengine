@@ -2240,3 +2240,33 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   Ierobežojums: sintētiskā aptumšošana saglabā nokrāsu proporcionāli;
   telefona melnā līmeņa/hromas NR apstrāde F0 reālo rezervi samazina -
   bet mehānismi (2)(3) invarianti tur degradē vismaz tikpat strauji.
+
+### §88 E10: SLIC superpikseļi — kritērijs krita, bet V1 precizitāte pārsteidz (2026-10-24)
+- Lietotāja izvēle (poga): E10. Skripts `tmp_id/e10_slic.py`, rezultāti
+  `tmp_id/e10_slic.json`. Ražošanas kods nemainīts.
+- **Replikas validācija perfekta:** BASE (chroma replika pusmērogā ar
+  ražošanas palīgfunkcijām) pret īsto `chroma_mask`: IoU = 1.00000 abos
+  līmeņos, visas metrikas identiskas. Etalons tik tiešām mēra ražošanu.
+- **Kritērijs (a) izrādījās tukšs (mana dizaina kļūda):** BASE perimetra
+  attiecība ir 0.9916 - robeža jau ir GLUDĀKA par patieso (lauka Gauss
+  sigma=2 + morfoloģija + Lanczos visu izlīdzina; sintētiskās tekstūras
+  ir pārāk gludas). Uzlabojums par 0.05 matemātiski neiespējams, tāpēc
+  (a) krita visiem un formālais spriedums ir NAV PIERĀDĪTS. §79 robainība
+  uz īstas bildes šajā ainā neatveidojās - šis jautājums paliek atklāts.
+- **Taču V1 (SLIC mediāna galvenā lauka |lauks|<5 zonā) precizitātē
+  uzvarēja pārliecinoši abos līmeņos:** kļūdu pikseļi 14225->9511 (tīrs,
+  -33%) un 14423->10447 (JPEG, -28%); Boundary IoU(5) 0.591->0.734 /
+  0.586->0.712; chamfer 2.18->1.43 / 2.22->1.59 (labākais: 20 px
+  segmenti). Mehānisms: segmenti nepārkāpj foto malas, tāpēc mediānas
+  lēmums robežu noliek uz segmentu robežām, kas piekļaujas īstajai
+  malai labāk nekā nobīdītais lauka nulles šķērsojums. Cena: +418-567
+  FP pikseļi ēnas zonā (BASE: 0). V2 (SLIC tumšajā nedrošajā zonā)
+  nedaudz sliktāks; V3 identisks V1.
+- **Godīgs statuss: V1 = daudzsološs, bet NEpierādīts.** Sintētiskā
+  mala ir tīrāka par īstu foto malu - ieguvuma lielums, visticamāk,
+  pārspīlēts; SLIC maksā ~4.5 s/bilde pusmērogā (budžets 20 s).
+  Kritēriju pēc fakta nepārraksta. Kandidāts **E10b**: V1 kā config
+  slēdzis chroma ceļā, A/B uz nākamās ĪSTĀS ne-papīra grupas (checker +
+  acs + tie paši malu mērījumi pret rokām vērtētu robežu nav iespējami
+  bez patiesības - vērtējam ar GATE_H zonu un vizuālo kolāžu).
+  Lēmums lietotājam; bez tā kodu neaiztiek.
