@@ -1619,3 +1619,16 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   `compute_grade_profile`, `apply_lut` u.c.), ķermeņi nemainīti.
 - Pierādījums: AST hash 55/55 bez atšķirībām; 64 testi OK; `--help`
   identiska; e2e == §58 hash. STĀVOKLIS: turpinu ar 6.4.
+
+---
+
+## §64 — Solis 6.4: `engine/masks.py` (2026-10-24)
+
+- Pārvietotas 14 funkcijas (ISNet workeri, QA, pad/plate/closeup) +
+  `TMP_SOFT`. Vienīgās ķermeņa izmaiņas visā solī 6 līdz šim: divās
+  vietās workera pašizsaukumā `__file__` → `str(ENTRY_SCRIPT)`
+  (fasādes fails), jo modulis vairs nav CLI ieeja.
+- Pierādījums: AST hash — atšķiras tieši `{run_isnet, run_isnet_auto}`
+  (plānotais izņēmums), pārējās 53 identiskas; 64 testi OK; `--help`
+  identiska; e2e == §58 hash (īstais ISNet workers gāja caur jauno
+  ENTRY_SCRIPT ceļu). STĀVOKLIS: turpinu ar 6.5.
