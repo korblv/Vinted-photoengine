@@ -1346,3 +1346,37 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   līdz tam vecās pakotnes `uploads/` ir novecojušas attiecībā pret kodu
   (asināšana 25%, jaunais ēnas modelis, close_group labojums) un tās
   nedrīkst atjaunot pāri pašreizējam kodam.
+
+---
+
+## §54 — Produkcijas refaktors, solis 1: git + arhīvs (2026-10-24)
+
+- Lietotājs apstiprināja mērķi: produkcijas programmatūra; strādājam soli pa
+  solim, pa vienam uzlabojumam. Pilns ceļš: `PRODUKCIJAS_PLANS.md`
+  (6 soļi + ātrie labojumi; katrs solis = komits + šis reģistrs + pogas).
+- Audita izejas skaitļi (solim 1 pamats): 22 `.py` / 7 116 rindas;
+  `workflow_v2.py` 2 085 rindas ar `main()` 552 rindas; 1 534 rindas ārpus
+  ražošanas importa grafu; `test_workflow_v2.py` nav; git nebija;
+  checker importē `apply_lut` no `workflow_v2`.
+- Izveidots git repozitorijs `loop_bildes/` saknē. Bāzes komits `77e9ac2`
+  (tags `v2.1.0`, 38 faili, 13 375 rindas) = stāvoklis pirms jebkuras
+  kustības. `.gitignore`: `__pycache__/`, `output/`, `PROGRESS.md.bak-*`,
+  `*.zip`.
+- Uz `archive/` pārvietoti 10 moduļi / 1 441 rinda, kurus neviens ražošanas
+  fails neimportē (pārbaudīts ar grep, arī dinamiskais imports workflow ir
+  tikai `find_spec`): `loop_engine.py`, `checker.py`, `cast_shadow.py`,
+  `directional_shadow.py`, `real_shadow.py`, `restyle_shadow.py`,
+  `shadow_studio_v2.py`, `fix_mask_holes.py`, `make_collage_vinted.py`,
+  `make_zip_vinted.py`. `measure_shadow.py` apzināti paliek saknē kā
+  diagnostika. Atsauces dokumentos uz arhivētajiem ir tikai vēsturiskajos
+  reģistros; aktuālie komandu dokumenti (`LOOP_KOMANDAS.md`,
+  `WORKFLOW_V2.md`) tos nesauc.
+- Pierādījums, ka kods nav mainījies: pirms/pēc sha256 saraksti visiem 22
+  `.py` — **22/22 identiski** (mainījies tikai ceļš); `py_compile` 22/22 OK.
+  Ražošanas algoritmi, 00 §3.2 un §5 sliekšņi: nemainīgi.
+- Blakus atradums: `python3 setup_v2.py --check` → `ready:false`
+  (`/var/tmp` vide starp sesijām nav izdzīvojusi). Šim solim apstrāde nav
+  vajadzīga; pirms nākamās apstrādes/testu palaišanas jāpalaiž
+  `python3 setup_v2.py`.
+- STĀVOKLIS: solis 1 izdarīts, gaida lietotāja apstiprinājumu solim 2
+  (testi). Soļa 1 komits satur šo ierakstu; tā hash skatīt `git log`.
