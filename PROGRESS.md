@@ -1955,3 +1955,31 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   neiedarbojas, kur vecā ķēde strādā).
 - Nākamais: Attempt 2 visai grupai + checker. Prognoze: pilnie kadri
   paliek `isnet`; abi slīpie pārslēdzas uz `chroma_seeded`.
+
+## §77 — Attempt 2: checker 4/4, bet acs atrod defektu (2026-10-24)
+- Maker 4/4 (12.64 s/bilde, maks. 17.03 s). Prognoze no §76
+  piepildījās precīzi: pilnie kadri palika `isnet` ar identisku
+  segumu (0.4746/0.5404); abi slīpie caur strukturālo trigeri
+  pārslēdzās uz `chroma_seeded` (122109: pirms fill 0.4058 ->
+  segums 0.7851, min_cross_dE 24.13; 122248: pirms caurums 576 px
+  -> segums 0.7777, min_cross_dE 22.97). Profils nemainīgs:
+  [180,173,159], WB [1,1,1], ekspozīcija 1.06.
+- Checker: 4/4 ALL_PASS.
+- BET vizuālā pārbaude (GATE_E) atrod to, ko vārti neredz: 122248
+  zem piedurknes gala maskā palicis grīdas pleķis ēnā
+  (~240x140 px PARAUGS mērogā). Izmērīts: pleķa Lab mediāna
+  [6.5, 3.2, 2.6]; tuvākais FG centrs (auduma tumšākā kroka
+  [5.7, 0.8, -4.1]) 7.2, tuvākais BG centrs 16.7 — dziļā ēnā koks
+  un audums abi ir gandrīz melni neitrāli; krāsa viena pati šo
+  līci neatšķir. 122109 vizuāli tīrs.
+- Akls ceļš fiksēts: "sēklu pretrunas" likums (sēklu nepiespiež, ja
+  paletes to sauc par otru klasi) uz īstajām bildēm deva d0 px, un
+  sintētikā mehānismu apiet paletes piesārņojums (pārplūde nozog
+  FG centru [28, 6, 15.3]) — labojums un tests atcelti kā
+  nepierādīti. Krātuve 125 965 537 B (masteri 59.4 MB) — tuvu
+  128 MB griestiem, pēc grupas slēgšanas atbrīvosies.
+- STUDIJAS KPI: grupa sākta ar A1 2/4; koda labojums §76 bija
+  vajadzīgs (sērija "3 grupas bez labojuma" paliek 0), bet tas ir
+  vispārīgs ceļš + trigeris, ne ielāps vienai bildei; 79 testi OK.
+- Lēmums lietotājam par pleķi: pieņemt / operatora griezums /
+  piegādāt 3 bildes / tekstūras izšķīrējs kā atsevišķs solis.
