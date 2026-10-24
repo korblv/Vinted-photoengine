@@ -1468,3 +1468,48 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   tā paliek attempt/checker procedūrā.
 - STĀVOKLIS: solis 2 pabeigts. Nākamais plānā: solis 3 (idempotenti posmi,
   provenance) — gaida lietotāja apstiprinājumu.
+
+---
+
+## §58 — Produkcijas refaktors, solis 3: masku provenance, idempotents decontam (2026-10-24)
+
+- Lietotājs ar pogām apstiprināja variantu A: sidecars pie maskas +
+  hash aizsargs; nezināmai vēsturei uzvedība kā līdz šim.
+- Izmaiņa `workflow_v2.py` (+96/−2 rindas): `WORKFLOW_VERSION` 2.1→2.2;
+  palīgfunkcijas `mask_provenance_path`, `read_mask_provenance`,
+  `start_mask_provenance`, `append_mask_stage`, `decontam_needed`
+  (tīrs lēmums); konstante `DECONTAM_PARAMS={max_px:30, tex_ratio:0.45}`,
+  ko tagad padod funkcijai eksplicīti (vērtības = iepriekšējie
+  noklusējumi). Āķi abās kanoniskās maskas rakstīšanas vietās (masku
+  fāze + render pārrakstīšana). Posma ierakstu raksta tikai `applied`
+  gadījumā: ne-pielietots decontam atkarīgs no graded attēla, tāpēc
+  konservatīvi to pārrēķina, nevis piesprauž.
+- Sidecars `{stem}_MASK.json`: avota sha256, faila sha256 pēc katras
+  rakstīšanas, posmu ķēde ar ieejas/izejas hash. Hash nesakritība
+  (masku mainījis cits rīks, piem. `closeup.py`) vēsturi anulē droši.
+  `close_group.py` nemainīts: `{stem}*` šablons sidecar jau savāc.
+- Testi: +6 gadījumi (`TestMaskProvenance`), bijušais `expectedFailure`
+  pārrakstīts par raksturojumu (jēlā funkcija 2. reizē nogriež vēl —
+  tieši tāpēc aizsargs eksistē). Komplekts: **52 testi, OK, 0 gaidāmo
+  neveiksmju, 1,57 s**.
+- E2E Pierādījums caur īsto CLI uz sintētiska kadra `TESTSINT_1`
+  (avota sha256(16) `85cf02836efabd10`, ģenerēts, pēc mērījumiem
+  izdzēsts — 9 faili / 2,80 MB ar `close_group.py`): Attempt 1 decontam
+  `applied=true`, −38 887 px (projektētais 14 px rims). Attempt 2 ar
+  `--rerender-saved` **bez** `--no-decontam`: decontam `skipped`
+  (provenance), un 5/5 artefakti bitiski identiski Attempt 1 —
+  MASK `821e472087039c8a`, ALPHA `1e3295d2754b1a1e`, MASTER
+  `10bfff4349951e25`, PARAUGS `bf7ec343bb39602c`, grade profils
+  `d277985272df0adf`. Pirms šā soļa Attempt 2 maska atšķirtos (§57).
+- Blakus efekts godīgi: e2e pārrakstīja birstošās
+  `output/report_v2_maker.json` un `output/grade_profile_v2.json`
+  (tagad apraksta sintētisko verifikāciju). Vans gala skaitļi nav
+  zaudēti — tie ir fiksēti §51–§53.
+- Nemainīgi: `loop.py` decontam algoritms un parametri (hash
+  salīdzinājums 24 izsekotajiem `.py`: mainījušies tikai
+  `workflow_v2.py` un `test_workflow_v2.py`); §3.2, §5 sliekšņi;
+  `--no-decontam` nozīme sākotnējai izlaišanai. Kosmētika: daži konsoles
+  teksti vēl saka "v2.1"; atskaitē versija ir 2.2.
+- Atlikts: grade profila provenance/config hash (solis 4). STĀVOKLIS:
+  solis 3 pabeigts; nākamais plānā — solis 4 (viena konfigurācija),
+  gaida lietotāja apstiprinājumu.

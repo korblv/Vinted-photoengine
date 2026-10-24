@@ -6,7 +6,8 @@ Palaišana:  python3 -m unittest test_workflow_v2 -v
 Principi (PRODUKCIJAS_PLANS.md):
 - tikai sintētiski, deterministiski ģenerēti dati — repo nav bināru fixtūru;
 - testi piesprauž pašreizējo paredzamo uzvedību (characterization), nevis
-  vēlamo; zināms defekts ir atzīmēts ar ``expectedFailure``, nevis noslēpts;
+  vēlamo; zināmi defekti netiek slēpti — vai nu raksturo, vai aizsargā
+  posma līmenī ar testu, kas aizsargu pierāda;
 - ISNet maskas kvalitāte šeit NETIEK testēta (vajadzīgi reāli foto) — tā
   paliek katras grupas attempt/checker procedūrā;
 - testi neko neraksta ražošanas ``output/`` mapēs (tikai pagaidu mapes).
@@ -258,7 +259,7 @@ class TestStudioShadow(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# decontaminate_rim: 1. palaišana strādā; idempotence = zināms defekts
+# decontaminate_rim: jēlā funkcija NAV idempotenta; posms IR (provenance)
 # ---------------------------------------------------------------------------
 def _decontam_fixture():
     rng = np.random.default_rng(SEED)
@@ -279,17 +280,116 @@ class TestDecontam(unittest.TestCase):
         self.assertTrue(info.get("applied"))
         self.assertLess(int((out > 0).sum()), int(mask.sum()))
 
-    @unittest.expectedFailure
-    def test_second_run_is_idempotent(self):
-        """ZINĀMS DEFEKTS (PROGRESS §50, plāna solis 3): jau dekontaminētas
-        maskas atkārtota apstrāde nogriež vēl (sintētikā izmērīts: 1. reizē
-        −17 498 px pareizi, 2. reizē vēl −6 611 px). Lokāli šo maskē karogs
-        --no-decontam; īstais labojums ir solī 3 (provenance + idempotenti
-        posmi). Kad tests kļūs zaļš, dekorators jānoņem."""
+    def test_raw_second_run_cuts_more_characterization(self):
+        """Kāpēc vajadzīgs provenance aizsargs: jēlā funkcija ir novērtētājs,
+        nevis idempotenta operācija — tai pašai maskai otrais piegājiens
+        nogriež vēl (sintētikā: 1. reizē −17 498 px, 2. reizē vēl −6 611 px).
+        Ražošanā to nedrīkst izsaukt divreiz: TestMaskProvenance pierāda,
+        ka posms to aizsargā. Ja funkcija kādreiz kļūst patiesi idempotenta,
+        šis tests apzināti kritīs un liks pārskatīt aizsarga vajadzību."""
         rgb, mask = _decontam_fixture()
         once, _ = loop.decontaminate_rim(rgb, mask.copy())
         twice, _ = loop.decontaminate_rim(rgb, once.copy())
-        np.testing.assert_array_equal(twice > 0, once > 0)
+        self.assertLess(int((twice > 0).sum()), int((once > 0).sum()))
+
+
+# ---------------------------------------------------------------------------
+# Masku provenance un posma idempotence (solis 3)
+# ---------------------------------------------------------------------------
+class TestMaskProvenance(unittest.TestCase):
+    def _mask_file(self, td, stem="STEM", val=255):
+        p = Path(td) / f"{stem}_MASK.png"
+        arr = np.zeros((60, 80), np.uint8)
+        arr[10:50, 10:70] = val
+        Image.fromarray(arr).save(p)
+        return p
+
+    def test_start_and_read_roundtrip(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._mask_file(td)
+            prov = wf.start_mask_provenance(p, "STEM", "srcsha", "isnet")
+            self.assertEqual(prov["mask_sha256"], wf.sha256_file(p))
+            self.assertTrue(prov["history_known"])
+            self.assertEqual(prov["stages"][0]["stage"], "mask")
+            self.assertEqual(wf.read_mask_provenance(p), prov)
+            self.assertTrue(wf.mask_provenance_path(p).name.endswith("_MASK.json"))
+
+    def test_read_missing_or_broken_returns_none(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._mask_file(td)
+            self.assertIsNone(wf.read_mask_provenance(p))
+            wf.mask_provenance_path(p).write_text("{bojāts json", encoding="utf-8")
+            self.assertIsNone(wf.read_mask_provenance(p))
+
+    def test_decontam_needed_matrix(self):
+        sha = "a" * 64
+        done = {"mask_sha256": sha,
+                "stages": [{"stage": "decontam", "params": wf.DECONTAM_PARAMS}]}
+        self.assertTrue(wf.decontam_needed(None, wf.DECONTAM_PARAMS, sha))
+        self.assertTrue(wf.decontam_needed(done, wf.DECONTAM_PARAMS, "b" * 64))
+        self.assertFalse(wf.decontam_needed(done, wf.DECONTAM_PARAMS, sha))
+        self.assertTrue(wf.decontam_needed(
+            done, {"max_px": 99, "tex_ratio": 0.45}, sha))
+        self.assertTrue(wf.decontam_needed(
+            {"mask_sha256": sha, "stages": [{"stage": "mask"}]},
+            wf.DECONTAM_PARAMS, sha))
+
+    def test_append_chain_and_reset_on_external_change(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._mask_file(td)
+            wf.start_mask_provenance(p, "STEM", "srcsha", "isnet")
+            sha_in = wf.sha256_file(p)
+            self._mask_file(td, val=200)  # posms pārraksta masku
+            prov = wf.append_mask_stage(p, "STEM", "srcsha", {
+                "stage": "decontam", "params": dict(wf.DECONTAM_PARAMS),
+                "input_mask_sha256": sha_in})
+            self.assertEqual([s["stage"] for s in prov["stages"]], ["mask", "decontam"])
+            self.assertEqual(prov["mask_sha256"], wf.sha256_file(p))
+            # Ārēja izmaiņa: failu maina bez sidecar atjaunināšanas ->
+            # nākamais posms ar novecojušu ieeju sāk jaunu, nezināmu ķēdi.
+            self._mask_file(td, val=128)
+            prov2 = wf.append_mask_stage(p, "STEM", "srcsha", {
+                "stage": "decontam", "params": dict(wf.DECONTAM_PARAMS),
+                "input_mask_sha256": sha_in})
+            self.assertEqual(len(prov2["stages"]), 1)
+            self.assertFalse(prov2["history_known"])
+
+    def test_stage_level_idempotence_on_real_decontam(self):
+        """Atkārto render_one lēmuma ceļu ar īsto funkciju uz pagaidu
+        failiem: otrais piegājiens ir skipped un maska bitiski identiska.
+        (Pats render_one raksta fiksētās output/ mapēs, tāpēc šeit tiek
+        testēts tā lēmuma kodols — tās pašas funkcijas, tā pati secība.)"""
+        rgb, mask = _decontam_fixture()
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "STEM_MASK.png"
+            wf.save_gray_png(mask * 255, p, 1)
+            wf.start_mask_provenance(p, "STEM", "srcsha", "synthetic")
+
+            def decontam_stage():
+                binary = (np.asarray(Image.open(p).convert("L")) > 128).astype(np.uint8)
+                cur = wf.sha256_file(p)
+                if not wf.decontam_needed(wf.read_mask_provenance(p),
+                                           wf.DECONTAM_PARAMS, cur):
+                    return {"applied": False, "skipped": True}
+                binary, info = loop.decontaminate_rim(rgb, binary, **wf.DECONTAM_PARAMS)
+                if info.get("applied"):
+                    wf.save_gray_png(binary.astype(np.uint8) * 255, p, 1)
+                    wf.append_mask_stage(p, "STEM", "srcsha", {
+                        "stage": "decontam", "params": dict(wf.DECONTAM_PARAMS),
+                        "input_mask_sha256": cur,
+                        "removed_px": info.get("removed_px")})
+                return info
+
+            info1 = decontam_stage()
+            self.assertTrue(info1.get("applied"))
+            sha1, arr1 = wf.sha256_file(p), np.asarray(Image.open(p))
+            info2 = decontam_stage()
+            self.assertTrue(info2.get("skipped"))
+            self.assertEqual(wf.sha256_file(p), sha1)
+            np.testing.assert_array_equal(np.asarray(Image.open(p)), arr1)
+
+    def test_workflow_version_bumped_for_new_rerender_semantics(self):
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.2")
 
 
 # ---------------------------------------------------------------------------

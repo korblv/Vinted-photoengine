@@ -24,7 +24,8 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
       tests ar deterministiski ģenerētiem sintētiskiem attēliem. Katra
       vēsturiskā kļūda (PROGRESS/QA) kļūst par testu. Mērķis: pilna palaišana
       < 2 min.
-- [ ] **3. Idempotenti posmi**: katrs starpprodukts (maska, profils) iegūst
+- [x] **3. Idempotenti posmi** (PROGRESS §58; maskas provenance — profila
+      provenance pārceļas uz soli 4): katrs starpprodukts (maska, profils) iegūst
       blakus JSON ar provenanci (avota sha256, posms, parametri). Rerender
       nedrīkst atkārtot jau izdarītu posmu — novērš `--no-decontam` klases
       kļūdas (Attempt 2: −102 868/−44 627 px).
