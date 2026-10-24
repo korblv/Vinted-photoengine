@@ -1680,3 +1680,64 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   komita OK.
 - Atlikuši ātrie labojumi: `atjaunot.py` dublikāts; lēmums par `.md`
   pakotņu likteni; atliktais `main()` fāžu dalījums.
+
+## §67 — Jauna grupa fiksēta: Uniqlo balts vafeļu Henley, L (2026-10-24)
+- §3.1 starta protokols ievērots: vispirms tikai inventārs + poga
+  "Vai šīs ir visas šīs grupas bildes?" → lietotājs: "Jā, šīs ir visas".
+- Avoti (5 faili, 16 417 263 B kopā; EXIF orientācija visiem = 1;
+  sha256(16) iekavās):
+  - `PXL_20261022_124309570.PORTRAIT.ORIGINAL.jpg` — priekšpuse,
+    3072×4080, 2 837 394 B (`87c48307c90020be`)
+  - `PXL_20261022_124322251.PORTRAIT.ORIGINAL.jpg` — kakla izgriezuma
+    un pogu tuvplāns, 4080×3072, 3 900 325 B (`55871f43852ab782`)
+  - `PXL_20261022_124339475.PORTRAIT.ORIGINAL.jpg` — apakšmalas un
+    aproču tuvplāns, 4080×3072, 3 842 887 B (`bca8fd008986640a`)
+  - `PXL_20261022_124406358.PORTRAIT.ORIGINAL.jpg` — birkas tuvplāns
+    (UNIQLO, L, MADE IN India), 4080×3072, 2 424 361 B (`378ca503ba0b5b34`)
+  - `PXL_20261022_124651636.PORTRAIT.ORIGINAL.jpg` — mugura, 3072×4080,
+    3 412 296 B (`ed31840d18ef966c`)
+- Rotācijas — lietotāja lēmums ar pogām: kakla tuvplāns CW 270°
+  (izgriezums augšā); birka BEZ pagriešanas (noraidīts ieteiktais
+  CW 90° — teksts paliek vertikāls); apakšmala/aproces CW 90°.
+- Preflight notvēra kļūdu PIRMS apstrādes: īsā atslēga `322251:270`
+  neatbilst, jo stems beidzas ar `.PORTRAIT.ORIGINAL`, tādēļ
+  `stem[-6:]` = "IGINAL" (veco grupu stemi beidzās ar cipariem un
+  īsais ceļš strādāja). Ar pilniem stemiem: `rotation_cw` 270/90
+  reģistrēti, izmēri pēc pagriešanas 3072×4080; `ready:true`,
+  0 problēmu. Atlikums (nav labots): `--rotate` klusi ignorē
+  neatbilstošu atslēgu — kandidāts vēlākam mazam labojumam ar
+  brīdinājumu/validāciju.
+- Vide pirms starta: `setup_v2.py --check` `ready:true`, modeļa
+  SHA-256 sakrīt; `python3 -m unittest test_workflow_v2` 64 OK (1.59 s).
+- Krātuve: 5 434 991 → 22 515 898 B (pēc augšupielādes un id lapas;
+  limits 100 MB).
+
+## §68 — Henley Attempt 1: 4/5 gatavas, birkas kadrs STOP (2026-10-24)
+- Maker (60.3 s siena; vidēji 12.28 s/bilde pabeigtajām, maks. 15.23 s):
+  - priekšpuse `124309570`: isnet, segums 0.4674, slamjam — done
+  - mugura `124651636`: isnet, segums 0.5141, slamjam — done
+  - kakla tuvplāns `124322251` (CW 270): isnet_pad_retry, segums
+    0.7679, original — done
+  - apakšmala/aproces `124339475` (CW 90): isnet_pad_retry, segums
+    0.7062, original — done
+  - birka `124406358`: ISNet segums 0.0501 (fragments) → pad retry
+    0.0462 (noraidīts) → plāksne segums 0.022 (noraidīts) →
+    `needs_review`, `refused_no_trusted_mask`. Auto-sēklu GrabCut ceļa
+    ražotnē nav (dzēsts 2026-10-22) — STOP ir apzināts dizains.
+- Neatkarīgais checker: **4/4 PASS** (11 pass-lauki katram, 0 FAIL);
+  birka skaitās kā nepabeigta meta (checker exit 2).
+- Diagnoze (mērīta, kods nemainīts): tekstūras signāls birkas kadrā
+  PASTĀV — lokālā L* std medianas papīrs/audums = 2.07/7.06 (3.4x)
+  ražotnes iestatījumā (pusizmērs, logs 25); mēroga slaucīšana
+  0.25–0.5 × logi 15/25/41 dod 2.9–5.4x. Kritiens ir `plate_segment`
+  Otsu slieksnī: tas izvēlējās 13.73 — VIRs auduma medianas (7.06),
+  jo E sadalījumu izkropļo retie ļoti augstie maksimumi (birkas melnā
+  druka, vīļu ēnas) un vafeļu šūnu plaknes ir zemas enerģijas. Maska
+  paturēja tikai 2.2 % augstākās enerģijas kores (fg_med 21.5).
+  L* krāsa gandrīz neatdala (papīrs 58.3, audums 63.9) — tekstūra ir
+  vienīgais signāls, bet pietiekams.
+- Krātuve pēc Attempt 1: 80 760 141 B (MASTER PNG 9.0–15.4 MB gab.).
+- Blakus atradums: `code = stem[-6:]` sēklu bibliotēkas atslēga šīs
+  grupas stemiem ir "IGINAL" (tas pats `.PORTRAIT.ORIGINAL` gals,
+  kas §67 lauza `--rotate` īsās atslēgas) — šai grupai nekaitē
+  (sēklu nav), bet jāfiksē kopējā mazā labojumā.
