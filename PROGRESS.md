@@ -1581,3 +1581,18 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Paliekošs, apzināts izņēmums: `paper_leak` imports informatīvajiem
   L vārtiem (pass=None) — tas nav maker atkarība lēmumu ceļā.
   Nākamais plānā: solis 6 (monolīta dalīšana) — gaida apstiprinājumu.
+
+---
+
+## §61 — Solis 6.1: `engine/config.py` (2026-10-24)
+
+- Lietotājs apstiprināja visus soļa 6 apakšsoļus secīgi, katru savā
+  komitā ar pilnu Pierādījums komplektu. Izveidota pakotne `engine/`;
+  `workflow_v2.py` paliek CLI ieeja un fasāde (re-eksportē vārdus).
+- Pārvietots nemainot ķermeņus: config shēma/ielāde (`load_config`,
+  `CFG`, `CONFIG_PATH` — modulis tagad `engine/`, tāpēc ceļš
+  `parents[1]`; vērtība nemainīga), `_resolve_args`,
+  `_effective_config`, `_config_sha256`.
+- Pierādījums: AST hash visām 55 funkcijām pirms/pēc — 0 atšķirību;
+  64 testi OK; `--help` izvade identiska; TESTSINT e2e
+  MASK/MASTER/PARAUGS == §58 hash. STĀVOKLIS: turpinu ar 6.2.
