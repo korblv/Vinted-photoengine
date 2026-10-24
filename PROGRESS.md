@@ -1828,3 +1828,27 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Gaida pogu "Lejupielādēju — dzēst grupu" -> tad close_group par
   visiem 5 stemiem (oriģināli, maskas/alpha/provenance, MASTER,
   PARAUGS, kolāža, ZIP) un beigu mērījums.
+
+## §72 — Henley grupa slēgta un iztīrīta (2026-10-24)
+- Lietotājs: "Lejupielādēju — dzēst grupu". `close_group.py` vispirms
+  dry-run (42 faili, saraksts pārbaudīts acīm: tikai 5 grupas stemi
+  + ZIP + kolāža), tad `--yes`: izdzēsti visi 42, atbrīvoti
+  98.21 MB. `V2_KOLAZA.jpg` dzēšana iekļauta (labojums no Vans
+  slēgšanas strādā).
+- Krātuve: 104 341 065 -> **6 250 491 B**. Palikušie `output/`
+  artefakti: maker+checker atskaites, `delivery_v2.json` (ZIP
+  manifests ar failu SHA-256), grade profils, `audits/` (attempt 1/2
+  atskaišu kopijas un hasu saraksti); master/paraugs/masks tukšas.
+- `uploads/`: tikai `00_SAKU_SHEIT.md`, sasaldētās `01_DZINEJS.md`,
+  `02_ATMINA.md` un 4 Slam Jam paraugi (hashi nemainīti:
+  `bb0e436b…`, `cdbca1dd…`, `49fa4569…`, `669263eb…`). Git tīrs;
+  grupas komiti: `5f0b0e0` (§67-§68), `89a0c87` (§69), `21953ee`
+  (§70), `d1e4e1f` (§71), `ae0545a` (QA §50).
+- Ražotne pēc grupas ir stiprāka nekā pirms tās: 74 testi (bija 64);
+  plate ceļš vairs nekrīt uz ekstrēmas E astes; `bg_inside` atpazīst
+  papīru pēc krāsas, ne tikai gluduma; GATE_P izšķir ķīli no audumā
+  ieslēgtiem ielokiem. Sekojošie numuri: PROGRESS §73, QA §51.
+- Zināmie sīkie atlikumi (nebloķē nākamo grupu): `--rotate` un
+  sēklu bibliotēkas īsās atslēgas klusām nesakrīt stemiem ar
+  `.PORTRAIT.ORIGINAL` galu (§67); 00 §3.5 100 MB limits pret
+  128 MB griestiem (§71) — abi gaida lietotāja vārdu.
