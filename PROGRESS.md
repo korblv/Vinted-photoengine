@@ -1596,3 +1596,17 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Pierādījums: AST hash visām 55 funkcijām pirms/pēc — 0 atšķirību;
   64 testi OK; `--help` izvade identiska; TESTSINT e2e
   MASK/MASTER/PARAUGS == §58 hash. STĀVOKLIS: turpinu ar 6.2.
+
+---
+
+## §62 — Solis 6.2: `engine/infra.py` + `engine/provenance.py` (2026-10-24)
+
+- Pārvietots: infra 16 funkcijas + rotāciju globāli; provenance 6
+  funkcijas + `MASK_PROVENANCE_VERSION`/`DECONTAM_PARAMS`;
+  `WORKFLOW_VERSION` pārcelts uz `engine/config.py`, lai `preflight`
+  varētu dzīvot infra bez riņķa importa. Ķermeņi nemainīti.
+- Vienīgā testa korekcija (plānā paredzēta): `rotation_for` tests vairs
+  nepārsien `ROTATIONS_CW` atsauci, bet mutē vārdnīcu — tā, kā to dara
+  visi ražošanas ceļi (`update()`); testa apgalvojumi identiski.
+- Pierādījums: AST hash 55/55 bez atšķirībām; 64 testi OK; `--help`
+  identiska; e2e == §58 hash. STĀVOKLIS: turpinu ar 6.3.

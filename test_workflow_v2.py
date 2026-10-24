@@ -75,14 +75,19 @@ class TestRotationParsing(unittest.TestCase):
             wf.parse_rotations(["IMG_1-270"])
 
     def test_rotation_for_global_and_fallback(self):
-        saved = wf.ROTATIONS_CW
+        # Solis 6.2: ROTATIONS_CW dzīvo engine.infra; ražošana to visos
+        # ceļos MUTĒ ar update(), tāpēc arī tests mutē, nevis pārsien
+        # atsauci (pārsiešana mainītu tikai fasādes atributu).
+        saved = dict(wf.ROTATIONS_CW)
         try:
-            wf.ROTATIONS_CW = {"ABC123": 90, "201332": 270}
+            wf.ROTATIONS_CW.clear()
+            wf.ROTATIONS_CW.update({"ABC123": 90, "201332": 270})
             self.assertEqual(wf.rotation_for("ABC123.jpg"), 90)
             self.assertEqual(wf.rotation_for("IMG_201332.jpg"), 270)  # pēdējo 6 zīmju atslēga
             self.assertEqual(wf.rotation_for("NEZINAMA.jpg"), 0)
         finally:
-            wf.ROTATIONS_CW = saved
+            wf.ROTATIONS_CW.clear()
+            wf.ROTATIONS_CW.update(saved)
 
 
 class TestQuarterTurn(unittest.TestCase):

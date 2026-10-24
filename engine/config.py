@@ -8,6 +8,8 @@ import json
 import tomllib
 from pathlib import Path
 
+WORKFLOW_VERSION = "2.3"
+
 # ---------------------------------------------------------------------------
 # Konfigurācija (solis 4): parametri dzīvo config.toml, specifikācija —
 # kodā. Sk. config.toml galveni un PROGRESS §59. Ielāde ir stingra:

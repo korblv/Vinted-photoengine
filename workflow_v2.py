@@ -54,7 +54,19 @@ from loop import (  # noqa: E402
     measure_shadow_angle,
 )
 
-WORKFLOW_VERSION = "2.3"
+from engine.config import WORKFLOW_VERSION  # noqa: E402,F401
+from engine.infra import (  # noqa: E402,F401
+    ROTATIONS_CW, fit_size, normalize_rotation, parse_rotations,
+    rotation_for, apply_quarter_turn, open_rgb, open_rgb_recorded,
+    probe_source_image, sha256_file, atomic_write_text, atomic_write_json,
+    save_image_atomic, save_gray_png, workspace_bytes,
+    environment_problems, preflight,
+)
+from engine.provenance import (  # noqa: E402,F401
+    DECONTAM_PARAMS, MASK_PROVENANCE_VERSION, append_mask_stage,
+    decontam_needed, mask_provenance_path, read_mask_provenance,
+    start_mask_provenance,
+)
 TMP_SOFT = Path("/tmp/workflow_v2_soft")
 PROFILE_PATH = Path(OUT) / "grade_profile_v2.json"
 REPORT_PATH = Path(OUT) / "report_v2_maker.json"
@@ -73,173 +85,12 @@ from engine.config import (  # noqa: E402
 # Mazi infrastruktūras palīgrīki
 # ---------------------------------------------------------------------------
 
-def fit_size(width: int, height: int, max_w: int = 768, max_h: int = 1024) -> tuple[int, int]:
-    """Samazina izmēru, saglabājot malu attiecību (nekad nepalielina)."""
-    if width <= 0 or height <= 0:
-        raise ValueError("Nederīgs attēla izmērs")
-    scale = min(max_w / width, max_h / height, 1.0)
-    return max(1, int(round(width * scale))), max(1, int(round(height * scale)))
-
-
-# Bezzaudējumu ceturtdaļas pagriezieni (grādi pulksteņrādītāja virzienā),
-# ko drīkst piemērot, lai šķērsām nofotografēts apģērbs gala bildē stāvētu
-# dabiskā vertikālā orientācijā. Tas nav brīva leņķa "iztaisnojums":
-# PIL transpose tikai pārkārto tos pašus pikseļus, vērtības nemainās.
-ROTATIONS_CW: dict[str, int] = {}
-_QUARTER_TURNS_CW = {
-    0: None,
-    90: Image.ROTATE_270,   # PIL ROTATE_270 = 270° pret pulksteni = 90° CW
-    180: Image.ROTATE_180,
-    270: Image.ROTATE_90,   # PIL ROTATE_90 = 90° pret pulksteni = 270° CW
-}
-_ROTATION_ALIASES = {"cw": 90, "right": 90, "ccw": 270, "left": 270}
-
-
-def normalize_rotation(value: str | int) -> int:
-    if isinstance(value, str):
-        v = value.strip().lower()
-        if v in _ROTATION_ALIASES:
-            return _ROTATION_ALIASES[v]
-        value = int(v)
-    deg = int(value) % 360
-    if deg not in _QUARTER_TURNS_CW:
-        raise ValueError(f"Atļauti tikai 0/90/180/270 grādu pagriezieni, saņemts: {value}")
-    return deg
-
-
-def parse_rotations(items) -> dict[str, int]:
-    """Parsē `--rotate` ierakstus formā `STEM:270`, `STEM:ccw` u.tml."""
-    out: dict[str, int] = {}
-    for item in items or []:
-        for part in str(item).split(","):
-            part = part.strip()
-            if not part:
-                continue
-            key, sep, val = part.rpartition(":")
-            if not sep:
-                raise ValueError(f"Nederīgs --rotate ieraksts (vajag STEM:GRĀDI): {part}")
-            # NB: ne visi foto vārdi beidzas ar vienu paplašinājumu. Pixel
-            # kameras dod `...PORTRAIT.ORIGINAL.jpg`, un `splitext` noņem TIKAI
-            # `.jpg`, atstājot `...PORTRAIT.ORIGINAL`. Bet `Path.stem` noņem visu
-            # pēc PĒDĒJĀ punkta tikai vienu reizi — tāpēc abas puses jāsaskaņo:
-            # atslēga ir pilnais vārds bez galīgā paplašinājuma.
-            key = Path(key.strip()).name
-            if key.lower().endswith((".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp")):
-                key = key[: -len(Path(key).suffix)]
-            out[key] = normalize_rotation(val)
-    return out
-
-
-def rotation_for(path: str | Path) -> int:
-    stem = Path(path).stem
-    if stem in ROTATIONS_CW:
-        return ROTATIONS_CW[stem]
-    return ROTATIONS_CW.get(stem[-6:], 0)
-
-
-def apply_quarter_turn(img: Image.Image, degrees_cw: int) -> Image.Image:
-    deg = normalize_rotation(degrees_cw)
-    op = _QUARTER_TURNS_CW[deg]
-    return img if op is None else img.transpose(op)
-
-
-def open_rgb(path: str | Path) -> Image.Image:
-    """Atver attēlu, piemēro EXIF orientāciju un, ja šim failam noteikts,
-    bezzaudējumu 90° soļu pagriezienu dabiskā vertikālā orientācijā.
-
-    NB: rotāciju ņem no GLOBĀLĀ `ROTATIONS_CW`, kas ir tikai būvēšanas laika
-    sānkanāls (to piepilda `--rotate`). Ja strādā no saglabāta ieraksta, lieto
-    `open_rgb_recorded` — citādi `rec["rotation_cw"]` tiek ignorēts."""
-    with Image.open(path) as im:
-        img = ImageOps.exif_transpose(im).convert("RGB")
-    return apply_quarter_turn(img, rotation_for(path))
-
 
 # Stems, kuriem NEpiemērot decontaminate_rim. Vajadzīgs kadriem, kuros
 # audums sniedzas pāri kadra malai: tur "mala" nav īsta apģērba mala, un
 # decontam nogriež pa kontūru, izdurdam tievas plaisas audumā.
 NO_DECONTAM: set[str] = set()
 
-
-def open_rgb_recorded(path: str | Path, rotation_cw) -> Image.Image:
-    """Atver attēlu ar IERAKSTĪTO rotāciju, nevis globālo `ROTATIONS_CW`.
-
-    Kāpēc tas ir atsevišķi: `--rerender-saved` un jebkurš ceļš, kas strādā no
-    `report_v2_maker.json`, nesaņem `--rotate` — tāpēc globālais ir tukšs un
-    `open_rgb` atgriež NEPAGRIEZTO attēlu, kamēr saglabātā maska ir pagrieztā
-    izmērā. Rezultāts bija `ValueError: Maskas izmērs (4080, 3072) nesakrīt ar
-    (4080, 3072)` (abi skaitļi vienādi, jo (H,W) pret (W,H)) — un sliktākajā
-    gadījumā klusa segmentācija nepareizā orientācijā.
-
-    `None` = ierakstā nav -> atkāpjamies uz globālo uzvedību.
-    """
-    with Image.open(path) as im:
-        img = ImageOps.exif_transpose(im).convert("RGB")
-    rot = rotation_for(path) if rotation_cw is None else normalize_rotation(rotation_cw)
-    return apply_quarter_turn(img, rot)
-
-
-def probe_source_image(path: str | Path) -> tuple[bool, str]:
-    """Vai avota failu var atvērt kā attēlu. Atgriež (ok, cilvēkam lasāms iemesls).
-
-    Kāpēc pirms darba: bez šīs pārbaudes tukšs vai bojāts JPEG aizgāja līdz
-    ISNet APAKŠPROCESAM, un tā traceback (12+ rindas) tika ielīmēts
-    `report_v2_maker.json` `error` laukā. Partija nekrīt, bet ziņojums kļūst
-    nelasāms un īstais iemesls ("fails ir tukšs") pazūd.
-
-    Pārbauda pirms jebkā cita: eksistenci, izmēru, atvēršanu un pilnu nolasīšanu.
-    """
-    p = Path(path)
-    if not p.is_file():
-        return False, "fails neeksistē"
-    try:
-        size = p.stat().st_size
-    except OSError as exc:
-        return False, f"failu nevar nolasīt: {exc}"
-    if size == 0:
-        return False, "fails ir tukšs (0 baiti)"
-    try:
-        with Image.open(p) as im:
-            w, h = ImageOps.exif_transpose(im).size
-        # `exif_transpose` nelasa pikseļus; `verify()` nolasa visu failu, tāpēc
-        # tas noķer arī nogrieztu JPEG ("Truncated File Read").
-        with Image.open(p) as im2:
-            im2.verify()
-    except Image.UnidentifiedImageError:
-        return False, "nav atpazīstams attēla formāts (bojāts fails vai nav bilde)"
-    except OSError as exc:
-        return False, f"attēls bojāts: {exc}"
-    except Exception as exc:                     # noqa: BLE001
-        return False, f"{type(exc).__name__}: {exc}"
-    if w < 64 or h < 64:
-        return False, f"attēls pārāk mazs ({w}x{h})"
-    return True, ""
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_name, path)
-    finally:
-        if os.path.exists(tmp_name):
-            os.unlink(tmp_name)
-
-
-def atomic_write_json(path: Path, obj) -> None:
-    atomic_write_text(path, json.dumps(obj, indent=2, ensure_ascii=False) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -252,159 +103,6 @@ def atomic_write_json(path: Path, obj) -> None:
 # closeup.py) vēsturi padara par nezināmu un uzvedība atgriežas pie
 # vēsturiskā noklusējuma. Sk. PROGRESS §58.
 # ---------------------------------------------------------------------------
-MASK_PROVENANCE_VERSION = 1
-DECONTAM_PARAMS = {"max_px": int(CFG["decontam"]["max_px"]),
-                   "tex_ratio": float(CFG["decontam"]["tex_ratio"])}
-
-
-def mask_provenance_path(mask_path) -> Path:
-    return Path(str(mask_path).removesuffix(".png") + ".json")
-
-
-def read_mask_provenance(mask_path) -> dict | None:
-    p = mask_provenance_path(mask_path)
-    if not p.is_file():
-        return None
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def _write_mask_provenance(mask_path, prov: dict) -> dict:
-    prov = dict(prov)
-    prov["version"] = MASK_PROVENANCE_VERSION
-    prov["mask_sha256"] = sha256_file(Path(mask_path))
-    atomic_write_json(mask_provenance_path(mask_path), prov)
-    return prov
-
-
-def start_mask_provenance(mask_path, stem: str, source_sha256: str, method: str) -> dict:
-    """Jauna maska = jauna izcelsmes ķēde (vecā vēsture vairs neattiecas)."""
-    entry = {"stage": "mask", "params": {"method": str(method)},
-             "input_mask_sha256": None,
-             "output_mask_sha256": sha256_file(Path(mask_path))}
-    return _write_mask_provenance(mask_path, {
-        "stem": stem, "source_sha256": source_sha256,
-        "history_known": True, "stages": [entry]})
-
-
-def append_mask_stage(mask_path, stem: str, source_sha256: str, entry: dict) -> dict:
-    """Pieliek posmu ķēdei. Ja esošā vēsture nesakrīt ar posma ieeju
-    (masku starpposmā mainījis kāds cits), ķēde sākas no jauna un
-    atzīmē, ka agrākā vēsture nav zināma."""
-    entry = dict(entry)
-    entry["output_mask_sha256"] = sha256_file(Path(mask_path))
-    old = read_mask_provenance(mask_path)
-    if old and old.get("mask_sha256") == entry.get("input_mask_sha256"):
-        stages = list(old.get("stages", [])) + [entry]
-        known = bool(old.get("history_known", True))
-        src_sha = source_sha256 or old.get("source_sha256")
-    else:
-        stages = [entry]
-        known = False
-        src_sha = source_sha256 or (old or {}).get("source_sha256")
-    return _write_mask_provenance(mask_path, {
-        "stem": stem, "source_sha256": src_sha,
-        "history_known": known, "stages": stages})
-
-
-def decontam_needed(prov: dict | None, params: dict, current_mask_sha256: str) -> bool:
-    """Tīrs lēmums: vai decontam ar šiem parametriem vēl jāizpilda.
-
-    Nezināma vai novecojusi (hash nesakrīt) vēsture -> izpildīt
-    (vēsturiskais noklusējums). Jau izpildīts ar tiem pašiem parametriem
-    tieši šai maskai -> neizpildīt (posma idempotence)."""
-    if not prov or prov.get("mask_sha256") != current_mask_sha256:
-        return True
-    for st in prov.get("stages", []):
-        if st.get("stage") == "decontam" and st.get("params") == params:
-            return False
-    return True
-
-
-def save_image_atomic(img: Image.Image, path: Path, **kwargs) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem + ".", suffix=path.suffix)
-    os.close(fd)
-    try:
-        img.save(tmp_name, **kwargs)
-        os.replace(tmp_name, path)
-    finally:
-        if os.path.exists(tmp_name):
-            os.unlink(tmp_name)
-
-
-def save_gray_png(arr: np.ndarray, path: Path, level: int = 3) -> None:
-    # Ražošanas režīmā `optimize=False`: PIL optimizācija augstfrekvences
-    # auduma PNG maksāja līdz ~12 s, bet ietaupīja tikai ~10% vietas.
-    save_image_atomic(
-        Image.fromarray(arr.astype(np.uint8)), path, optimize=False, compress_level=level
-    )
-
-
-def workspace_bytes(root: str = "/home/user/loop_bildes") -> int:
-    total = 0
-    for base, _, names in os.walk(root):
-        for name in names:
-            try:
-                total += os.path.getsize(os.path.join(base, name))
-            except OSError:
-                pass
-    return total
-
-
-def environment_problems() -> list[str]:
-    """Ātra pārbaude pirms batch darba, lai viena trūkstoša pakotne
-    neizraisītu neveiksmi katrai bildei atsevišķi."""
-    problems = []
-    if os.path.isdir("/var/tmp/pylibs") and "/var/tmp/pylibs" not in sys.path:
-        sys.path.insert(0, "/var/tmp/pylibs")
-    for name in ["cv2", "numpy", "PIL", "scipy", "onnxruntime", "rembg"]:
-        if importlib.util.find_spec(name) is None:
-            problems.append(f"nav Python pakotnes: {name}")
-    home = Path(os.environ.get("U2NET_HOME", "/var/tmp/rembg_home"))
-    model = home / "models" / "isnet-general-use" / "isnet-general-use.onnx"
-    if not model.is_file() or model.stat().st_size <= 100_000_000:
-        problems.append(f"nav derīga ISNet modeļa: {model}")
-    return problems
-
-
-def preflight(files: list[str]) -> dict:
-    sources = []
-    total = 0
-    for name in files:
-        p = Path(SRC_DIR) / name
-        size = p.stat().st_size if p.is_file() else 0
-        total += size
-        item = {"name": name, "exists": p.is_file(), "bytes": size}
-        if p.is_file():
-            try:
-                with Image.open(p) as im:
-                    w, h = ImageOps.exif_transpose(im).size
-                rot = rotation_for(p)
-                item["size"] = [h, w] if rot in (90, 270) else [w, h]
-                item["rotation_cw"] = rot
-            except Exception as exc:  # noqa: BLE001
-                item["error"] = f"{type(exc).__name__}: {exc}"
-        sources.append(item)
-    problems = environment_problems()
-    if not files:
-        problems.append("nav izvēlētu avota bilžu")
-    disk = shutil.disk_usage("/var/tmp")
-    return {
-        "ready": not problems and all(s["exists"] and "error" not in s for s in sources),
-        "workflow_version": WORKFLOW_VERSION,
-        "problems": problems,
-        "sources": sources,
-        "source_total_bytes": total,
-        "workspace_bytes": workspace_bytes("/home/user"),
-        "loop_bildes_bytes": workspace_bytes("/home/user/loop_bildes"),
-        "var_tmp_free_bytes": int(disk.free),
-        "setup_command": "python3 /home/user/loop_bildes/setup_v2.py",
-    }
-
 
 # ---------------------------------------------------------------------------
 # ISNet darba process
