@@ -2012,3 +2012,22 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Zināms ierobežojums: ja tumšajās FG sēklās ir diskrēta, krāsā
   attāla fona mode (>=~10%), tā var nozagt paletes centru; tad
   līcis paliek (kļūdas virziens = drošais: maska kā 1. piegājienā).
+
+## §79 — Attempt 3: checker 4/4, līcis izgrebts (2026-10-24)
+- Maker 4/4 (14.11 s/bilde; maks. 20.70 s — 122109 ar tumšo
+  piegājienu nedaudz pāri ~20 s orientierim; checker GATE_T iztur).
+  Pilnie kadri nemainīgi `isnet` (segums 0.4746/0.5404 kā A1/A2).
+  122109: dark_pass carve_garment 19 puspx, maska pret A2 d0 px.
+  122248: carve_garment 28 525 puspx (d-108 624 px pilnā mērogā,
+  +0), segums 0.7777 -> 0.7691.
+- Checker: 4/4 ALL_PASS.
+- Vizuāli: koka pleķis zem piedurknes pazudis (zoom
+  `tmp_id/zoom_a3_122248.jpg` pret `zoom_paraugs_122248.jpg`).
+  Atlikušās tumšās daivas izgrebuma malā ir gludas, bez koka
+  dzīslojuma — pēc tekstūras tās ir audums (jakas apakšpuse ēnā),
+  bet robeža tur ir raupjāka nekā pārējā siluetā. Papildu
+  morfoloģiskais gludinājums offline (atvēršana / attāluma lauka
+  gludināšana) daivas tikai noapaļo — tās nav troksnis, tāpēc
+  ražotnē nelikts. GATE_E galavārds lietotājam: apstiprināt A3 /
+  122248 atpakaļ uz A2 variantu / piegādāt 3 bildes.
+- Krātuve: ~126 MB; pēc apstiprināšanas un slēgšanas atbrīvosies.
