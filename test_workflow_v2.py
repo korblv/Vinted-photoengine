@@ -401,8 +401,9 @@ class TestMaskProvenance(unittest.TestCase):
     def test_workflow_version_bumped_for_new_rerender_semantics(self):
         # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4);
         # 2.4 = chroma rezerves ceļš (§76); 2.5 = tumšās zonas piegājiens (§78);
-        # 2.6 = iekšējo caurumu klasificēšana pēc satura (§97).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.6")
+        # 2.6 = iekšējo caurumu klasificēšana pēc satura (§97);
+        # 2.7 = klasifikatora tekstūras pierādījums mērogā (§98).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.7")
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +431,12 @@ class TestConfig(unittest.TestCase):
                      "hole_min_px": 400, "hole_margin_de": 3.0,
                      "hole_tex_ratio": 1.8, "hole_tex_abs": 1.0,
                      "hole_border_px": 96, "hole_max_cut_px": 250,
-                     "hole_max_fill_frac": 0.02},
+                     "hole_max_fill_frac": 0.02,
+                     # tekstūras pierādījums mērogā (§98)
+                     "hole_tex_scale": 4, "hole_tex_fg_ratio": 0.5,
+                     "hole_tex_bg_ratio": 2.0, "hole_tex_min": 1.2,
+                     "hole_L_slack": 4.0, "hole_tex_fg_ratio_max": 2.5,
+                     "hole_bg_E": 8.0},
             "plate": {"inner_min": 0.50, "outer_max": 0.60,
                       "bg_inside_max": 0.02, "cover_min": 0.25,
                       "cover_max": 0.95},
@@ -1076,6 +1082,38 @@ class TestHoleRepair(unittest.TestCase):
         out, info = repair_interior_holes(binary, Image.fromarray(rgb))
         self.assertTrue(np.array_equal(out, binary))
         self.assertEqual(info["actions"][0]["action"], "left")
+
+    def test_ribbed_valley_strip_filled_via_texture(self):
+        """§97 reālā kadra (160550) sintētiska replika: ribu audums,
+        kura ielejas krāsā sakrīt ar fonu. Maska pazaudējusi vienu
+        ieleju joslu: Lab mediāna saka "fons", bet tekstūra mērogā
+        (ribu periods 24 px >> win=5) saka "audums" -> jāaizpilda."""
+        size = 320
+        rgb = np.tile(np.array(self.BG, np.uint8), (size, size, 1))
+        xx = np.indices((size, size))[1]
+        bright = (xx % 24) < 12
+        fabric = np.where(bright[..., None],
+                          np.array([232, 230, 224], np.uint8),
+                          np.array(self.BG, np.uint8)).astype(np.uint8)
+        rgb[40:280, 16:280] = fabric[40:280, 16:280]
+        binary = np.zeros((size, size), np.uint8)
+        binary[40:280, 16:280] = 1
+        binary[90:150, 36:48] = 0  # viena ieleja (x%24 = 12..23)
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertTrue(bool((out[90:150, 36:48] > 0).all()))
+        self.assertEqual(info["actions"][0]["action"], "filled_fabric")
+        self.assertEqual(info["actions"][0]["via"], "texture")
+
+    def test_narrow_bg_sliver_opened_via_fullres_fallback(self):
+        """12 px plats fona šķēlums: mēroga tekstūras logs caurumā
+        neietilpst (tex_hole_core_s = None), tāpēc gludumu vērtē
+        pilnizšķirtspējas tekstūra -> atver pie malas. Auduma
+        pierādījumu bloķē L diapazona sargs (papīra L ārpus gredzena)."""
+        rgb, binary = self._scene(garment=(10, 40, 200, 200),
+                                  hole=(20, 90, 32, 140), hole_fill=self.BG)
+        out, info = repair_interior_holes(binary, Image.fromarray(rgb))
+        self.assertEqual(info["actions"][0]["action"], "opened_bg")
+        self.assertIsNone(info["actions"][0]["tex_hole_core_s"])
 
     def test_no_holes_identity(self):
         rgb, binary = self._scene()

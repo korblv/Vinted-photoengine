@@ -38,6 +38,15 @@ hole_tex_abs = 1.0
 hole_border_px = 96        # fona caurumu atver tikai tuvu kadra malai
 hole_max_cut_px = 250      # maks. FG pikseļu skaits, ko drīkst izgriezt kanālam
 hole_max_fill_frac = 0.02  # lielāku auduma caurumu nelabo (eskalācija)
+# Tekstūras pierādījums samazinātā mērogā (PROGRESS §98): win=5 pilnā
+# izšķirtspējā ribu audumu mēra kā gludu; mērogā 1:tex_scale logs ~20 px.
+hole_tex_scale = 4
+hole_tex_fg_ratio = 0.5    # cauruma tekstūra vismaz puse no auduma gredzena
+hole_tex_bg_ratio = 2.0    # un vismaz 2x lielāka par paša fona tekstūru
+hole_tex_min = 1.2         # absolūtais grīdas līmenis (defokusā netrigerē)
+hole_L_slack = 4.0         # cauruma L* auduma apkārtnes p5..p95 diapazonā (±slack)
+hole_tex_fg_ratio_max = 2.5  # tekstūra nedrīkst būt arī daudz STIPRĀKA par audumu
+hole_bg_E = 8.0            # fona tekstūras atsauce: gludie pikseļi ar E < šim pret papīru
 
 [plate]
 inner_min = 0.50      # iekšmalas tekstūra pret iekšpusi; zema = iekšā ir fons

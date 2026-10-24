@@ -2500,3 +2500,38 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Krātuve: /home/user 102709580 B. Nemainīts: checker, vārtu sliekšņi,
   oriģināli. Nākamais — pēc pogas (klasifikatora precizējums /
   paturēt + plate maršruts / atcelt 2.6 / piegādāt 2/5).
+
+### §98 Klasifikatora precizējums (2.7): mērogs + E-enkurētas atsauces — checker 3/3 (2026-10-24)
+
+- Poga refine_classifier. Kritēriji pirms darba: (1) sintētisks ribu
+  tests; (2) visi testi iziet; (3) 160550 josla filled_fabric un pleķis
+  kolāžā pazudis. Iznākums: (1) un (2) izpildīti (90 testi OK);
+  (3) daļēji — sk. zemāk par pleķa diviem cēloņiem.
+- Trīs iterācijas, katra ar mērījumu (godīgi, nevis sliekšņu grozīšana):
+  1. A5: tekstūra mērogā 1:4 (josla 7.38, gredzens 8.26) tomēr
+     opened_bg: lokālā fona atsauce piesārņota ar audumu (tex_bg_s
+     6.97), gredzena L p5=58.6 pret cauruma 49.5.
+  2. Atsauču mērījumi: E<8 pret papīra krāsu globāli dod tex 0.75/0.78;
+     auduma L sadalījums paplašinātā apkārtnē p5=45.6 iekļauj ielejas.
+  3. A6: asimetrisks pierādījums (aizpildīšanai struktūras
+     nepārtrauktība cauruma vietā joslā [0.5, 2.5]x pret gredzenu;
+     atvēršanai gludums tikai erodētā kodolā), E-enkurēta fona
+     tekstūras atsauce, L sargs no auduma apkārtnes.
+- A6 rezultāts (pad 0.90): visi 3 caurumi filled_fabric via texture
+  (160550 josla: ts 7.38/8.26/0.76; 160601 šķēlums: 2.72/2.82/0.78).
+  Checker **3/3 PASS** (160538+160550+160601). Strukturālais trigeris
+  chroma vairs nepalaiž; masku laiki 14.1/12.4 s.
+- **Pleķis 160550 kolāžā paliek**: izmērīts, ka bijusī josla tagad
+  88.1% FG, bet apakšējā labajā stūrī ir 4 ar kadra malu savienoti
+  fona līči (5.4-11.0 tūkst. px) — pad_retry ĀRĒJĀ robeža fragmentējas
+  pa ielejām. Tie nav caurumi; šis solis ārējo robežu pēc definīcijas
+  nelabo. 160550 gala maršruts paliek plate (pad 0.70, A3 PASS ar tīru
+  siluetu). Kritērija (3) otrā puse tātad nav izpildīta un ar šo rīku
+  nav izpildāma.
+- Jauni parametri: hole_tex_scale=4, hole_tex_fg_ratio=0.5,
+  hole_tex_fg_ratio_max=2.5, hole_tex_bg_ratio=2.0, hole_tex_min=1.2,
+  hole_L_slack=4.0, hole_bg_E=8.0 (kopā ar §97 septiņiem = 14 hole_*).
+  WORKFLOW_VERSION 2.7. Krātuve: /home/user 102875656 B.
+- Atklāts: 2 birku makro STOP (§95 diagnostika: plate QA). Pirms
+  piegādes vajadzīgs apvienots mēģinājums (160550 ar pad 0.70 caur
+  --overrides, pārējie noklusēti, identity WB). Nākamais — pēc pogas.

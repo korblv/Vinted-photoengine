@@ -814,9 +814,10 @@ def _hole_channel_cut(m: np.ndarray, hole: np.ndarray, outer_bg: np.ndarray,
 def repair_interior_holes(binary: np.ndarray,
                           orig: Image.Image) -> tuple[np.ndarray, dict]:
     """Ieslēgtus maskas caurumus (>= config [mask].hole_min_px) klasificē
-    pēc SATURA, salīdzinot cauruma mediānu Lab/tekstūru ar divām no paša
-    attēla ņemtām referencēm: auduma gredzenu ap caurumu un lokālo ārējo
-    fonu. Audumam līdzīgu caurumu aizpilda (maska audumu bija pazaudējusi);
+    pēc SATURA, salīdzinot cauruma Lab mediānu un tekstūru (arī
+    samazinātā mērogā, §98) ar divām no paša attēla ņemtām referencēm:
+    auduma gredzenu ap caurumu un lokālo ārējo fonu. Audumam līdzīgu
+    caurumu aizpilda (maska audumu bija pazaudējusi);
     fonam līdzīgu caurumu tuvu kadra malai atver ar šauru kanālu pāri
     tiltiņam; fonam līdzīgu tālu no malas (īsts logs starp apģērba daļām)
     un neskaidru saturu NEAIZTIEK — checker GATE_C paliek tiesnesis.
@@ -824,7 +825,7 @@ def repair_interior_holes(binary: np.ndarray,
     nemainās, atgriež ieejas masīvu nemainītu."""
     from scipy import ndimage
 
-    from paper_leak import lab_chunked, texture_map
+    from paper_leak import lab_chunked, measure_paper_colour, texture_map
 
     t0 = time.perf_counter()
     C = CFG["mask"]
@@ -862,6 +863,36 @@ def repair_interior_holes(binary: np.ndarray,
         else np.zeros_like(m)
     lab3 = lab_chunked(np.asarray(orig.convert("RGB")))
     tex = texture_map(lab3[..., 0])
+    # Tekstūra arī samazinātā mērogā: win=5 pilnā izšķirtspējā ribu
+    # audumu (periods ~30 px) mēra kā gludu (izmērīts §97); mērogā
+    # 1:hole_tex_scale efektīvais logs ~20 px noķer ribu kontrastu.
+    _scale = int(C["hole_tex_scale"])
+    _Lds = cv2.resize(lab3[..., 0], None, fx=1.0 / _scale, fy=1.0 / _scale,
+                      interpolation=cv2.INTER_AREA)
+    tex_s = texture_map(_Lds, 5)
+
+    def _tex_s_med(sel: np.ndarray, oy: int = 0, ox: int = 0) -> float:
+        ys, xs = np.where(sel)
+        return float(np.median(tex_s[(ys + oy) // _scale,
+                                     (xs + ox) // _scale]))
+
+    # Fona tekstūras atsauce mērogā: pie bojātas maskas lokālais "fons"
+    # ir piesārņots ar pašu audumu (izmērīts §98: tex 6.97 pret papīra
+    # 0.75), tāpēc atsaucei ņem ārējā fona pikseļus, kuru krāsa ir tuva
+    # izmērītajai papīra krāsai (E < hole_bg_E), rēķinot samazinātā
+    # mērogā. Ja papīra nav (ne-papīra fons), paliek lokālais paraugs.
+    _ds_hw = (tex_s.shape[1], tex_s.shape[0])
+    _outer_ds = cv2.resize(outer_bg.astype(np.float32), _ds_hw,
+                           interpolation=cv2.INTER_AREA) > 0.5
+    ts_b_global = None
+    _paper = measure_paper_colour(orig)
+    if _paper.get("plausible"):
+        _lab_ds = cv2.resize(lab3, _ds_hw, interpolation=cv2.INTER_AREA)
+        _E = np.linalg.norm(
+            _lab_ds - np.array(_paper["lab"], np.float32), axis=2)
+        _bg_ref = _outer_ds & (_E < float(C["hole_bg_E"]))
+        if int(_bg_ref.sum()) >= 50:
+            ts_b_global = float(np.median(tex_s[_bg_ref]))
     H, W = m.shape
     margin = float(C["hole_margin_de"])
     out = m.copy()
@@ -892,18 +923,73 @@ def repair_interior_holes(binary: np.ndarray,
         d_bg = float(np.linalg.norm(h_med - b_med))
         t_h = float(np.median(tex[inner]))
         t_b = float(np.median(tex[y0e:y1e, x0e:x1e][bg_local]))
+        # Asimetrisks tekstūras pierādījums mērogā: AIZPILDĪŠANAI pietiek
+        # ar struktūras nepārtrauktību cauruma vietā (logi drīkst skart
+        # gredzenu — tieši to mēra ts_h), bet ATVĒRŠANAI gludums jāpierāda
+        # ar logiem, kas pilnībā ietilpst caurumā (erodēts kodols ts_h_core);
+        # ja kodola nav, gludumu vērtē pilnizšķirtspējas tekstūra.
+        ts_h = _tex_s_med(inner)
+        _hole_ds = cv2.resize(hole.astype(np.float32),
+                              (tex_s.shape[1], tex_s.shape[0]),
+                              interpolation=cv2.INTER_AREA) > 0.5
+        _hole_core = ndimage.binary_erosion(_hole_ds, iterations=2)
+        ts_h_core = (float(np.median(tex_s[_hole_core]))
+                     if int(_hole_core.sum()) >= 2 else None)
+        ts_r = _tex_s_med(ring)
+        ts_b_local = _tex_s_med(bg_local, y0e, x0e)
+        ts_b = ts_b_global if ts_b_global is not None else ts_b_local
+        # L diapazona sargam ņem auduma L sadalījumu paplašinātā
+        # apkārtnē, ne šaurā gredzenā: gredzens ap ieleju joslu satur
+        # gandrīz tikai ribu virsotnes (izmērīts §98).
+        fg_local = largest[y0e:y1e, x0e:x1e]
+        if int(fg_local.sum()) >= 200:
+            fg_L = lab3[y0e:y1e, x0e:x1e][fg_local][:, 0]
+            fg_L_p5 = float(np.percentile(fg_L, 5))
+            fg_L_p95 = float(np.percentile(fg_L, 95))
+        else:
+            fg_L_p5, fg_L_p95 = float("inf"), float("-inf")
+        hole_L = float(h_med[0])
+        # Mediāna pret mediānu ribu audumiem melo (caurums = ielejas,
+        # gredzena mediāna = ribu virsotnes, §97); tekstūras pierādījums
+        # mērogā ar L diapazona sargu tāpēc drīkst pārspēt krāsas
+        # spriedumu. Teksturēts fons (koks) sevi aizsargā ar ts_b
+        # attiecību: cauruma tekstūrai jābūt būtiski lielākai par paša
+        # lokālā fona tekstūru.
+        tex_fabric = (ts_h >= float(C["hole_tex_fg_ratio"]) * ts_r
+                      and ts_h <= float(C["hole_tex_fg_ratio_max"]) * ts_r
+                      and ts_h >= float(C["hole_tex_bg_ratio"]) * ts_b
+                      and ts_h >= float(C["hole_tex_min"])
+                      and fg_L_p5 - float(C["hole_L_slack"]) <= hole_L
+                      <= fg_L_p95 + float(C["hole_L_slack"]))
+        color_fabric = d_fg + margin < d_bg
+        color_bg = d_bg + margin < d_fg
+        if ts_h_core is not None:
+            tex_bg_ok = ts_h_core <= max(ts_b * float(C["hole_tex_ratio"]),
+                                         ts_b + float(C["hole_tex_abs"]))
+        else:
+            # Kodola nav: gludumu vērtē pilnizšķirtspējas tekstūra kā 2.6.
+            tex_bg_ok = t_h <= max(t_b * float(C["hole_tex_ratio"]),
+                                   t_b + float(C["hole_tex_abs"]))
         rec_h.update(d_fg=round(d_fg, 2), d_bg=round(d_bg, 2),
-                     tex_hole=round(t_h, 2), tex_bg=round(t_b, 2))
-        if d_fg + margin < d_bg:
+                     tex_hole=round(t_h, 2), tex_bg=round(t_b, 2),
+                     tex_hole_s=round(ts_h, 2),
+                     tex_hole_core_s=(None if ts_h_core is None
+                                      else round(ts_h_core, 2)),
+                     tex_ring_s=round(ts_r, 2),
+                     tex_bg_s=round(ts_b, 2),
+                     tex_bg_local_s=round(ts_b_local, 2),
+                     hole_L=round(hole_L, 1),
+                     fg_L_p5=round(fg_L_p5, 1), fg_L_p95=round(fg_L_p95, 1),
+                     tex_fabric=bool(tex_fabric))
+        if tex_fabric or color_fabric:
             if area <= float(C["hole_max_fill_frac"]) * H * W:
                 out[hole] = True
                 rec_h["action"] = "filled_fabric"
+                rec_h["via"] = "texture" if tex_fabric else "color"
                 changed = True
             else:
                 rec_h["reason"] = "auduma caurums pārsniedz hole_max_fill_frac"
-        elif (d_bg + margin < d_fg
-              and t_h <= max(t_b * float(C["hole_tex_ratio"]),
-                             t_b + float(C["hole_tex_abs"]))):
+        elif color_bg and tex_bg_ok:
             dist_border = min(bbox[0], bbox[1], W - 1 - bbox[2],
                               H - 1 - bbox[3])
             rec_h["border_dist"] = int(dist_border)
