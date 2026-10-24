@@ -273,6 +273,13 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
 - Kandidāt-eksperiments **E11**: sintētiska ēna pāri divu krāsu
   robežai; vai invarianta pazīme tumšajā piegājienā atdala
   labāk nekā (a*,b*) attālums (mērīt sēklu malu attiecību).
+  **E11 veikts 2026-10-24 (§87): NAV pierādīts, tēma slēgta.**
+  Entropijas theta izgāzās uz divu virsmu ainas (45° nepareizi;
+  kļūda 0.43 pret Lab 0.0); pat ar teorētisko theta=35°
+  (invariance strādā: korelācija ar ēnu 0.024) klasifikācija
+  zaudē (0.12 pret 0.0), jo projekcija izmet diskriminantes
+  virzienu; JPEG invarianci lauž (0.024->0.46). §78 pieeja
+  (paraugot ēnu paletēs) paliek pareizā ģimene.
 
 ### N5 — Dihromatiskais modelis spīdumam
 - Shafer: pikselis = m_b * ķermeņa krāsa + m_s * gaismas krāsa.

@@ -2209,3 +2209,34 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   chroma/plate bināro ceļu neaiztikt (pierādīti sliktāk). Mans
   ieteikums: slēgt; atgriezties tikai, ja īsta grupa uzrāda siksnveida
   struktūru zudumu maskas posmā.
+
+### §87 E11: ēnas invariante (Finlayson) — NAV pierādīta, tēma slēgta (2026-10-24)
+- Lietotāja izvēle (poga): E11. Skripti `tmp_id/e11_invariant.py` +
+  autopsija `tmp_id/e11_autopsy.py`; JSON blakus. Ražošana nemainīta.
+  (Sākumā paštaisīta attālumu kļūda deva 0 sēklas - izlabota pirms
+  jebkādiem rezultātiem.)
+- **Reģistrētais E11** (entropijas theta, kā būtu ražošanā): F1 (tikai
+  invariante) sajaukšanas kļūda 0.43/0.41 (tīrs/JPEG) pret F0 (Lab
+  tumšās paletes) 0.0000/0.0104; F2 (F0+F1) JPEG līmenī 0.0297 -
+  invariantes pievienošana Lab pat KAITĒJA. Visi kritēriji krita.
+- **Autopsija (theta slaucīšana) atklāj trīs mehānismus:**
+  1. Entropijas kalibrēšana izgāzās: atrada 45.7/45.0°, kas nav ne
+     invariante, ne diskriminante (kļūda 0.40-0.44). Uz divu virsmu
+     foto (apģērbs+fons = mūsu joma) entropijas minimums ir deģenerēts.
+  2. Ar teorētiski pareizo theta=35° invariance fizikāli strādā
+     (korelācija ar ēnu 0.024 tīrā ainā), BET klasifikācija tik un tā
+     zaudē: kļūda 0.12/0.105 pret F0 0.0/0.01. Projekcija ortogonāli
+     apgaismojumam izmet tieši to virzienu, kurā zilais apģērbs no
+     siltās grīdas atšķiras visvairāk.
+  3. JPEG invariance lauž: korelācija 0.024 -> 0.46 (4:2:0 hromas
+     izsmērēšana + log attiecību trokšņa pastiprināšanās tumšajos
+     pikseļos - tieši tur, kur tumšais piegājiens dzīvo).
+  "Oracle" theta (78/104°) dod kļūdu ~0, bet ar korelāciju 0.938 - tā
+  ir labākā diskriminantes ass, nevis invariante, un Lab to jau panāk.
+- **Spriedums: NAV pierādīts; tēma slēgta** (nevis "vēl jātestē"): trīs
+  neatkarīgi mehānismi strādā pret metodi tieši mūsu apstākļos.
+  Blakus secinājums par labu esošajai ražotnei: kad ēna ir sēklās
+  paraugota (§78 dizains), Lab tumšais piegājiens sintētikā dod 0 kļūdu.
+  Ierobežojums: sintētiskā aptumšošana saglabā nokrāsu proporcionāli;
+  telefona melnā līmeņa/hromas NR apstrāde F0 reālo rezervi samazina -
+  bet mehānismi (2)(3) invarianti tur degradē vismaz tikpat strauji.
