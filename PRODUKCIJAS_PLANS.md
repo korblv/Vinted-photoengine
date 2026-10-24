@@ -39,9 +39,11 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
       sagaidāmās vērtības — lokāla specifikācija (spec konstantes).
       Paliekošs izņēmums: `paper_leak` tikai informatīvajiem L vārtiem
       (pass vienmēr None, ALL_PASS neietekmē).
-- [ ] **6. Monolīta dalīšana**: `workflow_v2.py` (2 085 rindas, `main()` 552)
-      pa posmiem: sagatavošana / maska / krāsa / renderēšana / piegāde.
-      Sāk tikai, kad soļa 2 testi zaļi.
+- [x] **6. Monolīta dalīšana** (PROGRESS §61–§65): pakotne `engine/`
+      (config / infra / provenance / masks / grade / render / report);
+      `workflow_v2.py` paliek CLI ieeja un fasāde (2 327 → 741 rinda).
+      Paša `main()` (558 r.) dalīšana fāzēs apzināti atlikta kā
+      atsevišķs lēmums.
 
 ## Ātrie labojumi (jebkurā brīdī, katrs savā komitā)
 

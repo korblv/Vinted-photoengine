@@ -1632,3 +1632,24 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   (plānotais izņēmums), pārējās 53 identiskas; 64 testi OK; `--help`
   identiska; e2e == §58 hash (īstais ISNet workers gāja caur jauno
   ENTRY_SCRIPT ceļu). STĀVOKLIS: turpinu ar 6.5.
+
+---
+
+## §65 — Solis 6.5: `engine/render.py` + `engine/report.py`; solis 6 pabeigts (2026-10-24)
+
+- Pārvietots: render (`render_one`, `write_collage`, `NO_DECONTAM`) un
+  report/deliver (`_persist_report`, `make_zip`, meta, ceļu
+  konstantes). `_selected_files` apzināti palika fasādē pie `main`
+  (CLI atlases loģika). Trešais un pēdējais plānotais AST izņēmums:
+  `_code_commit` repo ceļš `parents[1]`.
+- Pierādījums: AST hash — atšķiras tikai `_code_commit`; 64 testi OK;
+  `--help` identiska oriģinālam no soļa 6 sākuma; e2e == §58 hash;
+  visi saknes moduļi importējas (`closeup`, `rebuild_master`,
+  `checker_v2` ieskaitot).
+- Soļa 6 kopbilde: `workflow_v2.py` 2 327 → 741 rinda (CLI + fasādes
+  re-eksporti + `main`); `engine/` 8 faili / 1 759 rindas. Visos 5
+  apakšsoļos: funkciju ķermeņi identiski (3 dokumentēti izņēmumi:
+  2× ENTRY_SCRIPT, 1× repo ceļš), e2e izvade bitiski nemainīga.
+- STĀVOKLIS: produkcijas refaktora plāna soļi 1–6 pabeigti. Atlikuši
+  ātrie labojumi (00 §8, atjaunot.py dublikāts, lēmums par .md
+  pakotnēm) un atliktais `main()` fāžu dalījums.
