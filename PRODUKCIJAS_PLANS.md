@@ -34,8 +34,11 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
       `config_sha256` un efektīvā konfigurācija. Pieņemšanas vārti (00 §5)
       apzināti paliek kodā kā specifikācija, ne konfigurācija. `loop.py`
       ēnas konstantes vēl kodā — kandidatūra solim 6.
-- [ ] **5. Neatkarīgs checker**: checker pārstāj importēt `workflow_v2`
-      funkcijas; LUT izmanto kā datus (JSON) ar savu pielietojumu.
+- [x] **5. Neatkarīgs checker** (PROGRESS §60): checker vairs neimportē
+      `workflow_v2` ne `loop`; LUT/pagrieziens ir lokālas realizācijas,
+      sagaidāmās vērtības — lokāla specifikācija (spec konstantes).
+      Paliekošs izņēmums: `paper_leak` tikai informatīvajiem L vārtiem
+      (pass vienmēr None, ALL_PASS neietekmē).
 - [ ] **6. Monolīta dalīšana**: `workflow_v2.py` (2 085 rindas, `main()` 552)
       pa posmiem: sagatavošana / maska / krāsa / renderēšana / piegāde.
       Sāk tikai, kad soļa 2 testi zaļi.

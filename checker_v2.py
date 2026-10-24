@@ -32,18 +32,31 @@ import numpy as np
 from scipy import ndimage
 from PIL import Image, ImageOps
 
-sys.path.insert(0, "/home/user/loop_bildes")
-from loop import (  # noqa: E402
-    OUT, SRC_DIR, GARMENT_FILL_W, GARMENT_FILL_H, BG_GRAY,
-)
-from workflow_v2 import apply_lut, apply_quarter_turn  # noqa: E402
+# Neatkarības princips (produkcijas refaktors, solis 5): checker
+# NEIMPORTĒ maker moduļus (workflow_v2 / loop). Sagaidāmās vērtības nāk
+# no specifikācijas (00 dokuments §3/§5 un paraugu mērījumi), un
+# realizācijas (LUT pielietojums, pagrieziens) ir lokālas — kopīga kļūda
+# maker un checker kodā vairs nevar iziet cauri abiem. Vienīgais
+# izņēmums: paper_leak tikai informatīvajiem L vārtiem, kuru `pass`
+# vienmēr ir None un kuri ALL_PASS neietekmē.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 try:  # brīdinājuma vārti; ja modulis nav pieejams, tie vienkārši netiek rēķināti
     from paper_leak import leak_probe  # noqa: E402
 except Exception:  # pragma: no cover
     leak_probe = None
 
-BG = BG_GRAY          # 243, no loop.py — vienīgais avots
+OUT = _HERE / "output"
+SRC_DIR = _HERE.parent / "uploads"
+
+# Specifikācijas konstantes (apzināti NE no loop.py): ja maker tās
+# kādreiz maina, checker atšķirību redz un vārti krīt, nevis peld līdzi.
+SPEC_BG = 243         # #F3F3F3, izmērīts no parauga (00 §5, B vārti)
+SPEC_FILL_W = 0.74    # pilna kadra aizpildījums platumā (QA §24)
+SPEC_FILL_H = 0.78    # ... un augstumā
+BG = SPEC_BG
 # GATE_C: maskas STRUKTURĀLĀ integritāte, nevis bbox pārklājums.
 # Vēsture: 0.60 slieksnis tika kalibrēts uz viena krekla (fill 0.760) un
 # viltus-noraidīja bikses ar V-iecirtumu starp kājām (fill 0.591, 0 caurumu).
@@ -88,12 +101,45 @@ RECONCILE_CANVAS = (2000, 2500)   # (platums, augstums) — kā CANVAS loop.py
 REPORT_PATH = Path(OUT) / "report_v2.json"
 
 
+# Bezzaudējumu ceturtdaļpagriezieni pulksteņrādītāja virzienā. Lokāla
+# tabula (PIL ROTATE_* skaita pretēji pulkstenim), lai virziena kļūda
+# maker pusē checkerī neatkārtotos. Ekvivalenci ar maker realizāciju
+# piesprauž testi (TestCheckerIndependence).
+_TURNS_CW = {0: None, 90: Image.ROTATE_270, 180: Image.ROTATE_180,
+             270: Image.ROTATE_90}
+
+
+def _quarter_turn_cw(img: Image.Image, degrees_cw: int) -> Image.Image:
+    deg = int(degrees_cw) % 360
+    if deg not in _TURNS_CW:
+        raise ValueError(f"Atļauti tikai 0/90/180/270 grādi, saņemts: {degrees_cw}")
+    op = _TURNS_CW[deg]
+    return img if op is None else img.transpose(op)
+
+
+def _apply_lut(rgb: np.ndarray, lut_rows) -> np.ndarray:
+    """LUT pielietojums ar tīru NumPy indeksēšanu (ne cv2.LUT, ne maker
+    funkciju): katra kanāla katram pikselim — tabulas vērtība pēc tā
+    paša pikseļa. Punktveida attēlojums, tāpēc ar jebkuru citu pareizu
+    realizāciju rezultāts sakrīt līdz bitam (pierāda testi). LUT rindas
+    ir DATI no grade_profile_v2.json; to saturu checker neizdomā."""
+    if len(lut_rows) != 3:
+        raise ValueError(f"LUT vajag 3 kanālu rindas, ir {len(lut_rows)}")
+    out = np.empty_like(rgb)
+    for ch in range(3):
+        table = np.asarray(lut_rows[ch], dtype=np.uint8)
+        if table.shape != (256,):
+            raise ValueError(f"LUT rinda {ch}: vajag 256 vērtības, ir {table.shape}")
+        out[..., ch] = table[rgb[..., ch]]
+    return out
+
+
 def open_rgb(path: str | Path, rotation_cw: int = 0) -> np.ndarray:
     with Image.open(path) as im:
         img = ImageOps.exif_transpose(im).convert("RGB")
     # Ja maker avotu bezzaudējumi pagrieza vertikālā orientācijā, checker
     # salīdzinājumam piemēro to pašu pagriezienu (citādi A2 būtu veltīgs).
-    return np.asarray(apply_quarter_turn(img, int(rotation_cw or 0)))
+    return np.asarray(_quarter_turn_cw(img, int(rotation_cw or 0)))
 
 
 def atomic_write_json(path: Path, obj) -> None:
@@ -136,7 +182,7 @@ def reconcile_reference(master_rgb: np.ndarray, mask: np.ndarray,
         x0, y0 = int(xs.min()), int(ys.min())
         x1, y1 = int(xs.max()) + 1, int(ys.max()) + 1
         pw, ph = max(1, x1 - x0), max(1, y1 - y0)
-        scale = min((GARMENT_FILL_W * W) / pw, (GARMENT_FILL_H * H) / ph)
+        scale = min((SPEC_FILL_W * W) / pw, (SPEC_FILL_H * H) / ph)
         # Master ēna sniedzas ARĪ ārpus apģērba bbox. Griežot tieši pa bbox,
         # tā tiek nogriezta pie bbox galējām malām (pa labi/kreisi/augšu/apakšu
         # no galējiem punktiem), un references fons tur paliek tīrs #F3F3F3,
@@ -301,7 +347,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
             "error": f"MASTER forma {master.shape} != oriģināls {orig.shape}",
         }
 
-    graded = apply_lut(orig, lut_rows)
+    graded = _apply_lut(orig, lut_rows)
     mask = (np.asarray(Image.open(mask_p).convert("L")) > 128).astype(np.uint8)
     dist_in = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
     core = dist_in >= 30

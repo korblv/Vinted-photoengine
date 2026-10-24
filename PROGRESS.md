@@ -1549,3 +1549,35 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   `config.toml`); algoritmi, §3.2, §5 sliekšņi.
 - STĀVOKLIS: solis 4 pabeigts. Nākamais plānā: solis 5 (neatkarīgs
   checker) — gaida lietotāja apstiprinājumu.
+
+---
+
+## §60 — Produkcijas refaktors, solis 5: neatkarīgs checker (2026-10-24)
+
+- Lietotājs ar pogām apstiprināja pilno tvērumu. Pirms soļa checker
+  importēja no maker: `apply_lut` (A2 vārtu kodols), `apply_quarter_turn`,
+  un no `loop`: `BG_GRAY`, `GARMENT_FILL_W/H`, `OUT`, `SRC_DIR` — kopīga
+  kļūda vai konstanšu drifts būtu izmainījis abas puses vienādi un vārti
+  paliku zaļi.
+- Izmaiņa tikai `checker_v2.py` (+55/−9 neto): lokāls `_apply_lut`
+  (tīra NumPy indeksēšana; LUT rindas paliek DATI no grade profila,
+  ar formas validāciju), lokāls `_quarter_turn_cw` ar savu virzienu
+  tabulu un to pašu validāciju, spec konstantes `SPEC_BG=243`,
+  `SPEC_FILL_W/H=0.74/0.78`, ceļi no repo izkārtojuma. Importa Pierādījums:
+  svaigā interpreterī pēc `import checker_v2` — `workflow_v2` un `loop`
+  NAV ielādēti (`paper_leak` ir; tas maker moduļus nevelk).
+- Nemainīguma Pierādījums divos līmeņos: (1) testi — LUT un pagriezieni
+  bitiski ekvivalenti maker realizācijām uz nejaušiem datiem (paliek
+  komplektā kā krustsargs), spec konstantes == maker pašreizējās, AST
+  tests aizliedz maker importus checker failā; (2) e2e — vecais un
+  jaunais checker uz tiem pašiem sintētiskajiem (`TESTSINT_1`, avots
+  `85cf02836efabd10`) Attempt 1 failiem: ALL_PASS abiem; rekursīvs
+  atskaišu salīdzinājums **136 lapu laukos: 0 atšķirību** (izslēgts tikai
+  checker mērītais `seconds`). Sintētika pēc tam izdzēsta (9 faili /
+  2,80 MB).
+- Testi: +5 → **64 testi, OK, 1,67 s**. Sliekšņi un vārtu loģika nav
+  mainīti ne par vērtību (hash audits: mainījušies tikai `checker_v2.py`
+  un testi). Kosmētika nemainīta: konsoles teksti vecajā stilā "V2.1".
+- Paliekošs, apzināts izņēmums: `paper_leak` imports informatīvajiem
+  L vārtiem (pass=None) — tas nav maker atkarība lēmumu ceļā.
+  Nākamais plānā: solis 6 (monolīta dalīšana) — gaida apstiprinājumu.

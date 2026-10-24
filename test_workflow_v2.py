@@ -566,6 +566,64 @@ class TestCheckerHelpers(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Checker neatkarība (solis 5): nav importa no maker; realizācijas ekvivalentas
+# ---------------------------------------------------------------------------
+class TestCheckerIndependence(unittest.TestCase):
+    def test_checker_source_does_not_import_maker(self):
+        import ast
+        tree = ast.parse(Path(ck.__file__).read_text(encoding="utf-8"))
+        mods = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                mods.update(a.name for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                mods.add(node.module)
+        bad = {m for m in mods if m == "loop" or m.startswith("workflow_v2")}
+        self.assertEqual(bad, set(), f"checker importē maker moduļus: {bad}")
+
+    def test_apply_lut_bitwise_equivalent_to_maker(self):
+        rng = np.random.default_rng(SEED)
+        cases = [
+            [np.arange(256, dtype=np.uint8)] * 3,
+            [np.arange(255, -1, -1, dtype=np.uint8)] * 3,
+            list(rng.integers(0, 256, (3, 256), dtype=np.uint8)),
+        ]
+        for shape in [(1, 1, 3), (17, 29, 3)]:
+            rgb = rng.integers(0, 256, shape, dtype=np.uint8)
+            for lut in cases:
+                np.testing.assert_array_equal(
+                    ck._apply_lut(rgb, lut), wf.apply_lut(rgb, lut))
+
+    def test_apply_lut_rejects_bad_table(self):
+        rgb = np.zeros((2, 2, 3), np.uint8)
+        with self.assertRaises(ValueError):
+            ck._apply_lut(rgb, [np.arange(255, dtype=np.uint8)] * 3)
+        with self.assertRaises(ValueError):
+            ck._apply_lut(rgb, [np.arange(256, dtype=np.uint8)] * 2)
+
+    def test_quarter_turn_equivalent_to_maker(self):
+        rng = np.random.default_rng(SEED)
+        img = Image.fromarray(rng.integers(0, 256, (5, 7, 3), dtype=np.uint8))
+        for deg in (0, 90, 180, 270, 360, -90):
+            self.assertEqual(ck._quarter_turn_cw(img, deg).tobytes(),
+                             wf.apply_quarter_turn(img, deg).tobytes(), f"deg={deg}")
+        with self.assertRaises(ValueError):
+            ck._quarter_turn_cw(img, 45)
+
+    def test_spec_constants_equal_current_maker_values(self):
+        """KRUSTSARGS: checker specifikācija šodien sakrīt ar maker
+        konstantēm. Ja kāda puse mainīsies viena pati, šis tests kritīs
+        PIRMS klusa drifta ražošanā — izmaiņa jāveic apzināti abās ar
+        PROGRESS ierakstu."""
+        self.assertEqual(ck.SPEC_BG, loop.BG_GRAY)
+        self.assertEqual(ck.SPEC_BG, 243)
+        self.assertEqual(ck.SPEC_FILL_W, loop.GARMENT_FILL_W)
+        self.assertEqual(ck.SPEC_FILL_H, loop.GARMENT_FILL_H)
+        self.assertEqual(Path(ck.OUT), Path(loop.OUT))
+        self.assertEqual(Path(ck.SRC_DIR), Path(loop.SRC_DIR))
+
+
+# ---------------------------------------------------------------------------
 # Infrastruktūra: faili un modeļa integritāte
 # ---------------------------------------------------------------------------
 class TestIoHelpers(unittest.TestCase):
