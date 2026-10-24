@@ -1983,3 +1983,32 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   vispārīgs ceļš + trigeris, ne ielāps vienai bildei; 79 testi OK.
 - Lēmums lietotājam par pleķi: pieņemt / operatora griezums /
   piegādāt 3 bildes / tekstūras izšķīrējs kā atsevišķs solis.
+
+## §78 — Tumšās zonas izšķīrējs chroma ceļā (workflow 2.5) (2026-10-24)
+- Lietotāja lēmums (§77 poga): algoritmisks risinājums, ne rokudarbss.
+  Mērījumi pirms koda: lokālā std tekstūra līci NEatdala (pleķis E7
+  med 0.91 pret tumšu audumu 2.38, bet p25 0.93 — sadalījumi
+  pārklājas); hroma tumšajā zonā atdala labāk (b* med: pleķis +1.9,
+  audums -9.4, grīda +9.9), bet BG paletē dziļās ēnas parauga nav —
+  sēklu atlase (dF>=18) to bija izslēgusi. Tāpēc mehānisms nav tīra
+  tekstūra, bet trīs signālu summa: tumšās paletes + tekstūras vārti
+  + topoloģija (plūdi caur nedrošo zonu sasniedz tikai līčus).
+- Ražotne: `engine/chroma.py._dark_uncertain` — tumšās (L*<=25)
+  paletes no tumšajām sēklām (fona puse: zema alfa + nokrāsa tuvāk
+  BG paletei), centru savstarpēja attīrīšana (sakrīt < 8 dE = ārā),
+  nedrošs = tumšs & lauks < 5 & E7 < 1.5x fona ēnas mediānas.
+  Plūdi iet caur nedrošo zonu; drošinātājs: izgrebums no galvenās
+  komponentes <= 5%, citādi piegājiens sevi izslēdz. 7 jauni
+  parametri `config.toml [chroma]`; workflow 2.4 -> 2.5.
+- Pierādījumi: prototips uz īstajām bildēm izgrebj tieši līci +
+  vecās pārplūdes mēli (pārklājums `tmp_id/dark2_122248.jpg`),
+  kontrolē 122109 tikai 19 px. Ražotnes kods offline: 122248
+  d-108 624 px / +0 (carve_garment 28 525 puspx), 122109 d0 px.
+- Testi: +1 vienības tests `_dark_uncertain` (līcis nedrošs >=0.8,
+  teksturēta kroka <=0.1). Pilnas ainas sintētiskais līča tests
+  izmests ar iemeslu: diskrētas krāsas mediān-griezumā izolējas
+  citādi nekā foto nepārtrauktais ēnojums (3 mēģinājumi); integrāciju
+  pierāda Attempt 3 mērījumi. Kopā 80 testi OK.
+- Zināms ierobežojums: ja tumšajās FG sēklās ir diskrēta, krāsā
+  attāla fona mode (>=~10%), tā var nozagt paletes centru; tad
+  līcis paliek (kļūdas virziens = drošais: maska kā 1. piegājienā).

@@ -53,6 +53,14 @@ margin_sigma = 2.0           # klasifikācijas lauka izlīdzināšana (px)
 min_cross_dE = 15.0          # palešu min. savstarpējais attālums (QA)
 seed_margin_ratio_min = 2.0  # sēklai otra palete vismaz 2x tālāk (QA)
 max_ambiguous_fraction = 0.08  # |dB-dF| < 5 pikseļu daļa (QA)
+# Otrais piegājiens: tumšās zonas (ēnas līču) izšķīrējs (PROGRESS §78).
+dark_L = 25.0                # L* zem šīs = tumšā zona
+dark_palette_k = 4           # tumšo palešu centri
+dark_min_cross_dE = 8.0      # centru savstarpējā attīrīšana (sakrīt = ārā)
+dark_uncertain_field = 5.0   # tumšais lauks zem šī = nav pārliecinoši apģērbs
+dark_tex_ratio = 1.5         # tekstūra < tik * tumšā fona sēklu mediāna
+dark_seed_min_frac = 0.0005  # min. tumšo sēklu daļa no kadra katrai klasei
+dark_carve_max_frac = 0.05   # izgrebuma griesti pret masku (drošinātājs)
 
 [decontam]
 max_px = 30

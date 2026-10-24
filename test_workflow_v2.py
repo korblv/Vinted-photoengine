@@ -29,7 +29,8 @@ import paper_leak
 import plate_segment as ps
 import setup_v2
 import workflow_v2 as wf
-from engine.chroma import _median_cut_palette, chroma_mask, structural_qa
+from engine.chroma import (_dark_uncertain, _median_cut_palette,
+                           chroma_mask, structural_qa)
 from engine.masks import plate_mask
 
 SEED = 12345
@@ -399,8 +400,8 @@ class TestMaskProvenance(unittest.TestCase):
 
     def test_workflow_version_bumped_for_new_rerender_semantics(self):
         # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4);
-        # 2.4 = chroma rezerves ceļš (§76).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.4")
+        # 2.4 = chroma rezerves ceļš (§76); 2.5 = tumšās zonas piegājiens (§78).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.5")
 
 
 # ---------------------------------------------------------------------------
@@ -431,7 +432,11 @@ class TestConfig(unittest.TestCase):
                        "border_alpha_max": 0.50, "seed_margin_dE": 18.0,
                        "bg_refine_dE": 25.0, "margin_sigma": 2.0,
                        "min_cross_dE": 15.0, "seed_margin_ratio_min": 2.0,
-                       "max_ambiguous_fraction": 0.08},
+                       "max_ambiguous_fraction": 0.08, "dark_L": 25.0,
+                       "dark_palette_k": 4, "dark_min_cross_dE": 8.0,
+                       "dark_uncertain_field": 5.0, "dark_tex_ratio": 1.5,
+                       "dark_seed_min_frac": 0.0005,
+                       "dark_carve_max_frac": 0.05},
             "decontam": {"max_px": 30, "tex_ratio": 0.45},
             "grade": {"curve_blend": 0.18, "highlight_knee": 0.86,
                       "exposure_target": 248.0, "exposure_min": 0.99,
@@ -892,6 +897,42 @@ class TestChromaPath(unittest.TestCase):
         rgb, _, _ = self._scene()
         _, qa = chroma_mask(rgb, [np.zeros((1200, 1600), np.uint8)])
         self.assertFalse(qa["accept"])
+
+    def test_dark_uncertain_marks_shadow_bay_not_fabric(self):
+        # §78 mehānisms Lab līmenī: dziļās ēnas līcis (gandrīz melns
+        # neitrāls) ir nedrošs; tumša auduma kroka ar tekstūru nav.
+        rng = np.random.default_rng(5)
+        h, w = 400, 500
+        lab = np.zeros((h, w, 3), np.float32)
+        lab[:] = (60, 12, 25)                       # apgaismots fons
+        lab[0:60, :] = (13, 6, 8)                   # fona ēnas josla
+        lab[100:400, 0:350] = (45, 5, -35)          # apģērbs
+        # tumša kroka kā nepārtraukts ēnojuma gradients (kā īstā foto,
+        # kur līcis 5% sēklu robežās savu centru neizolē, §78)
+        grad = np.linspace(0.0, 1.0, 200, dtype=np.float32)[None, :]
+        lab[100:400, 0:200, 0] = 9.0 + 14.0 * grad
+        lab[100:400, 0:200, 1] = 1.0
+        lab[100:400, 0:200, 2] = -5.0 - 9.0 * grad
+        bay = np.zeros((h, w), bool)
+        bay[280:400, 220:280] = True
+        lab[bay] = (8, 3, 3)                        # ēnas līcis
+        yy, xx = np.mgrid[0:h, 0:w]
+        garment = np.zeros((h, w), bool)
+        garment[100:400, 0:350] = True
+        lab[..., 0] += np.where(garment & ~bay,
+                                2.5 * np.sin(xx * 2 * np.pi / 12), 0.0)
+        lab += rng.normal(0, 0.4, lab.shape).astype(np.float32)
+        a_bg = np.where(garment, 0.97, 0.02).astype(np.float32)
+        fg_seed = np.zeros((h, w), bool)
+        fg_seed[115:400, 15:335] = True             # arī līcī (pārplūde)
+        uncertain, info = _dark_uncertain(
+            lab, a_bg, fg_seed,
+            np.array([[45, 5, -35], [12, 1, -8]], np.float32),
+            np.array([[60, 12, 25], [13, 6, 8]], np.float32),
+            wf.CFG["chroma"])
+        self.assertIsNotNone(uncertain, info)
+        self.assertGreaterEqual(float(uncertain[290:400, 230:270].mean()), 0.8)
+        self.assertLessEqual(float(uncertain[150:350, 20:180].mean()), 0.1)
 
     def test_palette_is_deterministic(self):
         rng = np.random.default_rng(3)

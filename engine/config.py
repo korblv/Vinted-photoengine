@@ -8,7 +8,7 @@ import json
 import tomllib
 from pathlib import Path
 
-WORKFLOW_VERSION = "2.4"
+WORKFLOW_VERSION = "2.5"
 
 # ---------------------------------------------------------------------------
 # Konfigurācija (solis 4): parametri dzīvo config.toml, specifikācija —
@@ -32,7 +32,10 @@ _CONFIG_SCHEMA: dict[str, dict[str, type]] = {
                "border_alpha_max": float, "seed_margin_dE": float,
                "bg_refine_dE": float, "margin_sigma": float,
                "min_cross_dE": float, "seed_margin_ratio_min": float,
-               "max_ambiguous_fraction": float},
+               "max_ambiguous_fraction": float, "dark_L": float,
+               "dark_palette_k": int, "dark_min_cross_dE": float,
+               "dark_uncertain_field": float, "dark_tex_ratio": float,
+               "dark_seed_min_frac": float, "dark_carve_max_frac": float},
     "decontam": {"max_px": int, "tex_ratio": float},
     "grade": {"curve_blend": float, "highlight_knee": float,
               "exposure_target": float, "exposure_min": float,

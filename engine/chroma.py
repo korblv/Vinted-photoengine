@@ -19,7 +19,9 @@ Metode (deterministiska, bez modeļa un bez RNG):
   3. Klasifikācija pēc tuvākās paletes (deltaE76), malas lauks
      izlīdzināts ar Gausu; fons = ar kadra malu savienotās fona
      komponentes (plūdu princips), tāpēc ieslēgti tumši laukumi
-     (rāvējslēdzējs, birka) paliek apģērbs.
+     (rāvējslēdzējs, birka) paliek apģērbs. Plūdi drīkst iet arī
+     caur tumšās zonas nedrošajiem pikseļiem — ēnas līčiem, kurus
+     krāsa viena pati neatšķir (sk. `_dark_uncertain`, §78).
   4. QA ir daļa no funkcijas: ceļš sevi NORAIDA, ja paletes pārklājas
      (min. savstarpējais deltaE), ja sēklas nestāv pārliecinoši tuvāk
      savai paletei, ja pārāk daudz pikseļu ir abu palešu vidū vai ja
@@ -83,6 +85,99 @@ def _distance_map(lab: np.ndarray, centers: np.ndarray) -> np.ndarray:
         out[i:i + 250_000] = np.linalg.norm(
             ch[:, None, :] - centers[None], axis=2).min(axis=1)
     return out.reshape(lab.shape[:2])
+
+
+def _local_std(a: np.ndarray, win: int) -> np.ndarray:
+    mu = cv2.boxFilter(a, -1, (win, win))
+    mu2 = cv2.boxFilter(a * a, -1, (win, win))
+    return np.sqrt(np.maximum(mu2 - mu * mu, 0))
+
+
+def _dark_uncertain(lab: np.ndarray, a_bg: np.ndarray, fg_seed: np.ndarray,
+                    fg_centers: np.ndarray, bg_centers: np.ndarray,
+                    cfg: dict) -> tuple[np.ndarray | None, dict]:
+    """Tumšās zonas nedrošie pikseļi: ēnas līču izšķīrējs (PROGRESS §78).
+
+    Dziļā ēnā abu klašu krāsas sabrūk gandrīz melnā neitrālā un galvenā
+    palete līci kļūdaini sauc par apģērbu (izmērīts 122248: līcis Lab
+    [6.5, 3.2, 2.6]; FG centrs 7.2, BG 16.7 — jo BG paletē dziļās ēnas
+    parauga nav: sēklu atlase to bija izslēgusi). Otrais piegājiens
+    būvē TUMŠĀS paletes no tumšajām sēklām (fona pusei — zema alfa +
+    nokrāsa (a*,b*) tuvāk fona paletei; tā ēnainais fons beidzot tiek
+    paraugots), attīra sakrītošus centrus un atzīmē kā nedrošus tos
+    tumšos pikseļus, kurus tumšais lauks pārliecinoši nesauc par
+    apģērbu UN kuru tekstūra ir fona ēnai līdzīga. Nedrošs nenozīmē
+    fons: par fonu tie kļūst tikai, ja plūdi no kadra malas tos
+    sasniedz caur nedrošo zonu (līcis); ieslēgti tumši auduma laukumi
+    (rāvējslēdzējs, odere) paliek apģērbs.
+
+    Atgriež (uncertain|None, info). None = piegājiens sevi izslēdz
+    (par maz sēklu / paletes neatdalās / sēklu robeža vāja) un maska
+    paliek pirmā piegājiena — nekad sliktāka par to.
+    """
+    info: dict = {"dark_pass": False}
+    L = lab[..., 0]
+    dark = L <= float(cfg["dark_L"])
+    if not dark.any():
+        info["dark_reason"] = "nav tumšo pikseļu"
+        return None, info
+    # nokrāsu (bez L) attālumi fona ēnas sēklu atlasei
+    lab_ab = lab.copy()
+    lab_ab[..., 0] = 0.0
+    fg_ab = fg_centers.copy()
+    fg_ab[:, 0] = 0.0
+    bg_ab = bg_centers.copy()
+    bg_ab[:, 0] = 0.0
+    dab_f = _distance_map(lab_ab, fg_ab)
+    dab_b = _distance_map(lab_ab, bg_ab)
+    del lab_ab
+    bg_dark_seed = dark & (a_bg <= 0.10) & (dab_b < dab_f)
+    fg_dark_seed = dark & fg_seed
+    info["dark_bg_seed_px"] = int(bg_dark_seed.sum())
+    info["dark_fg_seed_px"] = int(fg_dark_seed.sum())
+    min_seeds = max(200, int(float(cfg["dark_seed_min_frac"]) * L.size))
+    if bg_dark_seed.sum() < min_seeds or fg_dark_seed.sum() < min_seeds:
+        info["dark_reason"] = "par maz tumšo sēklu"
+        return None, info
+    k = int(cfg["dark_palette_k"])
+    bgd, _ = _median_cut_palette(lab[bg_dark_seed], k)
+    fgd, _ = _median_cut_palette(lab[fg_dark_seed], k)
+    # savstarpēja attīrīšana: centrs, kas sakrīt ar otras klases
+    # centru, ir divdomīgs (arī paletes piesārņojums) — ārā abi
+    cross = np.linalg.norm(fgd[:, None, :] - bgd[None, :, :], axis=2)
+    pur = float(cfg["dark_min_cross_dE"])
+    fgd = fgd[cross.min(axis=1) >= pur]
+    bgd = bgd[cross.min(axis=0) >= pur]
+    info["dark_fg_centers_lab"] = np.round(fgd, 1).tolist()
+    info["dark_bg_centers_lab"] = np.round(bgd, 1).tolist()
+    if len(fgd) == 0 or len(bgd) == 0:
+        info["dark_reason"] = "tumšās paletes sakrīt"
+        return None, info
+    d_fd = _distance_map(lab, fgd)
+    d_bd = _distance_map(lab, bgd)
+    ratio_min = float(cfg["seed_margin_ratio_min"])
+    fg_own = float(np.median(d_fd[fg_dark_seed]))
+    fg_oth = float(np.median(d_bd[fg_dark_seed]))
+    bg_own = float(np.median(d_bd[bg_dark_seed]))
+    bg_oth = float(np.median(d_fd[bg_dark_seed]))
+    info.update({"dark_fg_own_med": round(fg_own, 2),
+                 "dark_fg_other_med": round(fg_oth, 2),
+                 "dark_bg_own_med": round(bg_own, 2),
+                 "dark_bg_other_med": round(bg_oth, 2)})
+    if (fg_oth < ratio_min * max(fg_own, 1e-6)
+            or bg_oth < ratio_min * max(bg_own, 1e-6)):
+        info["dark_reason"] = "tumšo sēklu robeža vāja"
+        return None, info
+    field_dark = cv2.GaussianBlur(d_bd - d_fd, (0, 0),
+                                  sigmaX=float(cfg["margin_sigma"]))
+    del d_fd, d_bd
+    e7 = _local_std(L, 7)
+    e_bg_med = float(np.median(e7[bg_dark_seed]))
+    info["dark_bg_tex_med"] = round(e_bg_med, 3)
+    uncertain = (dark & (field_dark < float(cfg["dark_uncertain_field"]))
+                 & (e7 < float(cfg["dark_tex_ratio"]) * e_bg_med))
+    info["dark_pass"] = True
+    return uncertain, info
 
 
 def structural_qa(binary: np.ndarray) -> dict:
@@ -225,13 +320,49 @@ def chroma_mask(orig: Image.Image, softs: list[np.ndarray]) -> tuple[np.ndarray,
     cls_fg[fg_seed] = True
     cls_fg[border_seed] = False
     del field
-    n, cc, _, _ = cv2.connectedComponentsWithStats(
-        (~cls_fg).astype(np.uint8), connectivity=8)
-    border_labels = (set(cc[0, :]) | set(cc[-1, :])
-                     | set(cc[:, 0]) | set(cc[:, -1])) - {0}
-    bg = np.isin(cc, list(border_labels)) if border_labels else np.zeros_like(cls_fg)
+
+    def _flood_bg(trav: np.ndarray) -> np.ndarray:
+        """Ar kadra malu savienotā traversējamā zona = fons."""
+        _, cc, _, _ = cv2.connectedComponentsWithStats(
+            trav.astype(np.uint8), connectivity=8)
+        border_labels = (set(cc[0, :]) | set(cc[-1, :])
+                         | set(cc[:, 0]) | set(cc[:, -1])) - {0}
+        if not border_labels:
+            return np.zeros_like(cls_fg)
+        return np.isin(cc, list(border_labels))
+
+    # Otrais piegājiens: plūdi drīkst iet arī caur tumšās zonas
+    # nedrošajiem pikseļiem (ēnas līči). Drošinātājs: izgrebums no
+    # pirmā piegājiena GALVENĀS komponentes (paša apģērba) drīkst būt
+    # tikai neliels — atsevišķu fona pleķu aizvākšana neskaitās, tie
+    # maskā tāpat nenonāktu (clean_mask ņem lielāko komponenti).
+    uncertain, dark_info = _dark_uncertain(
+        lab, a_bg, fg_seed, fg_centers, bg_centers, _C)
+    qa.update(dark_info)
+    bg = None
+    if uncertain is not None:
+        bg_first = _flood_bg(~cls_fg)
+        first = ~bg_first
+        n1, cc1, st1, _ = cv2.connectedComponentsWithStats(
+            first.astype(np.uint8), connectivity=8)
+        if n1 > 1:
+            largest1 = cc1 == (1 + int(np.argmax(st1[1:, cv2.CC_STAT_AREA])))
+        else:
+            largest1 = first
+        bg_try = _flood_bg((~cls_fg) | uncertain)
+        carve = bg_try & largest1
+        qa["dark_carve_px"] = int((bg_try & cls_fg).sum())
+        qa["dark_carve_garment_px"] = int(carve.sum())
+        if carve.sum() <= float(_C["dark_carve_max_frac"]) * max(int(largest1.sum()), 1):
+            bg = bg_try
+        else:
+            qa["dark_pass"] = False
+            qa["dark_reason"] = "izgrebums par lielu"
+        del bg_try, carve, bg_first, first, largest1
+    if bg is None:
+        bg = _flood_bg(~cls_fg)
     m = (~bg).astype(np.uint8)
-    del cc, bg, cls_fg
+    del bg, cls_fg
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
 
     up = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).resize(
