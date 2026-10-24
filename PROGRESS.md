@@ -1413,3 +1413,21 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   reģistrs un plāna atzīme); pakotņu piespraudes, algoritmi, §5 sliekšņi.
 - STĀVOKLIS: ātrais labojums izdarīts; vide atkal `ready:true`. Nākamais
   plānā: solis 2 (testi) — gaida lietotāja apstiprinājumu.
+
+---
+
+## §56 — Testu atrastas kļūdas labojums setup_v2.py (2026-10-24)
+
+- Rakstot soļa 2 testus, `test_missing_file` atklāja defektu §55 kodā:
+  `_model_status()` hashēja failu, kad `size == MODEL_BYTES`. Trūkstošam
+  failam `size=0`; ar `MODEL_BYTES=0` tā mēģināja atvērt neeksistējošu
+  failu un krita ar `FileNotFoundError` (testa iznākums ERROR), nevis
+  atgrieza `ok=False`.
+- Smagums godīgi: ražošanas konstantē `MODEL_BYTES=178_648_008` ceļš nav
+  sasniedzams; defekts ir latenta trausluma vieta (fails pazūd starp
+  `stat()` un `open()` → izņēmums pārbaudes vietā).
+- Labojums 1 rinda: `if exists and size == MODEL_BYTES`. Lietotājs ar
+  pogām izvēlējās labot tūlīt, atsevišķā komitā pirms soļa 2 komita.
+- Pierādījums pēc labojuma: pilns komplekts 46 testi → `OK (expected
+  failures=1)`, 1,37 s; `setup_v2.py --check` joprojām exit 0
+  (`ready:true`, īstais modelis atbilst piespraudei).

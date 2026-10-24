@@ -62,7 +62,10 @@ def _model_status() -> dict:
     exists = MODEL_PATH.is_file()
     size = MODEL_PATH.stat().st_size if exists else 0
     # Hashē tikai tad, ja izmērs jau sakrīt — citādi fails tāpat ir nederīgs.
-    sha = _sha256_of(MODEL_PATH) if size == MODEL_BYTES else ""
+    # `exists` pārbaude obligāta: bez tās 0 == 0 gadījumā (vai failam
+    # pazūdod starp stat un open) pārbaude krīt ar FileNotFoundError,
+    # nevis atgriež ok=False (tests: test_missing_file, PROGRESS §56).
+    sha = _sha256_of(MODEL_PATH) if exists and size == MODEL_BYTES else ""
     ok = size == MODEL_BYTES and sha == MODEL_SHA256
     return {
         "path": str(MODEL_PATH),
