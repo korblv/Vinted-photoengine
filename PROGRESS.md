@@ -1869,3 +1869,30 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   malas precizitāti pret patiesību; lētākais nākamais zināšanu
   solis ir sintētisks zināmas-patstiesības etalons (E4) bez
   ražošanas izmaiņām. Kods šajā solī: 0 izmaiņu.
+
+## §74 — Jauna grupa fiksēta: zila metāliska pufjaka uz koka grīdas (2026-10-24)
+- §3.1 protokols: inventārs + poga -> "Jā, šīs ir visas — sāc darbu".
+- Avoti (4 faili, 49 434 216 B; visi 3072×4096, EXIF orientācijas nav):
+  - `IMG_20261015_121349.jpg` — priekšpuse (apakšā kadrā pēda),
+    12 988 550 B (`a2c830f71e9daa1f`)
+  - `IMG_20261015_121740.jpg` — mugura, 14 537 778 B (`3880993a4a0ceca4`)
+  - `IMG_20261015_122109.jpg` — atvērta jaka: odere + birka (Mohito),
+    slīps kadrs ar sienu/mēbeli, 10 601 088 B (`7bed43a6559cbb0a`)
+  - `IMG_20261015_122248.jpg` — slīps kadrs: kabata/piedurkne,
+    11 306 800 B (`18fef3be56ef7a2f`)
+- ATKĀPE NO PARASTĀ UZSTĀDĪJUMA: fons ir koka grīda ar spēcīgām
+  krītošām ēnām, ne balts papīrs. Pirms Attempt 1 pārbaudīts kodā:
+  `compute_grade_profile` fona paraugu filtrē (sat <= 38, attālums
+  no maskas > 18) un mēra hromu; pie `bg_chroma > wb_chroma_max
+  (0.18)` WB kļūst neitrāla automātiski (koda komentārs šo gadījumu
+  — "koka grīda, zilā audumā -4.9 b*" — apraksta no agrākas
+  pieredzes). Prognoze ielīmēta pirms palaišanas: profils ziņos
+  `wb_trusted: false`. Citi riski: apmales retry polsterē ar fona
+  krāsu; plate pieņem gludu fonu (koks ir teksturēts); metālisks
+  spīdums malās.
+- Vide: sesijas sākumā `setup --check` atkal `ready:false`
+  (/var/tmp zudums starp sesijām, kā iepriekš); `setup_v2.py`
+  58 s, pēc tam ready:true, modeļa SHA-256 sakrīt; 74 testi OK.
+  Preflight ready:true, 0 problēmu.
+- Krātuve: 6 389 384 -> 56 134 214 B (ar tmp_id lapu). Pīķis pēc
+  Attempt 1 jāvēro: avoti vien ir 49.4 MB.
