@@ -364,7 +364,33 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
   mūsu bildes kā papildu foto + vismaz viena neapstrādāta
   bilde sludinājumā; defektus vienmēr tuvplānā (darām jau).
 
-### Video avoti (YouTube; skatīts aprakstu/metadatu līmenī — kadrus skatīties nevaru)
+### Video avoti (YouTube; pēc noklusējuma aprakstu/metadatu līmenis; ar yt-dlp varu arī transkriptu + kadrus — tad atzīmēts atsevišķi)
+- **"Stop Prompting Claude. Use Karpathy's Method Instead."**
+  (Austin Marchese, 2026-06-09, 13:18; youtu.be/7zZy1QTvokM) —
+  NOSKATĪTS PILNĪBĀ 2026-10-24 pēc lietotāja saites (transkripts
+  3336 vārdi + kadri /30 s). Metode: 3 slāņi — (1) SPEC:
+  detalizēts specifikācijas dokuments prompta vietā (mērķis caur
+  interviju, agile mazie soļi ar kontrolpunktiem, precizitāte,
+  eksplicīta lēmumu verifikācija); (2) VERIFIER: vērtēšanas
+  kritēriji PIRMS darba + otrs modelis-kritiķis + ārējie signāli;
+  Karpathy "dzīvnieki pret spokiem" = modelim nav motivācijas un
+  tas nezina, kad tam trūkst zināšanu; (3) ENVIRONMENT:
+  CLAUDE.md, zināšanu bāze, atkārtojamās prasmes (skills),
+  aizsargnoteikumi rīku līmenī (hooks), nevis promptā; kategorijas
+  always/ask first/never. Finale (Karpathy): "You can outsource
+  your thinking, but you can't outsource your understanding."
+  Sasaiste ar mums: mūsu sistēma lielāko daļu jau dara (00 dokuments
+  un reģistrēti kritēriji = spec; checker_v2 un vārti = verifier;
+  HANDOFF/dokumenti un pogas = environment). Atšķirības: otra
+  modeļa-kritiķa mums nav (deterministisks checker + lietotāja acs
+  ir stiprāk tur, kur ir metrikas); video solījumi "10x" ir
+  mārketings bez mērījumiem. **Viena aizgūta kandidātidēja:** mūsu
+  "never do" noteikumi šobrīd dzīvo prozā un testos; kur kļūdas cena
+  augsta (§91 caurspīdīgo audumu karogs), tos būtu vērts kādreiz
+  pārnest koda līmenī (piem., preflight pārbaude). Lēmums lietotājam,
+  kods nemainīts. Avota svars: satura veidotājs + pārdošanas
+  piltuve; Karpathy citāti īsti, sistēma — autora iepakojums.
+  Ideju, ne pierādījumu avots.
 - Apģērbu foto uzstādījums eBay/Vinted: youtube.com/watch?v=jeriM7YyLm0
   un DIY foto dēlis: watch?v=y7TskuVvp6w — uzņemšanas puse
   (vienmērīgs fons+gaisma) noņem vairāk segmentācijas darba

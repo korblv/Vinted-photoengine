@@ -2346,3 +2346,19 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   grupas; E13 izmērīts, lēmums atlikts. Ražošanas kods visā 2. kārtā
   NAV mainīts (workflow 2.5, 81 tests). Visi eksperimenti kopā:
   ~2 min CPU pret piecām atmestām ražošanas izmaiņām.
+
+### §92 YouTube video pēc lietotāja saites: Karpathy metode (2026-10-24)
+- Lietotājs atsūtīja youtu.be/7zZy1QTvokM ("Stop Prompting Claude. Use
+  Karpathy's Method Instead.", Austin Marchese, 13:18) un uzdeva 5
+  jautājumus (par ko video; vai saprotu; vai pielietosim; vai tas
+  padara mani zinošāku; piebildes). Noskatījos pilnībā: yt-dlp
+  transkripts (3336 vārdi) + 27 kadri (720p, ik pēc 30 s); atbildes
+  sniegts sarunā. Godīgais kodols: video mani "zinošāku" padara tikai
+  caur dokumentāciju - tieši tāpēc šis ieraksts.
+- Ar lietotāja pogas apstiprinājumu video esence ierakstīta
+  `STUDIJAS.md` Video avotu sadaļā (3 slāņi: spec / verifier /
+  environment) ar sasaisti uz mūsu sistēmu un vienu kandidātidēju:
+  augstas kļūdas cenas "never do" noteikumus (piem., §91) kādreiz
+  pārnest no prozas koda līmenī. Ražošanas kods nemainīts.
+- Lejupielādes paliek /var/tmp/yt (video 59 MB, kadri, transkripts) -
+  ārpus darba mapes krātuves.
