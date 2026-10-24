@@ -389,7 +389,101 @@ class TestMaskProvenance(unittest.TestCase):
             np.testing.assert_array_equal(np.asarray(Image.open(p)), arr1)
 
     def test_workflow_version_bumped_for_new_rerender_semantics(self):
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.2")
+        # 2.2 = provenance/idempotence (solis 3); 2.3 = config.toml (solis 4).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.3")
+
+
+# ---------------------------------------------------------------------------
+# Konfigurācija (solis 4): migrācijas sargs + stingrā ielāde + prioritāte
+# ---------------------------------------------------------------------------
+class TestConfig(unittest.TestCase):
+    def test_values_equal_pre_migration_literals(self):
+        """MIGRĀCIJAS SARGS: katra vērtība config.toml ir tieši tā pati, kas
+        pirms soļa 4 bija nokoda kodā. Ja šis tests krīt mainot config —
+        tā ir apzināta uzvedības maiņa: atjaunini tabulu TIKAI ar jaunu
+        PROGRESS ierakstu un mērījumu."""
+        self.assertEqual(wf.CFG, {
+            "config_version": 1,
+            "run": {"closeup_proc_w": 768, "png_level": 1, "framing": "auto",
+                    "wb_mode": "auto", "auto_closeup": True,
+                    "auto_grabcut_iters": 5},
+            "mask": {"silhouette_fill_min": 0.60, "pad_retry": 0.90,
+                     "pad_overflow_limit": 0.02, "pad_uncovered_limit": 0.05,
+                     "pad_tex_relaxed": 2.5, "ai_qa_coverage_min": 0.15,
+                     "ai_qa_coverage_max": 0.65, "ai_qa_largest_min": 0.95,
+                     "ai_qa_bbox_area_min": 0.35, "ai_qa_bbox_w_min": 0.45,
+                     "ai_qa_bbox_h_min": 0.35},
+            "plate": {"inner_min": 0.50, "outer_max": 0.60,
+                      "bg_inside_max": 0.02, "cover_min": 0.25,
+                      "cover_max": 0.95},
+            "decontam": {"max_px": 30, "tex_ratio": 0.45},
+            "grade": {"curve_blend": 0.18, "highlight_knee": 0.86,
+                      "exposure_target": 248.0, "exposure_min": 0.99,
+                      "exposure_max": 1.06, "exposure_step": 0.01,
+                      "exposure_max_adjustments": 6, "wb_chroma_max": 0.18,
+                      "wb_shrink": 0.62, "gain_clip_min": 0.88,
+                      "gain_clip_max": 1.14, "clipping_limit_pct": 1.5,
+                      "sharpen_radius": 1.4, "sharpen_percent": 25,
+                      "sharpen_threshold": 3},
+        })
+
+    def _variant(self, td, old, new):
+        src = wf.CONFIG_PATH.read_text(encoding="utf-8")
+        self.assertIn(old, src)
+        p = Path(td) / "config.toml"
+        p.write_text(src.replace(old, new, 1), encoding="utf-8")
+        return p
+
+    def test_unknown_key_typo_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._variant(td, "png_level = 1", "png_levl = 1")
+            with self.assertRaises(ValueError):
+                wf.load_config(p)
+
+    def test_wrong_type_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._variant(td, "png_level = 1", 'png_level = "viens"')
+            with self.assertRaises(ValueError):
+                wf.load_config(p)
+
+    def test_bad_choice_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = self._variant(td, 'framing = "auto"', 'framing = "zigzag"')
+            with self.assertRaises(ValueError):
+                wf.load_config(p)
+
+    def test_missing_file_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            with self.assertRaises(FileNotFoundError):
+                wf.load_config(Path(td) / "nav.toml")
+
+    def _ns(self, **over):
+        import argparse
+        ns = argparse.Namespace(closeup_proc_w=None, png_level=None,
+                                framing=None, wb_mode=None, auto_closeup=None,
+                                auto_grabcut_iters=None)
+        for k, v in over.items():
+            setattr(ns, k, v)
+        return ns
+
+    def test_resolve_fills_from_config_and_cli_wins(self):
+        ns = wf._resolve_args(self._ns())
+        self.assertEqual((ns.png_level, ns.framing, ns.wb_mode, ns.auto_closeup),
+                         (1, "auto", "auto", True))
+        ns2 = wf._resolve_args(self._ns(png_level=3, wb_mode="identity",
+                                        auto_closeup=False))
+        self.assertEqual((ns2.png_level, ns2.wb_mode, ns2.auto_closeup),
+                         (3, "identity", False))
+
+    def test_effective_config_hash_stable_and_sensitive(self):
+        ns = wf._resolve_args(self._ns())
+        sha1 = wf._config_sha256(wf._effective_config(ns))
+        sha2 = wf._config_sha256(wf._effective_config(ns))
+        self.assertEqual(sha1, sha2)
+        ns3 = wf._resolve_args(self._ns(png_level=2))
+        eff3 = wf._effective_config(ns3)
+        self.assertEqual(eff3["run"]["png_level"], 2)
+        self.assertNotEqual(wf._config_sha256(eff3), sha1)
 
 
 # ---------------------------------------------------------------------------

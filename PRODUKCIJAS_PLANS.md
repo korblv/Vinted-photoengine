@@ -29,9 +29,11 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
       blakus JSON ar provenanci (avota sha256, posms, parametri). Rerender
       nedrīkst atkārtot jau izdarītu posmu — novērš `--no-decontam` klases
       kļūdas (Attempt 2: −102 868/−44 627 px).
-- [ ] **4. Viena konfigurācija**: visi sliekšņi/parametri vienā versijotā
-      TOML failā; atskaitē ieraksta koda komita hash + konfigurācijas hash.
-      CLI karogi tikai ignorētām vērtībām.
+- [x] **4. Viena konfigurācija** (PROGRESS §59): `config.toml` — 39 parametri
+      5 sekcijās, stingra validācija, CLI > config; atskaitē `code_commit`,
+      `config_sha256` un efektīvā konfigurācija. Pieņemšanas vārti (00 §5)
+      apzināti paliek kodā kā specifikācija, ne konfigurācija. `loop.py`
+      ēnas konstantes vēl kodā — kandidatūra solim 6.
 - [ ] **5. Neatkarīgs checker**: checker pārstāj importēt `workflow_v2`
       funkcijas; LUT izmanto kā datus (JSON) ar savu pielietojumu.
 - [ ] **6. Monolīta dalīšana**: `workflow_v2.py` (2 085 rindas, `main()` 552)

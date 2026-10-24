@@ -1513,3 +1513,39 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Atlikts: grade profila provenance/config hash (solis 4). STĀVOKLIS:
   solis 3 pabeigts; nākamais plānā — solis 4 (viena konfigurācija),
   gaida lietotāja apstiprinājumu.
+
+---
+
+## §59 — Produkcijas refaktors, solis 4: config.toml (šaurais tvērums) (2026-10-24)
+
+- Lietotājs ar pogām apstiprināja šauro tvērumu: parametri uz failu,
+  specifikācija (audekļa izmērs, fons 243, visi §5 vārti checker pusē)
+  paliek kodā un testu sardzē. Ēnas `STUDIO_*` konstantes `loop.py`
+  šoreiz nepārvietotas (kandidāti solim 6).
+- Jauns `config.toml`: 39 vērtības 5 sekcijās (`run` 6, `mask` 11,
+  `plate` 5, `decontam` 2, `grade` 15) — visas 1:1 no iepriekšējām koda
+  konstantēm/CLI noklusējumiem/inline skaitļiem (`PAD_*`, `PLATE_*`,
+  `ai_mask_qa` robežas, grade līkne un asināšana 25%).
+- `workflow_v2.py` (+258 pārrēķinātas rindas): `load_config()` ar stingru
+  shēmas validāciju (nezināma/trūkstoša atslēga, tips, izvēles — kļūda
+  ar vārdu; lasa stdlib `tomllib`, 0 atkarību); 6 CLI parametru karogu
+  noklusējumi → `None`, izšķir `_resolve_args` (CLI > config);
+  `WORKFLOW_VERSION` 2.2→2.3. Atskaite tagad nes `code_commit`
+  (git HEAD, ar `-dirty` pie neiekomitētām izmaiņām), `config_sha256`
+  un pilnu efektīvo konfigurāciju — "Attempt N" kļūst viennozīmīgs.
+- Testi: +7 (migrācijas sargs: visa CFG == pirms-migrācijas literāļi;
+  typo/tips/izvēle/trūkstošs fails noraidīti; CLI prioritāte; hash
+  stabilitāte/jūtība) → **59 testi, OK, 1,58 s**.
+- Bitiskais Pierādījums: pārģenerēts §58 sintētiskais avots (sha256(16)
+  `85cf02836efabd10` — sakrīt), Attempt 1 → MASK `821e472087039c8a`,
+  MASTER `10bfff4349951e25`, PARAUGS `bf7ec343bb39602c` — **visi trīs
+  identiski §58 vērtībām** (kods pirms config refaktora). Mainījies tikai
+  atskaites JSON (versija 2.3, `config_sha256=151c9de63ed32e82`,
+  `code_commit` ar `-dirty`, jo palaišanas brīdī izmaiņas vēl nebija
+  komitā — godīgs marķējums strādā). Sintētika pēc mērījumiem izdzēsta
+  (9 faili / 2,80 MB; paliek 4 Slam Jam paraugi).
+- Nemainīgi: `loop.py`, `checker_v2.py` un pārējie (hash salīdzinājums:
+  mainījušies tikai `workflow_v2.py`, `test_workflow_v2.py`; pievienots
+  `config.toml`); algoritmi, §3.2, §5 sliekšņi.
+- STĀVOKLIS: solis 4 pabeigts. Nākamais plānā: solis 5 (neatkarīgs
+  checker) — gaida lietotāja apstiprinājumu.

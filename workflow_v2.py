@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -53,7 +54,7 @@ from loop import (  # noqa: E402
     measure_shadow_angle,
 )
 
-WORKFLOW_VERSION = "2.2"
+WORKFLOW_VERSION = "2.3"
 TMP_SOFT = Path("/tmp/workflow_v2_soft")
 PROFILE_PATH = Path(OUT) / "grade_profile_v2.json"
 REPORT_PATH = Path(OUT) / "report_v2_maker.json"
@@ -61,6 +62,79 @@ CHECKER_REPORT_PATH = Path(OUT) / "report_v2.json"
 DELIVERY_REPORT_PATH = Path(OUT) / "delivery_v2.json"
 COLLAGE_PATH = Path(OUT) / "V2_KOLAZA.jpg"
 MODEL_PATH = Path("/var/tmp/rembg_home/models/isnet-general-use/isnet-general-use.onnx")
+
+# ---------------------------------------------------------------------------
+# Konfigurācija (solis 4): parametri dzīvo config.toml, specifikācija —
+# kodā. Sk. config.toml galveni un PROGRESS §59. Ielāde ir stingra:
+# nezināma atslēga, trūkstoša sekcija vai nepareizs tips = kļūda.
+# ---------------------------------------------------------------------------
+CONFIG_PATH = Path(__file__).resolve().parent / "config.toml"
+_CONFIG_SCHEMA: dict[str, dict[str, type]] = {
+    "run": {"closeup_proc_w": int, "png_level": int, "framing": str,
+            "wb_mode": str, "auto_closeup": bool, "auto_grabcut_iters": int},
+    "mask": {"silhouette_fill_min": float, "pad_retry": float,
+             "pad_overflow_limit": float, "pad_uncovered_limit": float,
+             "pad_tex_relaxed": float, "ai_qa_coverage_min": float,
+             "ai_qa_coverage_max": float, "ai_qa_largest_min": float,
+             "ai_qa_bbox_area_min": float, "ai_qa_bbox_w_min": float,
+             "ai_qa_bbox_h_min": float},
+    "plate": {"inner_min": float, "outer_max": float, "bg_inside_max": float,
+              "cover_min": float, "cover_max": float},
+    "decontam": {"max_px": int, "tex_ratio": float},
+    "grade": {"curve_blend": float, "highlight_knee": float,
+              "exposure_target": float, "exposure_min": float,
+              "exposure_max": float, "exposure_step": float,
+              "exposure_max_adjustments": int, "wb_chroma_max": float,
+              "wb_shrink": float, "gain_clip_min": float,
+              "gain_clip_max": float, "clipping_limit_pct": float,
+              "sharpen_radius": float, "sharpen_percent": int,
+              "sharpen_threshold": int},
+}
+_CONFIG_CHOICES = {("run", "framing"): ("auto", "slamjam", "original"),
+                   ("run", "wb_mode"): ("auto", "identity")}
+
+
+def load_config(path: Path = CONFIG_PATH) -> dict:
+    """Nolasa config.toml un validē pret shēmu. Nekādu klusu noklusējumu:
+    ja failā kaut kas nav kārtībā, kļūda pasaka precīzi, kas un kur."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Trūkst konfigurācijas faila: {path}")
+    with path.open("rb") as f:
+        raw = tomllib.load(f)
+    if raw.get("config_version") != 1:
+        raise ValueError(f"config_version jābūt 1, ir {raw.get('config_version')!r}")
+    unknown = set(raw) - {"config_version", *_CONFIG_SCHEMA}
+    if unknown:
+        raise ValueError(f"Nepazīstamas config sekcijas: {sorted(unknown)}")
+    cfg: dict = {"config_version": 1}
+    for section, fields in _CONFIG_SCHEMA.items():
+        if section not in raw:
+            raise ValueError(f"config trūkst sekcijas [{section}]")
+        got = raw[section]
+        extra = set(got) - set(fields)
+        missing = set(fields) - set(got)
+        if extra:
+            raise ValueError(f"[{section}] nepazīstamas atslēgas: {sorted(extra)}")
+        if missing:
+            raise ValueError(f"[{section}] trūkst atslēgu: {sorted(missing)}")
+        out: dict = {}
+        for key, typ in fields.items():
+            v = got[key]
+            if typ is float and isinstance(v, int) and not isinstance(v, bool):
+                v = float(v)  # TOML `2` float laukā ir pieņemams
+            if not isinstance(v, typ) or (typ is int and isinstance(v, bool)):
+                raise ValueError(f"[{section}].{key}: gaidīts {typ.__name__}, "
+                                 f"saņemts {type(v).__name__}")
+            choices = _CONFIG_CHOICES.get((section, key))
+            if choices is not None and v not in choices:
+                raise ValueError(f"[{section}].{key}: {v!r} nav {choices}")
+            out[key] = v
+        cfg[section] = out
+    return cfg
+
+
+CFG = load_config()
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +321,8 @@ def atomic_write_json(path: Path, obj) -> None:
 # vēsturiskā noklusējuma. Sk. PROGRESS §58.
 # ---------------------------------------------------------------------------
 MASK_PROVENANCE_VERSION = 1
-DECONTAM_PARAMS = {"max_px": 30, "tex_ratio": 0.45}  # = loop.decontaminate_rim noklusējumi
+DECONTAM_PARAMS = {"max_px": int(CFG["decontam"]["max_px"]),
+                   "tex_ratio": float(CFG["decontam"]["tex_ratio"])}
 
 
 def mask_provenance_path(mask_path) -> Path:
@@ -617,7 +692,7 @@ def run_isnet_auto(src: Path, plain_dst: Path, pad_dst: Path, pad: float,
     proc = subprocess.run(
         [sys.executable, __file__, "--isnet-auto",
          str(src), str(plain_dst), str(pad_dst), str(pad),
-         "1" if force else "0", str(PAD_TEX_RELAXED)],
+         "1" if force else "0", str(CFG["mask"]["pad_tex_relaxed"])],
         env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300,
     )
     wall = time.perf_counter() - t0
@@ -676,27 +751,26 @@ def _mask_stats(binary: np.ndarray) -> dict:
     }
 
 
-SILHOUETTE_FILL_MIN = 0.60
-
-
 def ai_mask_qa(soft: np.ndarray) -> dict:
-    """Noraida gadījumus, kad AI ir izvēlējies birku/apkakli, nevis apģērbu."""
+    """Noraida gadījumus, kad AI ir izvēlējies birku/apkakli, nevis apģērbu.
+    Robežas: config.toml [mask] (solis 4)."""
+    _M = CFG["mask"]
     q = _mask_stats((soft >= 128).astype(np.uint8))
     accept = bool(
-        0.15 <= q["coverage"] <= 0.65
-        and q["largest_component_ratio"] >= 0.95
-        and q["bbox_area_fraction"] >= 0.35
-        and q["bbox_fraction"][0] >= 0.45
-        and q["bbox_fraction"][1] >= 0.35
-        and q["silhouette_fill"] >= SILHOUETTE_FILL_MIN
+        _M["ai_qa_coverage_min"] <= q["coverage"] <= _M["ai_qa_coverage_max"]
+        and q["largest_component_ratio"] >= _M["ai_qa_largest_min"]
+        and q["bbox_area_fraction"] >= _M["ai_qa_bbox_area_min"]
+        and q["bbox_fraction"][0] >= _M["ai_qa_bbox_w_min"]
+        and q["bbox_fraction"][1] >= _M["ai_qa_bbox_h_min"]
+        and q["silhouette_fill"] >= _M["silhouette_fill_min"]
     )
     q.update(
         {
             "soft_uncertain_fraction": round(float(((soft > 16) & (soft < 240)).mean()), 4),
             "accept": accept,
             "reason": ("pilna silueta QA" if accept else
-                       (f"sadrumstalota siluete ({q['silhouette_fill']:.3f} < {SILHOUETTE_FILL_MIN})"
-                        if q["silhouette_fill"] < SILHOUETTE_FILL_MIN
+                       (f"sadrumstalota siluete ({q['silhouette_fill']:.3f} < {_M['silhouette_fill_min']})"
+                        if q["silhouette_fill"] < _M["silhouette_fill_min"]
                         else "iespējams izvēlēts tikai objekta fragments")),
         }
     )
@@ -711,10 +785,7 @@ def ai_mask_qa(soft: np.ndarray) -> dict:
 # 0.83-0.90. Bet apmale var arī pārplūst (gaišs audums uz gaiša papīra:
 # 0.8075 pret patiesību 0.62), tāpēc tā ir RETRY ar diviem aizsargiem,
 # nevis atsevišķs režīms. Sk. PAPIRA_NOPLUDES_QA.md 16.-17. sadaļu.
-PAD_RETRY = 0.90
-PAD_OVERFLOW_LIMIT = 0.02      # maskas daļa, kas ir acīmredzams papīrs
-PAD_UNCOVERED_LIMIT = 0.05     # audums, kas palicis ārpus maskas
-PAD_TEX_RELAXED = 2.5          # graudains kartons ~1.6; gluds fotopapīrs ~0.6
+# PAD_* vērtības: config.toml [mask] (solis 4).
 
 
 def paper_profile(img: Image.Image, tex_limit: float = 1.0, probe: dict | None = None):
@@ -787,11 +858,7 @@ def pad_guards(mask_bin: np.ndarray, prof, orig_size) -> dict:
 # mērījums: fons ir gluds (lokālais L* std ~2.8), audums ir teksturēts (~12.8).
 # Sk. `plate_segment.py`. Šis NAV otrais modeļa ceļš: masku dod izmērīts
 # signāls, un to pārbauda šī paša bloka QA, nevis modeļa pašapziņa.
-PLATE_INNER_MIN = 0.50      # iekšmalas tekstūra pret iekšpusi; zema = iekšā ir fons
-PLATE_OUTER_MAX = 0.60      # ārējās malas tekstūra pret iekšpusi; augsta = ārā ir audums
-PLATE_BG_INSIDE_MAX = 0.02  # fona-pikseļu daļa maskas iekšpusē
-PLATE_COVER_MIN = 0.25
-PLATE_COVER_MAX = 0.95
+# PLATE_* vērtības: config.toml [plate] (solis 4).
 
 
 def plate_mask(orig: Image.Image) -> tuple[np.ndarray, dict]:
@@ -842,15 +909,16 @@ def plate_mask(orig: Image.Image) -> tuple[np.ndarray, dict]:
         "bg_med_E": float(info["bg_med"]) if info.get("bg_med") is not None else None,
         "fg_med_E": float(info["fg_med"]) if info.get("fg_med") is not None else None,
     }
+    _P = CFG["plate"]
     reasons = []
-    if not (PLATE_COVER_MIN <= hover <= PLATE_COVER_MAX):
-        reasons.append(f"segums {hover:.3f} ārpus {PLATE_COVER_MIN}-{PLATE_COVER_MAX}")
-    if inner_ratio < PLATE_INNER_MIN:
-        reasons.append(f"iekšmalā fons (attiecība {inner_ratio:.3f} < {PLATE_INNER_MIN})")
-    if outer_ratio > PLATE_OUTER_MAX:
-        reasons.append(f"ārpusē audums (attiecība {outer_ratio:.3f} > {PLATE_OUTER_MAX})")
-    if bg_inside > PLATE_BG_INSIDE_MAX:
-        reasons.append(f"fons maskas iekšpusē {bg_inside:.3f} > {PLATE_BG_INSIDE_MAX}")
+    if not (_P["cover_min"] <= hover <= _P["cover_max"]):
+        reasons.append(f"segums {hover:.3f} ārpus {_P['cover_min']}-{_P['cover_max']}")
+    if inner_ratio < _P["inner_min"]:
+        reasons.append(f"iekšmalā fons (attiecība {inner_ratio:.3f} < {_P['inner_min']})")
+    if outer_ratio > _P["outer_max"]:
+        reasons.append(f"ārpusē audums (attiecība {outer_ratio:.3f} > {_P['outer_max']})")
+    if bg_inside > _P["bg_inside_max"]:
+        reasons.append(f"fons maskas iekšpusē {bg_inside:.3f} > {_P['bg_inside_max']}")
     qa["accept"] = not reasons
     qa["reason"] = "; ".join(reasons) if reasons else "plāksnes tekstūras QA"
     qa["seconds"] = round(time.perf_counter() - t, 2)
@@ -859,8 +927,10 @@ def plate_mask(orig: Image.Image) -> tuple[np.ndarray, dict]:
     return binary, qa
 
 
-def isnet_padded_mask(orig: Image.Image, paper_rgb, pad: float = PAD_RETRY) -> np.ndarray:
+def isnet_padded_mask(orig: Image.Image, paper_rgb, pad: float | None = None) -> np.ndarray:
     """ISNet uz papīra-konteksta audekla; atgriež masku oriģināla izmērā."""
+    if pad is None:
+        pad = float(CFG["mask"]["pad_retry"])
     W, H = orig.size
     pw, ph = fit_size(W, H, 768, 1024)
     C = 768
@@ -1233,29 +1303,33 @@ def compute_grade_profile(records: list[dict], wb_mode: str = "auto") -> dict:
     # Baltā bilance no brūnas virsmas atņem no zilā auduma 4.9 b* vienības —
     # tieši to parādīja šī komplekta pirmā bilde.
     fbg = srgb_to_linear(bg_median)
+    _G = CFG["grade"]  # visi grade parametri: config.toml [grade] (solis 4)
     bg_chroma = float(np.max(fbg) - np.min(fbg)) / max(float(np.mean(fbg)), 1e-6)
-    wb_trusted = bool(bg_chroma <= 0.18)
+    wb_trusted = bool(bg_chroma <= _G["wb_chroma_max"])
     wb_note = ("fons ir neitrāls -> WB no fona" if wb_trusted else
-               f"fons ir krāsains (hroma {bg_chroma:.2f} > 0.18) -> WB neitrāla, "
+               f"fons ir krāsains (hroma {bg_chroma:.2f} > {_G['wb_chroma_max']}) -> WB neitrāla, "
                "citādi audums iegūst viltus aukstumu")
     bg_linear = srgb_to_linear(bg_median)
     gains = float(bg_linear.mean()) / np.maximum(bg_linear, 1e-9)
     gains = gains / gains[1]
-    gains = np.exp(np.log(np.maximum(gains, 1e-9)) * 0.62)
-    gains = np.clip(gains, 0.88, 1.14)
+    gains = np.exp(np.log(np.maximum(gains, 1e-9)) * _G["wb_shrink"])
+    gains = np.clip(gains, _G["gain_clip_min"], _G["gain_clip_max"])
     if wb_mode == "identity" or not wb_trusted:
         gains = np.ones(3, np.float64)
 
     p99 = float(np.median(garment_p99)) if garment_p99 else 240.0
     p50 = float(np.median(garment_p50)) if garment_p50 else 180.0
-    exposure = float(np.clip(248.0 / max(p99, 1.0), 0.99, 1.06))
-    curve_blend = 0.18
-    highlight_knee = 0.86
+    exposure = float(np.clip(_G["exposure_target"] / max(p99, 1.0),
+                             _G["exposure_min"], _G["exposure_max"]))
+    curve_blend = _G["curve_blend"]
+    highlight_knee = _G["highlight_knee"]
     lut = build_lut(gains, exposure, curve_blend, highlight_knee)
     clipping = _sample_clipping(core_samples, lut)
     adjustments = 0
-    while clipping and max(clipping.values()) > 1.5 and exposure > 0.99 and adjustments < 6:
-        exposure = max(0.99, exposure - 0.01)
+    while (clipping and max(clipping.values()) > _G["clipping_limit_pct"]
+           and exposure > _G["exposure_min"]
+           and adjustments < _G["exposure_max_adjustments"]):
+        exposure = max(_G["exposure_min"], exposure - _G["exposure_step"])
         lut = build_lut(gains, exposure, curve_blend, highlight_knee)
         clipping = _sample_clipping(core_samples, lut)
         adjustments += 1
@@ -1274,7 +1348,9 @@ def compute_grade_profile(records: list[dict], wb_mode: str = "auto") -> dict:
         "sample_clipped_core_pct": clipping,
         "highlight_rolloff_knee": highlight_knee,
         "contrast_smoothstep_blend": curve_blend,
-        "output_sharpen": {"radius": 1.4, "percent": 25, "threshold": 3},
+        "output_sharpen": {"radius": _G["sharpen_radius"],
+                           "percent": _G["sharpen_percent"],
+                           "threshold": _G["sharpen_threshold"]},
         "lut_rgb": [list(map(int, row)) for row in lut],
     }
 
@@ -1582,6 +1658,70 @@ def _summary(records: list[dict]) -> dict:
     }
 
 
+_RUN_META: dict = {}
+
+
+def _resolve_args(args, cfg: dict | None = None):
+    """CLI parametru noklusējumi (None) -> vērtības no config [run].
+    Eksplicīti padoti karogi vienmēr uzvar (CLI > config)."""
+    run = (cfg or CFG)["run"]
+    if args.closeup_proc_w is None:
+        args.closeup_proc_w = int(run["closeup_proc_w"])
+    if args.png_level is None:
+        args.png_level = int(run["png_level"])
+    if args.framing is None:
+        args.framing = str(run["framing"])
+    if args.wb_mode is None:
+        args.wb_mode = str(run["wb_mode"])
+    if args.auto_closeup is None:
+        args.auto_closeup = bool(run["auto_closeup"])
+    if args.auto_grabcut_iters is None:
+        args.auto_grabcut_iters = int(run["auto_grabcut_iters"])
+    return args
+
+
+def _effective_config(args, cfg: dict | None = None) -> dict:
+    """Efektīvā konfigurācija šai palaišanai: config + CLI pārraksti."""
+    eff = json.loads(json.dumps(cfg or CFG))
+    eff["run"].update({
+        "closeup_proc_w": args.closeup_proc_w,
+        "png_level": args.png_level,
+        "framing": args.framing,
+        "wb_mode": args.wb_mode,
+        "auto_closeup": bool(args.auto_closeup),
+        "auto_grabcut_iters": args.auto_grabcut_iters,
+    })
+    return eff
+
+
+def _config_sha256(eff: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(eff, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def _code_commit() -> str:
+    """Git HEAD šim repozitorijam; '-dirty', ja ir neiekomitētas izmaiņas.
+    Bez repozitorija/git: 'unknown' (nekad nekrīt dēļ atskaites lauka)."""
+    try:
+        here = Path(__file__).resolve().parent
+        sha = subprocess.run(["git", "-C", str(here), "rev-parse", "HEAD"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+        if not sha:
+            return "unknown"
+        dirty = subprocess.run(["git", "-C", str(here), "status", "--porcelain"],
+                               capture_output=True, text=True, timeout=10).stdout.strip()
+        return sha + ("-dirty" if dirty else "")
+    except Exception:
+        return "unknown"
+
+
+def _set_run_meta(args) -> None:
+    eff = _effective_config(args)
+    _RUN_META.update({"code_commit": _code_commit(), "config": eff,
+                      "config_sha256": _config_sha256(eff)})
+
+
 def _persist_report(records: list[dict], attempt: int, stage: str,
                     profile_s: float | None = None, collage_path: str | None = None,
                     collage_s: float | None = None) -> dict:
@@ -1607,6 +1747,9 @@ def _persist_report(records: list[dict], attempt: int, stage: str,
         "attempt": attempt,
         "workflow": "v2_ai_first_hybrid",
         "workflow_version": WORKFLOW_VERSION,
+        "code_commit": _RUN_META.get("code_commit"),
+        "config_sha256": _RUN_META.get("config_sha256"),
+        "config": _RUN_META.get("config"),
         "stage": stage,
         "target_seconds_per_image": 20,
         "grade_profile": str(PROFILE_PATH),
@@ -1627,20 +1770,23 @@ def main() -> int:
     ap.add_argument("--rotate", nargs="*", default=[],
                     help="bezspaudiena 90° soļu pagriešana: STEM:90|180|270 (grādi pulksteņrādītāja virzienā) vai STEM:cw/ccw; šķērsām gulošu apģērbu novieto vertikāli")
     ap.add_argument("--attempt", type=int, default=1)
-    ap.add_argument("--closeup-proc-w", type=int, default=768)
-    ap.add_argument("--png-level", type=int, choices=range(10), default=1)
-    ap.add_argument("--framing", choices=["auto", "slamjam", "original"], default="auto",
+    ap.add_argument("--closeup-proc-w", type=int, default=None,
+                    help="noklusējums: config [run].closeup_proc_w")
+    ap.add_argument("--png-level", type=int, choices=range(10), default=None,
+                    help="noklusējums: config [run].png_level")
+    ap.add_argument("--framing", choices=["auto", "slamjam", "original"], default=None,
                     help="slamjam = produkta kadrs ar fona malām (prasa, lai krekls avotā "
                          "būtu pilnībā kadrā); original = kadrs kā nofotografēts; "
                          "auto = slamjam, ja siluets slēgts, citādi original (noklusējums)")
     ap.add_argument("--resume", action="store_true", help="izmantot jau derīgas maskas no iepriekšējās atskaites, ja SHA-256 sakrīt")
     ap.add_argument("--rerender-saved", action="store_true", help="neveido maskas; pārrēķina profilu un pārrenderē no output/masks")
-    ap.add_argument("--auto-closeup", action=argparse.BooleanOptionalAction, default=True,
+    ap.add_argument("--auto-closeup", action=argparse.BooleanOptionalAction, default=None,
                     help="jaunam tuvplānam mēģināt automātiski ģenerētas GrabCut sēklas")
-    ap.add_argument("--auto-grabcut-iters", type=int, default=5)
+    ap.add_argument("--auto-grabcut-iters", type=int, default=None,
+                    help="noklusējums: config [run].auto_grabcut_iters")
     ap.add_argument("--pad", type=float, default=None,
-                    help="apmales retry pad (noklusējums PAD_RETRY=0.90); lieto loop_engine remēdijas")
-    ap.add_argument("--wb-mode", choices=("auto", "identity"), default="auto",
+                    help="apmales retry pad (noklusējums: config [mask].pad_retry); lieto loop_engine remēdijas")
+    ap.add_argument("--wb-mode", choices=("auto", "identity"), default=None,
                     help="auto = baltā bilance no fona (kā līdz šim); identity = neitrāla, "
                          "ja fons nav uzticams pelēkais etalons")
     ap.add_argument("--overrides", default="",
@@ -1668,6 +1814,8 @@ def main() -> int:
             print(f"Nevar nolasīt --overrides: {exc}", flush=True)
     ROTATIONS_CW.update(parse_rotations(args.rotate))
     NO_DECONTAM.update(str(x).strip() for x in (args.no_decontam or []) if str(x).strip())
+    _resolve_args(args)
+    _set_run_meta(args)
     if args.isnet_worker:
         return isnet_worker(args.isnet_worker[0], args.isnet_worker[1])
     if args.isnet_auto:
@@ -1796,7 +1944,7 @@ def main() -> int:
             soft_path = TMP_SOFT / f"{stem}_{source_sha[:10]}_isnet_soft.png"
             pad_path = TMP_SOFT / f"{stem}_{source_sha[:10]}_isnet_pad.png"
             ov = args.overrides_map.get(stem, {})
-            pad_value = ov.get("pad") or args.pad or PAD_RETRY
+            pad_value = ov.get("pad") or args.pad or CFG["mask"]["pad_retry"]
             force_here = bool(ov.get("force_pad_retry", args.force_pad_retry))
 
             # VIENS apakšprocess: imports + modeļa ielāde reizi, abi piegājieni turpat.
@@ -1851,9 +1999,9 @@ def main() -> int:
                     }
                     ok = (pad_qa.get("accept")
                           and guards["overflow"] is not None
-                          and guards["overflow"] <= PAD_OVERFLOW_LIMIT
+                          and guards["overflow"] <= CFG["mask"]["pad_overflow_limit"]
                           and guards["uncovered"] is not None
-                          and guards["uncovered"] <= PAD_UNCOVERED_LIMIT)
+                          and guards["uncovered"] <= CFG["mask"]["pad_uncovered_limit"])
                     retry_info["accept"] = bool(ok)
                     retry_info_probe = retry_info
                     if ok:
@@ -1869,9 +2017,9 @@ def main() -> int:
                         why = []
                         if not pad_qa.get("accept"):
                             why.append(f"QA: {pad_qa.get('reason')}")
-                        if guards["overflow"] is not None and guards["overflow"] > PAD_OVERFLOW_LIMIT:
+                        if guards["overflow"] is not None and guards["overflow"] > CFG["mask"]["pad_overflow_limit"]:
                             why.append(f"pārplūde {guards['overflow']}")
-                        if guards["uncovered"] is not None and guards["uncovered"] > PAD_UNCOVERED_LIMIT:
+                        if guards["uncovered"] is not None and guards["uncovered"] > CFG["mask"]["pad_uncovered_limit"]:
                             why.append(f"nepārklāts audums {guards['uncovered']}")
                         print(f"  apmales retry noraidīts: {'; '.join(why)}", flush=True)
                     del m_pad

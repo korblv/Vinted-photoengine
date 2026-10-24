@@ -1,0 +1,59 @@
+# Workflow v2 konfigurācija (produkcijas refaktors, solis 4, PROGRESS §59).
+#
+# Šeit dzīvo PARAMETRI — vērtības, ko drīkst mainīt kalibrēšana/palaišana.
+# SPECIFIKĀCIJA apzināti paliek kodā un testu sardzē: audekls 2000x2500,
+# fons #F3F3F3 (243), visi checker pieņemšanas vārti (00 dokuments, §5).
+# Vārtu slieksni nedrīkst atvieglot, rediģējot šo failu.
+#
+# Prioritāte: CLI arguments > šis fails. Nezināma atslēga vai nepareizs
+# tips = kļūda pie ielādes (nekādu klusu noklusējumu).
+config_version = 1
+
+[run]
+closeup_proc_w = 768
+png_level = 1
+framing = "auto"          # auto | slamjam | original
+wb_mode = "auto"          # auto | identity
+auto_closeup = true
+auto_grabcut_iters = 5
+
+[mask]
+silhouette_fill_min = 0.60
+pad_retry = 0.90
+pad_overflow_limit = 0.02   # maskas daļa, kas ir acīmredzams papīrs
+pad_uncovered_limit = 0.05  # audums, kas palicis ārpus maskas
+pad_tex_relaxed = 2.5       # graudains kartons ~1.6; gluds fotopapīrs ~0.6
+ai_qa_coverage_min = 0.15
+ai_qa_coverage_max = 0.65
+ai_qa_largest_min = 0.95
+ai_qa_bbox_area_min = 0.35
+ai_qa_bbox_w_min = 0.45
+ai_qa_bbox_h_min = 0.35
+
+[plate]
+inner_min = 0.50      # iekšmalas tekstūra pret iekšpusi; zema = iekšā ir fons
+outer_max = 0.60      # ārējās malas tekstūra pret iekšpusi; augsta = ārā ir audums
+bg_inside_max = 0.02  # fona-pikseļu daļa maskas iekšpusē
+cover_min = 0.25
+cover_max = 0.95
+
+[decontam]
+max_px = 30
+tex_ratio = 0.45
+
+[grade]
+curve_blend = 0.18
+highlight_knee = 0.86
+exposure_target = 248.0
+exposure_min = 0.99
+exposure_max = 1.06
+exposure_step = 0.01
+exposure_max_adjustments = 6
+wb_chroma_max = 0.18
+wb_shrink = 0.62
+gain_clip_min = 0.88
+gain_clip_max = 1.14
+clipping_limit_pct = 1.5
+sharpen_radius = 1.4
+sharpen_percent = 25
+sharpen_threshold = 3
