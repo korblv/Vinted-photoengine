@@ -2108,3 +2108,37 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   Telegram kanāli lasāmi caur t.me/s priekšskatījumiem.
 - Nākamie soļi pēc lietotāja izvēles: kāds no E8–E13 eksperimenta prototipiem
   (§3 kārtība: mērījums -> poga -> solis) vai nākamā bilžu grupa pēc §3.1.
+
+### §84 E8 eksperiments: OKLab pret CIE Lab tumšajai zonai — NAV pierādīts (2026-10-24)
+- Lietotāja izvēle (poga): E8. Skripts `tmp_id/e8_oklab.py` (gitignored),
+  rezultāti `tmp_id/e8_oklab.json`. Ražošanas kods nemainīts.
+- Metode: īstie tumšie centri no `report_v2_maker.json` (122248, 122109) +
+  2 sintētiski pāri; ap centriem fizikāli mākoņi (ēnojums lineārā sRGB ->
+  8 bitu troksnis/kvantizācija); abas telpas apstrādā TOS PAŠUS pikseļus
+  ar ražošanas `_median_cut_palette` (k=4, attīrīšana >=8.0). Konversiju
+  apaļā ceļa pārbaude: max 0.70 dE. 2 grūtības līmeņi.
+- Mērījumi (bāzes līmenis): 122248 — Lab M2 9.45/8.02, M3(testa kļūda)
+  0.0000, M5 līcis 0.668; OKLab M2 4.56/3.81, M3 0.0002, M5 0.906.
+  122109 — Lab M3 0.0036; OKLab M3 0.0003, bet M2 1.40/2.87 pret Lab
+  4.97/7.34. S1: OKLab attīrīšanā zaudē visus centrus; S2: abas telpas
+  sevi izslēdz (krāsas tiešām neatdalāmas).
+- **Spriedums pēc iepriekš fiksētā kritērija: OKLab NAV pierādīts**
+  (M3 uz 122248 nav mazāka: 0.0002 > 0.0000; M2 visos gadījumos sliktāka).
+  Kritēriju pēc fakta nemaina.
+- **Metodoloģiska pašpiezīme (kļūda manā dizainā):** vieni un tie paši
+  krāsu pāri Lab76 dod ~2.5x lielākus attālumus nekā OKLab x100
+  (M1 pirms attīrīšanas: 15.59 pret 6.19; 10.21 pret 4.06) — Lab tumšās
+  atšķirības "izstiepj". Tāpēc ražošanas absolūtie sliekšņi (attīrīšana
+  8.0, lauks 5.0) OKLab telpā ir nesamērojami bargāki: attīrīšana nogāza
+  2 no 4 FG centriem (122248) un visus (S1), kas piesārņo M2/M4 un daļēji
+  M3. M4 (|lauks|<5) vispār nav salīdzināms starp dažādi skalātām telpām.
+- **Vienīgais no skalas neatkarīgais signāls par labu OKLab:** izmērītais
+  līča pikselis [6.5,3.2,2.6] Lab telpā ir tuvāk apģērbam (attiecība
+  0.67/0.71 — tieši ražošanas kļūme), OKLab — 0.91 (bāze) un 1.13
+  (grūts; faktiski tuvāk fonam). Ierobežojums: sintētiskie mākoņi ir
+  tīrāki par īstajām sēklām (sintētika M2 9.45 pret īsto 3.90), tāpēc
+  der tikai relatīvais salīdzinājums.
+- Godīgs turpinājums būtu E8b ar sliekšņu kalibrēšanu katrai telpai
+  (piem., attīrīšanas slieksni piesiet klases iekšējiem attālumiem vai
+  skalas koeficientam ~2.5) un TĀDIEM PAŠIEM uzvaras kritērijiem —
+  tikai ar lietotāja lēmumu. Bez tā OKLab ražošanā neieliek.

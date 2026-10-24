@@ -216,6 +216,15 @@ krāsu", fizikāli — viena krāsa + gaisma. Plus biznesa risks (N9).
   (min. savstarpējais attālums, sēklu malu attiecība) Lab pret
   OKLab uz sintētikas un §77 izmērītajiem centriem. Pieņemt tikai
   ar skaitli un tikai tumšajai zonai (bool config slēdzis).
+  **E8 veikts 2026-10-24 (§84): NAV pierādīts** — ar ražošanas
+  sliekšņiem 1:1 OKLab sēklu robežas attiecības visos gadījumos
+  sliktākas, testa kļūda uz 122248 nav mazāka. Bet eksperiments
+  atklāja skalas faktu: Lab76 tumšos attālumus dod ~2.5x lielākus
+  nekā OKLab x100, tāpēc absolūtie sliekšņi nav pārvietojami
+  (attīrīšana OKLab nogāza pusi centru). Līča pikselis — vienīgais
+  skalas-neatkarīgais tests — OKLab telpā pārvietojas pareizā
+  virzienā (0.67->0.91/1.13). Kandidāts **E8b**: tas pats tests ar
+  katrai telpai kalibrētiem sliekšņiem, tie paši uzvaras kritēriji.
 
 ### N2 — Guided filter / joint upsampling malām
 - Guided filter (He, Sun, Tang): lokāli lineārs modelis q=aI+b,
