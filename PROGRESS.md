@@ -2362,3 +2362,15 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   pārnest no prozas koda līmenī. Ražošanas kods nemainīts.
 - Lejupielādes paliek /var/tmp/yt (video 59 MB, kadri, transkripts) -
   ārpus darba mapes krātuves.
+
+### §93 Jauna grupa: Uniqlo Henley (balts vafeļadījums) — inventārs (2026-10-24)
+- Pēc §3.1: inventarizētas 5 bildes `uploads/MVIMG_20261020_*.jpg`,
+  visas 3072x4096: `160538` (pilns priekšskats) sha256 `dd04e56e...`,
+  `160550` (apkakle/pogas) `43065fda...`, `160601` (pogu aile slīpi)
+  `fa66e706...`, `160608` (izmēra birka L) `d0b4809f...`, `160645`
+  (kopšanas birka 60/40 kokvilna/poliesters) `c548a367...`.
+- Fons: gaiši pelēks papīrs (ražotnes mājas gadījums). Apģērbs:
+  balts/krēmkrāsas termālais vafeļadījums - §91 caurspīdīguma
+  pārbaude: NAV tilla/sieta paneļu, neattiecas.
+- Lietotāja poga: "Jā, šīs ir visas - sākt apstrādi."
+- Krātuve pirms: uploads 47 225 059 B; kopā ~60.1 MB.
