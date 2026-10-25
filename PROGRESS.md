@@ -3211,3 +3211,8 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Testi: **122/122 OK** (+1 regresijas). Renderi pēc mērījuma
   dzēsti (atkārtoti ģenerējami ar tmp_id/test_zones_other_types.py).
   Maker/checker/ZIP integrācija joprojām nākamais solis.
+- Lietotāja lēmums ar pogu: nākamais tests **uz īstās telefona
+  grupas** — gaida jaunos kadrus (ieskaitot pārfotografēto 160601);
+  tajā testēs gan zonu priekšlikumu, gan visu plūsmu reālā
+  materiālā. Pirms jebkāda maker attempt: inventārs + §91
+  caurspīdīgums + `setup_v2.py --check`.
