@@ -2694,3 +2694,29 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Nākamais pēc pogas: ieviest ražošanā kā posmu pirms Q trigera
   (config reclaim_*, testi, Attempt 8 validācija ar īsto ķēdi).
   Krātuve: /home/user 130644607 B.
+
+### §105 Prototips v2-v4: audzēšana ar histerēzi — svītras izmērītas un aizvērtas (2026-10-24)
+
+- Lietotājs ar ekrānšāviņu (uploads/IMG_20261025_063556.jpg) iezīmēja
+  §104 kompozītā palikušās svītras, kurās spīd fons (kreisā apakša +
+  apakšmala). Atlikuma (33 086 px pret plate) atribūcija izmērīta:
+  58% nav aizvēršanas zonā (maskas robeža iet caur audumu — nav
+  "līča"), 40% zonā, bet tekstūra zem sliekšņa (mediāna 3.10 pret
+  3.19), komponentu filtrs nebūtisks.
+- v2 audzēšana (ģeodēziska dilatācija no FG caur tex>=lo, L*
+  tekstūra 1:4): zaudētais 375k -> 11 825, bet kontroles kadrā
+  160538 noplūde +361 534 px (7.3%) — apģērba ēnas maliņa uz papīra
+  gar visu siluetu (pārklājums tmp_id/bench/reclaim2_diff_160538.jpg).
+- v3 virzienu sargs (FG >=2 virzienos 15 ds px): 160538 -> 143 580,
+  160550 zaud. 21 162. Diagonālas malas sargu daļēji apiet.
+- v4 divu līmeņu zona (aizvēršanas zonā vājais slieksnis, ārpus tās
+  stiprais 0.5x auduma + virzienu sargs): **160550 zaud. 21 483,
+  liekie pret plate tikai +7 565, Q=0.029%, noplūde virs apģērba 0**;
+  kompozīts reclaim2_comp_160550.jpg — lietotāja svītras aizvērtas,
+  apkakle vesela. Kontroles: 160601 +0.28%, 160538 +2.0% (joprojām
+  augtu) — tāpēc ražošanas vieta ir TIKAI Q trigera iekšienē kā
+  pirmais līdzeklis (pirms plate), ar pieņemšanu tikai ja
+  Q pēc <= trigeris; labiem kadriem nekad nepalaižas.
+- Atlikušais risks (godīgi): Q-sliktam pilnkadra kadram maliņas
+  noplūde iespējama; to ierobežo Q pieņemšanas pārbaude un GATE_E.
+  Prototipa bāze joprojām atjaunota (§104 atruna). Krātuve: 131734771 B.
