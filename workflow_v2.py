@@ -99,7 +99,8 @@ from engine.masks import (  # noqa: E402,F401
     TMP_SOFT, _mask_polygons, _mask_stats, ai_mask_qa, closeup_mask_qa,
     isnet_auto_worker, isnet_padded_mask, isnet_worker, pad_guards,
     lost_fabric_metric, paper_profile, plan_closeup_crop, plate_mask,
-    repair_interior_holes, run_isnet, run_isnet_auto, save_seed_proposal,
+    reclaim_inlets, repair_interior_holes, run_isnet, run_isnet_auto,
+    save_seed_proposal,
 )
 
 
@@ -186,6 +187,19 @@ def _selected_files(args) -> list[str]:
         files = [f for f in files if args.only in f]
     return files
 
+
+def choose_candidate(options):
+    """Kandidātu izvēle Q trigerī (§109): starp strukturāli pieņemtajiem
+    izvēlas mazāko zaudētā auduma % (lost_fabric_metric); neizšķirtā
+    priekšroka union > current > plate — union pēc konstrukcijas
+    nezaudē neko pret nevienu no abiem kandidātiem.
+    options: [(name, q_pct | None, struct_accept), ...]."""
+    rank = {"union": 0, "current": 1, "plate": 2}
+    ok = [(q, rank.get(name, 9), name) for name, q, acc in options
+          if acc and q is not None]
+    if not ok:
+        return "current"
+    return min(ok)[2]
 
 
 def main() -> int:
@@ -624,7 +638,39 @@ def main() -> int:
                           f"zaudētais audums={q_pct}%",
                           flush=True)
                     adopted = False
+                    if q_bad:
+                        # Pirmais līdzeklis (§108): atgūt līčus pašā
+                        # kandidātā, nevis mest to ārā — kandidāta labās
+                        # daļas (piem., apkakle) saglabājas. Pieņem tikai
+                        # tad, ja Q pēc atgūšanas iztur trigeri.
+                        t = time.perf_counter()
+                        rec_bin, rec_info = reclaim_inlets(binary, orig)
+                        fallback_s += time.perf_counter() - t
+                        q_info["reclaim"] = rec_info
+                        if rec_info.get("reclaimed_px"):
+                            q_rec = lost_fabric_metric(rec_bin, orig)
+                            q_info["reclaim_q"] = q_rec
+                            if (q_rec.get("lost_fabric_pct") is not None
+                                    and q_rec["lost_fabric_pct"]
+                                    <= float(CFG["mask"]["q_trigger_pct"])
+                                    and q_rec["lost_fabric_pct"] < q_pct):
+                                binary = rec_bin
+                                adopted = True
+                                print(f"  līču atgūšana pieņemta: "
+                                      f"+{rec_info['reclaimed_px']} px, "
+                                      f"Q {q_pct}% -> "
+                                      f"{q_rec['lost_fabric_pct']}%",
+                                      flush=True)
+                        if not adopted:
+                            print("  līču atgūšana Q neizlaboja "
+                                  "pietiekami", flush=True)
+                        del rec_bin
                     if q_bad and method != "plate_texture":
+                        # Plate vērtē arī tad, ja atgūšana jau pieņemta:
+                        # Q metrika neredz PLATUS zaudējumus (līcis
+                        # 154k px §108), kurus plate sedz; kandidātu
+                        # izvēle (current/plate/union) izlemj pēc Q ar
+                        # union priekšroku neizšķirtā (§109).
                         t = time.perf_counter()
                         p_bin, p_qa = plate_mask(orig)
                         fallback_s += time.perf_counter() - t
@@ -632,8 +678,30 @@ def main() -> int:
                         if p_qa.get("accept"):
                             q_plate = lost_fabric_metric(p_bin, orig)
                             q_info["plate"] = q_plate
-                            if (q_plate.get("lost_fabric_pct") is not None
-                                    and q_plate["lost_fabric_pct"] < q_pct):
+                            uni_bin = ((binary > 0)
+                                       | (p_bin > 0)).astype(np.uint8)
+                            q_uni = lost_fabric_metric(uni_bin, orig)
+                            q_info["union"] = q_uni
+                            q_cur = q_info.get(
+                                "reclaim_q", {}).get("lost_fabric_pct", q_pct)
+                            choice = choose_candidate([
+                                ("current", q_cur, True),
+                                ("plate", q_plate.get("lost_fabric_pct"),
+                                 structural_qa(p_bin)["accept"]),
+                                ("union", q_uni.get("lost_fabric_pct"),
+                                 structural_qa(uni_bin)["accept"]),
+                            ])
+                            q_info["chosen"] = choice
+                            if choice == "union":
+                                binary = uni_bin
+                                method = f"{method}+plate_union"
+                                plate_info = p_qa
+                                adopted = True
+                                print(f"  union ar plate pieņemts: "
+                                      f"Q {q_cur}% -> "
+                                      f"{q_uni['lost_fabric_pct']}%",
+                                      flush=True)
+                            elif choice == "plate":
                                 binary = p_bin
                                 method = "plate_texture"
                                 plate_info = p_qa
@@ -642,8 +710,9 @@ def main() -> int:
                                       f"zaudētais {q_pct}% -> "
                                       f"{q_plate['lost_fabric_pct']}%",
                                       flush=True)
+                            del uni_bin
                         if not adopted:
-                            print("  plate Q trigerī nepalīdzēja "
+                            print("  plate/union Q trigerī nepalīdzēja "
                                   f"({p_qa.get('reason')})", flush=True)
                         del p_bin
                     if not adopted:

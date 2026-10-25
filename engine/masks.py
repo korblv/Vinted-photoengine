@@ -1065,3 +1065,138 @@ def lost_fabric_metric(binary: np.ndarray, orig: Image.Image) -> dict:
                tex_threshold=round(thr, 2),
                seconds=round(time.perf_counter() - t0, 3))
     return out
+
+
+def reclaim_inlets(binary: np.ndarray,
+                   orig: Image.Image) -> tuple[np.ndarray, dict]:
+    """Atgūst audumu, ko kandidāta maska pazaudējusi līčos un ieleju
+    kanālos gar robežu (PROGRESS §104-§108): ģeodēziska audzēšana no
+    FG caur teksturētiem pikseļiem samazinātā mērogā ar divu līmeņu
+    slieksni (aizvēršanas zonā vājais, ārpus tās stiprais + audums
+    vismaz 2 virzienos pret ēnas maliņas noplūdi), tad silueta
+    iekšpuses aizvēršana pilnā izšķirtspējā (ieleju dibenu
+    mikrosegmenti) un kadra malas josla (audums iziet no kadra,
+    sprauga <= reclaim_band_px). Drošības vāks: atgūtais kopā
+    <= reclaim_max_frac no FG, citādi atgriež ieeju nemainītu.
+    Parametri: config.toml [mask] reclaim_*.
+    Atgriež (binary, info)."""
+    from scipy import ndimage
+
+    from paper_leak import lab_chunked, measure_paper_colour, texture_map
+
+    t0 = time.perf_counter()
+    C = CFG["mask"]
+    info: dict = {"reclaimed_px": 0, "seconds": 0.0}
+    m = binary > 0
+    if not m.any():
+        info["seconds"] = round(time.perf_counter() - t0, 3)
+        return binary, info
+    ds = int(C["reclaim_ds"])
+    rgb = np.asarray(orig.convert("RGB"))
+    lab = lab_chunked(rgb)
+    Lds = cv2.resize(lab[..., 0], None, fx=1.0 / ds, fy=1.0 / ds,
+                     interpolation=cv2.INTER_AREA)
+    tex_s = texture_map(Lds, 5)
+    fg = cv2.resize(m.astype(np.float32), (Lds.shape[1], Lds.shape[0]),
+                    interpolation=cv2.INTER_AREA) > 0.5
+    if int(fg.sum()) < 100:
+        info["seconds"] = round(time.perf_counter() - t0, 3)
+        return binary, info
+    bg_lab, _ = ndimage.label(~fg)
+    bords = (set(bg_lab[0].tolist()) | set(bg_lab[-1].tolist())
+             | set(bg_lab[:, 0].tolist()) | set(bg_lab[:, -1].tolist()))
+    bords.discard(0)
+    outer = np.isin(bg_lab, list(bords)) if bords else np.zeros_like(fg)
+    plab = np.array(measure_paper_colour(orig)["lab"], np.float32)
+    lab_ds = cv2.resize(lab, (Lds.shape[1], Lds.shape[0]),
+                        interpolation=cv2.INTER_AREA)
+    E_ds = np.linalg.norm(lab_ds - plab, axis=2)
+    bg_ref = outer & (E_ds < float(C["reclaim_bg_E"]))
+    tex_bg = float(np.median(tex_s[bg_ref])) if int(bg_ref.sum()) >= 50 \
+        else float(np.median(tex_s[outer]))
+    core = ndimage.binary_erosion(fg, iterations=3)
+    tex_fg = float(np.median(tex_s[core])) if core.any() \
+        else float(np.median(tex_s[fg]))
+    lo = max(float(C["reclaim_tex_bg_ratio"]) * tex_bg,
+             tex_bg + float(C["reclaim_tex_bg_abs"]),
+             float(C["reclaim_tex_lo_fg_ratio"]) * tex_fg,
+             float(C["reclaim_tex_min"]))
+    hi = max(float(C["reclaim_tex_hi_ratio"]) * tex_fg, lo)
+    info.update(tex_bg=round(tex_bg, 2), tex_fg=round(tex_fg, 2),
+                tex_lo=round(lo, 2), tex_hi=round(hi, 2))
+
+    dist = ndimage.distance_transform_edt(~fg)
+    r_close = int(C["reclaim_close_r_ds"])
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                    (2 * r_close + 1, 2 * r_close + 1))
+    in_close = cv2.morphologyEx(fg.astype(np.uint8), cv2.MORPH_CLOSE,
+                                ker) > 0
+    D = int(C["reclaim_dir_dist_ds"])
+    dirs = np.zeros(fg.shape, np.uint8)
+    for ax, sgn in ((1, 1), (1, -1), (0, 1), (0, -1)):
+        accd = np.zeros_like(fg)
+        for k in range(1, D + 1):
+            sh = np.roll(fg, sgn * k, axis=ax)
+            sl = [slice(None), slice(None)]
+            sl[ax] = slice(0, k) if sgn > 0 else slice(-k, None)
+            sh[tuple(sl)] = False
+            accd |= sh
+        dirs += accd.astype(np.uint8)
+    max_dist = int(C["reclaim_max_dist_ds"])
+    growable = (dist <= max_dist) & (
+        ((tex_s >= lo) & in_close) | ((tex_s >= hi) & (dirs >= 2)))
+    cur = fg.copy()
+    for _ in range(max_dist):
+        nxt = ndimage.binary_dilation(cur, iterations=1) & (growable | fg)
+        if (nxt == cur).all():
+            break
+        cur = nxt
+    grown_ds = (cur & (~fg)) & (dirs >= 2)
+    min_comp = int(C["reclaim_min_comp_ds"])
+    cc, cn = ndimage.label(grown_ds)
+    if cn:
+        sizes = np.bincount(cc.ravel())
+        strong = np.bincount(cc[tex_s >= hi].ravel(), minlength=cn + 1)
+        ok_ids = [i for i in range(1, cn + 1)
+                  if sizes[i] >= min_comp and strong[i] >= min_comp]
+        grown_ds = np.isin(cc, ok_ids) if ok_ids else np.zeros_like(grown_ds)
+    out = m.copy()
+    ys, xs = np.where(~out)
+    sel = grown_ds[ys // ds, xs // ds] & (tex_s[ys // ds, xs // ds] >= lo)
+    out[ys[sel], xs[sel]] = True
+    info["grown_px"] = int(sel.sum())
+
+    r_sol = int(C["reclaim_solidify_r_px"])
+    if r_sol > 0:
+        ker_f = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,
+                                          (2 * r_sol + 1, 2 * r_sol + 1))
+        closed = cv2.morphologyEx(out.astype(np.uint8), cv2.MORPH_CLOSE,
+                                  ker_f) > 0
+        info["solidified_px"] = int((closed & ~out).sum())
+        out = closed
+
+    band = int(C["reclaim_band_px"])
+    if band > 0:
+        dist_f = ndimage.distance_transform_edt(~out)
+        # Josla darbojas tikai rindās/kolonnās, kur audums tajā malā
+        # tiešām iziet no kadra (FG jau ir joslā) — citādi ds tekstūras
+        # logs stūros pāršautu pāri apģērba stūrim uz papīra.
+        bandmask = np.zeros_like(out)
+        bandmask[:, -band:] |= out[:, -band:].any(axis=1)[:, None]
+        bandmask[:, :band] |= out[:, :band].any(axis=1)[:, None]
+        bandmask[-band:, :] |= out[-band:, :].any(axis=0)[None, :]
+        bandmask[:band, :] |= out[:band, :].any(axis=0)[None, :]
+        by, bx = np.where(~out & bandmask & (dist_f <= band))
+        bsel = tex_s[by // ds, bx // ds] >= hi
+        out[by[bsel], bx[bsel]] = True
+        info["band_px"] = int(bsel.sum())
+
+    reclaimed = int((out & ~m).sum())
+    info["seconds"] = round(time.perf_counter() - t0, 3)
+    if reclaimed > float(C["reclaim_max_frac"]) * float(m.sum()):
+        info["refused"] = "atgūtais pārsniedz reclaim_max_frac"
+        return binary, info
+    info["reclaimed_px"] = reclaimed
+    if reclaimed:
+        return out.astype(np.uint8), info
+    return binary, info

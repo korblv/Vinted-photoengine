@@ -2838,3 +2838,18 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   stilā (provenance roi_grabcut -> rerender -> checker);
   (b) vispārīgs robežas pārlokalizēšanas posms (lielāks darbs);
   (c) pieņemt kā ir; (d) 160601 izslēgt. Krātuve: 149012606 B.
+
+### §111 Git anomālija labota: 2.9/2.10 kods bija darba kokā bez komitiem (2026-10-24)
+
+- Atklāts §110 laikā: komiti, kurus ziņoju kā 8d14de0 (§108) un
+  b9ebd90 (§109), repozitorijā NEPASTĀV — starp sesijām atjaunots
+  agrāks .git stāvoklis (§107), kamēr darba koka faili (kods 2.10,
+  PROGRESS §108/§109 teksti, A8/A9 artefakti) saglabājās. Tāpēc
+  §110 komits (f863c90) satur arī §108/§109 PROGRESS tekstus.
+- Verificēts: darba koka kods = 2.10, testi atkārtoti **106/106 OK**
+  uz šī paša stāvokļa; tas ir tas pats kods, kas ražoja A8/A9.
+  Šis komits beidzot ieraksta 2.9+2.10 kodu vēsturē (config,
+  engine/config, engine/masks, workflow_v2, testi).
+- Mācība: pēc katra komita pārbaudīt "git log --oneline -1" un
+  "git status" (darīju §103, pārtraucu §108/§109 — tur arī pazuda).
+  Krātuve: /home/user 149412674 B.

@@ -8,7 +8,7 @@ import json
 import tomllib
 from pathlib import Path
 
-WORKFLOW_VERSION = "2.8"
+WORKFLOW_VERSION = "2.10"
 
 # ---------------------------------------------------------------------------
 # Konfigurācija (solis 4): parametri dzīvo config.toml, specifikācija —
@@ -33,7 +33,14 @@ _CONFIG_SCHEMA: dict[str, dict[str, type]] = {
              "hole_L_slack": float, "hole_tex_fg_ratio_max": float,
              "hole_bg_E": float, "q_scale": float, "q_close_r_ds": int,
              "q_tex_bg_ratio": float, "q_tex_bg_abs": float,
-             "q_tex_fg_ratio": float, "q_trigger_pct": float},
+             "q_tex_fg_ratio": float, "q_trigger_pct": float,
+             "reclaim_ds": int, "reclaim_max_dist_ds": int,
+             "reclaim_tex_bg_ratio": float, "reclaim_tex_bg_abs": float,
+             "reclaim_tex_lo_fg_ratio": float, "reclaim_tex_min": float,
+             "reclaim_tex_hi_ratio": float, "reclaim_close_r_ds": int,
+             "reclaim_dir_dist_ds": int, "reclaim_min_comp_ds": int,
+             "reclaim_solidify_r_px": int, "reclaim_band_px": int,
+             "reclaim_bg_E": float, "reclaim_max_frac": float},
     "plate": {"inner_min": float, "outer_max": float, "bg_inside_max": float,
               "cover_min": float, "cover_max": float},
     "chroma": {"scale": int, "palette_k": int, "fg_alpha": float,

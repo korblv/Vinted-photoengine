@@ -31,7 +31,8 @@ import setup_v2
 import workflow_v2 as wf
 from engine.chroma import (_dark_uncertain, _median_cut_palette,
                            chroma_mask, structural_qa)
-from engine.masks import lost_fabric_metric, plate_mask, repair_interior_holes
+from engine.masks import (lost_fabric_metric, plate_mask, reclaim_inlets,
+                          repair_interior_holes)
 
 SEED = 12345
 
@@ -403,8 +404,10 @@ class TestMaskProvenance(unittest.TestCase):
         # 2.4 = chroma rezerves ceļš (§76); 2.5 = tumšās zonas piegājiens (§78);
         # 2.6 = iekšējo caurumu klasificēšana pēc satura (§97);
         # 2.7 = klasifikatora tekstūras pierādījums mērogā (§98);
-        # 2.8 = zaudētā auduma (GATE_Q) trigeris kandidātu izvēlē (§103).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.8")
+        # 2.8 = zaudētā auduma (GATE_Q) trigeris kandidātu izvēlē (§103);
+        # 2.9 = līču atgūšana Q trigerī pirms plate (§108);
+        # 2.10 = union kandidāts Q trigerī (§109).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.10")
 
 
 # ---------------------------------------------------------------------------
@@ -441,7 +444,15 @@ class TestConfig(unittest.TestCase):
                      # GATE_Q trigeris (§103) — jāsakrīt ar checker konstantēm
                      "q_scale": 0.25, "q_close_r_ds": 10,
                      "q_tex_bg_ratio": 2.5, "q_tex_bg_abs": 2.0,
-                     "q_tex_fg_ratio": 0.5, "q_trigger_pct": 1.0},
+                     "q_tex_fg_ratio": 0.5, "q_trigger_pct": 1.0,
+                     # līču atgūšana (§108)
+                     "reclaim_ds": 4, "reclaim_max_dist_ds": 60,
+                     "reclaim_tex_bg_ratio": 2.5, "reclaim_tex_bg_abs": 1.0,
+                     "reclaim_tex_lo_fg_ratio": 0.25, "reclaim_tex_min": 1.2,
+                     "reclaim_tex_hi_ratio": 0.5, "reclaim_close_r_ds": 10,
+                     "reclaim_dir_dist_ds": 15, "reclaim_min_comp_ds": 8,
+                     "reclaim_solidify_r_px": 10, "reclaim_band_px": 16,
+                     "reclaim_bg_E": 8.0, "reclaim_max_frac": 0.10},
             "plate": {"inner_min": 0.50, "outer_max": 0.60,
                       "bg_inside_max": 0.02, "cover_min": 0.25,
                       "cover_max": 0.95},
@@ -1178,6 +1189,82 @@ class TestLostFabricMetric(unittest.TestCase):
             g = ck.lost_fabric_gate(rgb, (binary * 255).astype(np.uint8))
             self.assertEqual(m["lost_fabric_pct"] > 1.0, expect_bad)
             self.assertEqual(g["pass"], not expect_bad)
+
+
+# ---------------------------------------------------------------------------
+# Kandidātu izvēle Q trigerī (PROGRESS §109)
+# ---------------------------------------------------------------------------
+class TestChooseCandidate(unittest.TestCase):
+    def test_tie_prefers_union(self):
+        self.assertEqual(wf.choose_candidate(
+            [("current", 0.04, True), ("plate", 0.03, True),
+             ("union", 0.03, True)]), "union")
+
+    def test_lowest_q_wins(self):
+        self.assertEqual(wf.choose_candidate(
+            [("current", 0.5, True), ("plate", 0.2, True),
+             ("union", 0.4, True)]), "plate")
+
+    def test_structural_reject_excluded(self):
+        self.assertEqual(wf.choose_candidate(
+            [("current", 0.9, True), ("plate", 0.1, False),
+             ("union", 0.1, False)]), "current")
+
+    def test_none_q_excluded_and_empty_fallback(self):
+        self.assertEqual(wf.choose_candidate(
+            [("current", None, True), ("plate", None, True),
+             ("union", None, True)]), "current")
+        self.assertEqual(wf.choose_candidate([]), "current")
+
+
+# ---------------------------------------------------------------------------
+# Līču atgūšana ražošanā (PROGRESS §108)
+# ---------------------------------------------------------------------------
+class TestReclaimInlets(unittest.TestCase):
+    def _scene(self):
+        H, W = 1000, 800
+        rgb = np.tile(np.array([170, 168, 160], np.uint8), (H, W, 1))
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 6) + (yy // 6)) % 2) * 44 - 22
+        fabric = np.clip(np.array([210, 206, 198], np.int16) + tex[..., None],
+                         0, 255).astype(np.uint8)
+        rgb[80:920, 100:800] = fabric[80:920, 100:800]  # audums līdz labai malai
+        binary = np.zeros((H, W), np.uint8)
+        binary[80:920, 100:800] = 1
+        return rgb, binary
+
+    def test_channel_reclaimed(self):
+        """40 px auduma kanāls maskā iztrūkst -> atgūšana to aizpilda
+        un Q metrika nokrīt zem trigera."""
+        rgb, binary = self._scene()
+        binary[80:920, 380:420] = 0
+        out, info = reclaim_inlets(binary, Image.fromarray(rgb))
+        self.assertGreater(info["reclaimed_px"], 0, info)
+        self.assertTrue(bool((out[80:920, 392:408] > 0).mean() > 0.9))
+        q = lost_fabric_metric(out, Image.fromarray(rgb))
+        self.assertLessEqual(q["lost_fabric_pct"], 1.0)
+
+    def test_edge_sliver_reclaimed(self):
+        """11 px auduma šķēle pie kadra labās malas iztrūkst (lietotāja
+        atzīmju replika §107) -> malas josla to aizpilda līdz malai."""
+        rgb, binary = self._scene()
+        binary[300:600, 789:800] = 0
+        out, info = reclaim_inlets(binary, Image.fromarray(rgb))
+        self.assertTrue(bool((out[300:600, 795:800] > 0).all()))
+
+    def test_paper_window_not_reclaimed(self):
+        """240 px gluds fona logs auduma vidū nedrīkst tikt aizpildīts."""
+        rgb, binary = self._scene()
+        rgb[380:620, 280:520] = np.array([170, 168, 160], np.uint8)
+        binary[380:620, 280:520] = 0
+        out, info = reclaim_inlets(binary, Image.fromarray(rgb))
+        self.assertTrue(bool((out[480:520, 380:420] == 0).all()))
+
+    def test_clean_mask_unchanged(self):
+        rgb, binary = self._scene()
+        out, info = reclaim_inlets(binary, Image.fromarray(rgb))
+        self.assertEqual(info["reclaimed_px"], 0, info)
+        self.assertTrue(np.array_equal(out, binary))
 
 
 # ---------------------------------------------------------------------------

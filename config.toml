@@ -56,6 +56,23 @@ q_tex_bg_ratio = 2.5
 q_tex_bg_abs = 2.0
 q_tex_fg_ratio = 0.5
 q_trigger_pct = 1.0        # virs šī kandidāts neuzticas -> plate/chroma
+# Līču/ieleju atgūšana Q trigerī (PROGRESS §104-§108): audzēšana pa
+# tekstūru mērogā + iekšpuses aizvēršana + kadra malas josla. Palaiž
+# tikai kad Q trigeris jau nostrādājis; pieņem, ja Q pēc <= q_trigger_pct.
+reclaim_ds = 4               # tekstūras mērogs 1:reclaim_ds
+reclaim_max_dist_ds = 60     # maks. audzēšanas attālums no sākotnējā FG
+reclaim_tex_bg_ratio = 2.5
+reclaim_tex_bg_abs = 1.0
+reclaim_tex_lo_fg_ratio = 0.25  # vājais slieksnis aizvēršanas zonā
+reclaim_tex_min = 1.2
+reclaim_tex_hi_ratio = 0.5      # stiprais slieksnis ārpus zonas / joslā
+reclaim_close_r_ds = 10         # aizvēršanas zonas rādiuss (ds px)
+reclaim_dir_dist_ds = 15        # virzienu sarga attālums (ds px)
+reclaim_min_comp_ds = 8         # min. komponente un stiprais kodols (ds px)
+reclaim_solidify_r_px = 10      # iekšpuses aizvēršana pilnā izšķirtspējā
+reclaim_band_px = 16            # kadra malas joslas platums
+reclaim_bg_E = 8.0              # fona tekstūras atsauce pret papīra krāsu
+reclaim_max_frac = 0.10         # drošības vāks: atgūtais <= 10% no FG
 
 [plate]
 inner_min = 0.50      # iekšmalas tekstūra pret iekšpusi; zema = iekšā ir fons
