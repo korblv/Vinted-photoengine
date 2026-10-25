@@ -2853,3 +2853,19 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Mācība: pēc katra komita pārbaudīt "git log --oneline -1" un
   "git status" (darīju §103, pārtraucu §108/§109 — tur arī pazuda).
   Krātuve: /home/user 149412674 B.
+
+### §112 Krātuves tīrīšana un makro izslēgšana (lietotāja lēmums) (2026-10-24)
+
+- Krātuve bija sasniegusi 149 564 138 B (pāri Arena 128 MB griestiem;
+  lietotājs nevarēja atvērt attēlu priekšskatījumu). Sadalījums:
+  tmp_id 51.1 MB (benchmarka maskas), uploads 48.7 MB, output 41.4 MB.
+- Dzēsts: tmp_id/bench *.png/*.npy/logi un tmp_id/diag_*.jpg
+  (~39 MB paša pagaidu failu; JSON mērījumi un skripti saglabāti,
+  skaitļi jau fiksēti §100-§110).
+- **Pēc lietotāja tieša norādījuma dzēsti makro oriģināli**
+  uploads/MVIMG_20261020_160608.jpg un _160645.jpg (18.4 MB).
+  Sekas: birku makro no grupas IZSLĒGTI galīgi (atjaunot var tikai
+  no telefona atkārtoti augšupielādējot). Grupa = 3 kadri (A9).
+- Pēc tīrīšanas: /home/user 91904554 B (zem 100 MB iekšējā un 128 MB
+  Arena limita). Mācība: benchmarka pilnizmēra maskas tmp_id
+  jādzēš uzreiz pēc mērījuma, nevis jākrāj.
