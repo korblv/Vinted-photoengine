@@ -3171,3 +3171,7 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Testi: +2 sintētiskie tipu testi; kopā **121/121 OK**.
   Maker/checker/ZIP integrācija joprojām nākamais solis.
   Krātuve: /home/user 117884996 B.
+- **Pauze pēc lietotāja lēmuma:** turpināt vēlāk. Atsākot darbu,
+  vispirms ar pogām uzdot tos pašus trīs variantus: (1) iebūvēt
+  attempt plūsmā, (2) testēt zonu priekšlikumu uz citiem apģērbu
+  tipiem, (3) pauze M9 līnijā / atgriezties pie grupām.
