@@ -1314,5 +1314,68 @@ class TestGateQ(unittest.TestCase):
         self.assertEqual(ck.GATE_Q_LIMIT_PCT, 1.0)
 
 
+# ---------------------------------------------------------------------------
+# GATE_S: robežas pierādījums (PROGRESS §113-§115)
+# ---------------------------------------------------------------------------
+class TestGateS(unittest.TestCase):
+    def _scene(self, blur_sigma=0.0, jagged=False):
+        """Gluds apģērba taisnstūris (kontrasts 40) uz gluda fona.
+
+        blur_sigma izpludina AVOTA malu (defokusa replika); jagged
+        padara ALFAS augšējo malu par +/-6 px kvadrātvilni garā posmā.
+        """
+        H, W = 1000, 800
+        gray = np.full((H, W), 155.0, np.float32)
+        gray[120:920, 100:700] = 195.0
+        if blur_sigma:
+            gray = cv2.GaussianBlur(gray, (0, 0), blur_sigma)
+        rgb = np.clip(np.repeat(gray[..., None], 3, axis=2),
+                      0, 255).astype(np.uint8)
+        alpha = np.zeros((H, W), np.uint8)
+        alpha[120:920, 100:700] = 255
+        if jagged:
+            alpha[100:140, 160:640] = 0
+            for x in range(160, 640):
+                top = 114 if ((x - 160) // 8) % 2 == 0 else 126
+                alpha[top:920, x] = 255
+        return rgb, alpha
+
+    def test_sharp_smooth_passes(self):
+        rgb, alpha = self._scene()
+        res = ck.boundary_evidence_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+
+    def test_defocused_smooth_passes(self):
+        """Defokuss viens pats nav defekts: gluda kontūra cauri
+        izplūdušai malai ir pierādāma tikpat labi kā asa."""
+        rgb, alpha = self._scene(blur_sigma=14.0)
+        res = ck.boundary_evidence_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+
+    def test_sharp_jagged_passes(self):
+        """Nelīdzena kontūra viena pati nav defekts: asā malā
+        viļņojumam ir pikseļu liecība (stūri/krokas drīkst būt asi)."""
+        rgb, alpha = self._scene(jagged=True)
+        res = ck.boundary_evidence_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+
+    def test_defocused_jagged_sabotage_fails(self):
+        """160601 klase: kontūra viļņojas tur, kur avota mala ir
+        izplūdusi — robeža nav pierādāma, jākrīt."""
+        rgb, alpha = self._scene(blur_sigma=14.0, jagged=True)
+        res = ck.boundary_evidence_gate(rgb, alpha)
+        self.assertFalse(res["pass"], res)
+        self.assertGreaterEqual(res["worst_span_windows"],
+                                ck.GATE_S_LIMIT_WINDOWS)
+
+    def test_constants_pinned(self):
+        # Kalibrācija §114: kontroles 0-1 logs, sliktie 12-14.
+        # Sliekšņus maina tikai ar jaunu kalibrāciju un pogu.
+        self.assertEqual(ck.GATE_S_LIMIT_WINDOWS, 4)
+        self.assertEqual(ck.GATE_S_GRAD_MAX, 5.0)
+        self.assertEqual(ck.GATE_S_ROUGH_FRAC_MIN, 0.20)
+        self.assertEqual(ck.GATE_S_SCALE, 0.25)
+
+
 if __name__ == "__main__":
     unittest.main()

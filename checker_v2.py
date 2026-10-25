@@ -16,6 +16,8 @@ Vārti:
       Skatīt `advisory_verdict` / `leak_pct_of_fg` un `PAPIRA_NOPLUDES_QA.md`.
   Q : audums ārpus maskas — auduma tekstūras pikseļi šauros silueta
       līčos/kanālos (pretējais virziens P). Sk. `lost_fabric_gate`.
+  S : robežas pierādījums — nelīdzena kontūra segmentā, kur avota
+      mala ir vāja/defokusēta. Sk. `boundary_evidence_gate`.
 
 Checker apstrādā tikai maker ierakstus ar statusu `completed`.
 `needs_seed_review`/`failed` ieraksti tiek uzskaitīti `_meta` sadaļā,
@@ -124,6 +126,36 @@ GATE_Q_CLOSE_R_DS = 10
 GATE_Q_TEX_BG_RATIO = 2.5
 GATE_Q_TEX_BG_ABS = 2.0
 GATE_Q_TEX_FG_RATIO = 0.5
+
+# --- GATE_S: robežas pierādījums (nelīdzena kontūra vājā avota malā) -----
+# Kāpēc: GATE_Q mēra zaudēto audumu pēc tekstūras, bet defokusētā malā
+# tekstūra ir zema un Q klusē; GATE_H mēra alfas profilu, ne kontūras
+# novietojumu/ formu pret avotu. MVIMG_20261020_160601 (A9) izgāja ar
+# ALL_PASS, lai gan augšējā kreisā mala defokusā bija roboti iekosta
+# (lietotāja audits §110/§113; maks. kodums 94 px).
+#
+# Mērījums (lokāla matemātika, 1:4): gar lielāko ārējo kontūru ņem
+# segmentus pa 32 paraugiem. Logs ir aizdomīgs, ja (a) vismaz 20%
+# paraugu kontūra atkāpjas >=1 ds px no 21 parauga slīdošās mediānas
+# (nelīdzena kontūra) UN (b) avota mediānā profila gradients šajā
+# segmentā <=5 (avotā mala ir vāja/defokusēta — kontūras viļņojumam
+# nav asas liecības, uz ko balstīties). Kadrs krīt, ja 160 paraugu
+# posmā ir >=4 aizdomīgi logi.
+#
+# Kalibrēts PROGRESS §114 (sliktākais 160 posms): kontroles 1/0,
+# sliktais A9 12, GrabCut atlikums 14. Slieksnis 4 = ~ģeometriskais
+# vidus. ROBEŽA NAV STABILA STATISTIKA: tikai 2 kontroles no vienas
+# sesijas. Pārskatīt pēc nākamajām grupām; kamēr nav vairāk datu,
+# neskaidrs = kritiens ir apzināta izvēle (STOP > kluss PASS).
+GATE_S_SCALE = 0.25
+GATE_S_WIN_SAMPLES = 32
+GATE_S_STEP_SAMPLES = 8
+GATE_S_ROUGH_DS = 1.0
+GATE_S_ROUGH_FRAC_MIN = 0.20
+GATE_S_GRAD_MAX = 5.0
+GATE_S_SPAN_SAMPLES = 160
+GATE_S_LIMIT_WINDOWS = 4
+GATE_S_MIN_WINDOWS = 4
 RECONCILE_CANVAS = (2000, 2500)   # (platums, augstums) — kā CANVAS loop.py
 REPORT_PATH = Path(OUT) / "report_v2.json"
 
@@ -433,6 +465,161 @@ def lost_fabric_gate(rgb: np.ndarray, alpha: np.ndarray) -> dict:
     }
 
 
+def boundary_evidence_gate(rgb: np.ndarray, alpha: np.ndarray) -> dict:
+    """GATE_S: nelīdzena silueta kontūra segmentā, kur avota mala ir
+    vāja (defokuss / zems kontrasts) un tāpēc kontūras viļņojumam nav
+    asas pikseļu liecības. Sk. GATE_S_* komentāru faila augšā.
+
+    Logika 1:4 mērogā: gar lielāko ārējo kontūru segmentiem (32
+    paraugi) salīdzina (a) kontūras nelīdzenumu pret tās pašas
+    slīdošo mediānu un (b) avota mediānā normālprofila gradientu.
+    Atsevišķi neviens no tiem nav defekts: asa mala drīkst būt
+    nelīdzena (stūri, krokas), gluda kontūra drīkst iet cauri
+    defokusam. Defekts ir KOMBINĀCIJA garā posmā.
+    """
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    g = cv2.resize(gray, None, fx=GATE_S_SCALE, fy=GATE_S_SCALE,
+                   interpolation=cv2.INTER_AREA)
+    g = ndimage.gaussian_filter(g, 1.0)
+    a_ds = cv2.resize(alpha, (g.shape[1], g.shape[0]),
+                      interpolation=cv2.INTER_AREA)
+    fg = a_ds >= 127
+    if int(fg.sum()) < 100:
+        return {"pass": False, "worst_span_windows": None,
+                "limit_windows": GATE_S_LIMIT_WINDOWS,
+                "note": "maska praktiski tukša — nav ko vērtēt"}
+    cnts, _ = cv2.findContours(fg.astype(np.uint8), cv2.RETR_EXTERNAL,
+                               cv2.CHAIN_APPROX_NONE)
+    if not cnts:
+        return {"pass": False, "worst_span_windows": None,
+                "limit_windows": GATE_S_LIMIT_WINDOWS,
+                "note": "kontūra nav atrasta"}
+    contour = max(cnts, key=cv2.contourArea)[:, 0, :].astype(np.float64)
+    n = int(len(contour))
+    if n < GATE_S_WIN_SAMPLES:
+        return {"pass": None, "skipped": True, "contour_points": n,
+                "note": "kontūra īsāka par vienu segmentu — nav vērtējama"}
+
+    # Nelīdzenums: attālums līdz 21 parauga slīdošajai mediānai (cikliska).
+    ext = np.vstack([contour[-10:], contour, contour[:10]])
+    med = np.median(
+        np.lib.stride_tricks.sliding_window_view(ext, 21, axis=0), axis=2)
+    rough = np.linalg.norm(contour - med, axis=1)
+
+    # Normālprofili: t=-8..+8 ds px, mīnuss = ārpusē, pluss = audumā.
+    h, w = g.shape
+    tangent = np.roll(contour, -5, axis=0) - np.roll(contour, 5, axis=0)
+    tnorm = np.hypot(tangent[:, 0], tangent[:, 1])
+    normal = np.zeros_like(contour)
+    ok = tnorm > 0
+    normal[ok, 0] = -tangent[ok, 1] / tnorm[ok]
+    normal[ok, 1] = tangent[ok, 0] / tnorm[ok]
+
+    def _fg_at(pts):
+        xi = np.rint(pts[:, 0]).astype(int)
+        yi = np.rint(pts[:, 1]).astype(int)
+        inside = (xi >= 0) & (xi < w) & (yi >= 0) & (yi < h)
+        vals = np.zeros(len(pts), bool)
+        vals[inside] = fg[yi[inside], xi[inside]]
+        return vals
+
+    plus_fg = _fg_at(contour + 3.0 * normal)
+    minus_fg = _fg_at(contour - 3.0 * normal)
+    sign = np.zeros(n)
+    sign[plus_fg & ~minus_fg] = 1.0
+    sign[minus_fg & ~plus_fg] = -1.0
+    t = np.arange(-8, 9, dtype=float)
+    pts = (contour[:, None, :]
+           + (sign[:, None] * normal)[:, None, :] * t[None, :, None])
+    in_bounds = ((pts[..., 0] >= 0) & (pts[..., 0] <= w - 1)
+                 & (pts[..., 1] >= 0) & (pts[..., 1] <= h - 1)).all(axis=1)
+    prof = ndimage.map_coordinates(
+        g, [pts[..., 1].ravel(), pts[..., 0].ravel()],
+        order=1, mode="nearest").reshape(n, len(t))
+    prof[~in_bounds | (sign == 0)] = np.nan
+
+    evaluated = 0
+    susp_starts = []
+    susp_centers = []
+    win_idx0 = np.arange(GATE_S_WIN_SAMPLES)
+    for s in range(0, n, GATE_S_STEP_SAMPLES):
+        idx = (s + win_idx0) % n
+        block = prof[idx]
+        rows_ok = np.isfinite(block).all(axis=1)
+        if float(rows_ok.mean()) < 0.7:
+            continue
+        sm = ndimage.gaussian_filter1d(np.median(block[rows_ok], axis=0), 0.8)
+        out_lvl, in_lvl = float(np.median(sm[:3])), float(np.median(sm[-3:]))
+        c = in_lvl - out_lvl
+        if abs(c) < 8:
+            continue
+        deriv = np.gradient(sm)
+        ec = 3 + int(np.argmax(np.abs(deriv[3:14])))
+        npf = (sm - out_lvl) / c
+        lo = hi = None
+        for j in range(ec, -1, -1):
+            if npf[j] <= 0.1:
+                lo = j
+                break
+        for j in range(ec, len(sm)):
+            if npf[j] >= 0.9:
+                hi = j
+                break
+        if lo is None or hi is None or hi <= lo:
+            continue  # profils nav pakāpiens (ēnojums) — segmentu nevērtē
+        evaluated += 1
+        grad = float(abs(deriv[ec]))
+        rough_frac = float(np.mean(rough[idx] >= GATE_S_ROUGH_DS))
+        if rough_frac >= GATE_S_ROUGH_FRAC_MIN and grad <= GATE_S_GRAD_MAX:
+            susp_starts.append(int(s))
+            susp_centers.append(contour[idx].mean(axis=0))
+
+    if evaluated < GATE_S_MIN_WINDOWS:
+        return {"pass": None, "skipped": True,
+                "evaluated_windows": int(evaluated),
+                "contour_points": n,
+                "note": ("pārāk maz vērtējamu robežas segmentu "
+                         "(kontūra gandrīz tikai gar kadra malu)")}
+
+    worst = 0
+    worst_center = None
+    if susp_starts:
+        starts = np.array(susp_starts, dtype=int)
+        centers = np.array(susp_centers, dtype=float)
+        if n <= GATE_S_SPAN_SAMPLES:
+            worst = int(len(starts))
+            worst_center = centers.mean(axis=0)
+        else:
+            ext_starts = np.concatenate([starts, starts + n])
+            j = 0
+            for i in range(len(starts)):
+                j = max(j, i)
+                while (j + 1 < i + len(starts)
+                       and ext_starts[j + 1] - ext_starts[i]
+                       <= GATE_S_SPAN_SAMPLES):
+                    j += 1
+                cnt = int(j - i + 1)
+                if cnt > worst:
+                    worst = cnt
+                    sel = [k % len(starts) for k in range(i, j + 1)]
+                    worst_center = centers[sel].mean(axis=0)
+    center_full = None
+    if worst_center is not None:
+        center_full = [int(round(float(v) / GATE_S_SCALE))
+                       for v in worst_center]
+    return {
+        "pass": bool(worst < GATE_S_LIMIT_WINDOWS),
+        "worst_span_windows": int(worst),
+        "limit_windows": GATE_S_LIMIT_WINDOWS,
+        "suspicious_windows": int(len(susp_starts)),
+        "evaluated_windows": int(evaluated),
+        "contour_points": n,
+        "worst_center_xy_fullres": center_full,
+        "note": ("nelīdzena kontūra segmentā ar vāju avota malas "
+                 "gradientu (defokuss) — robeža nav pierādāma"),
+    }
+
+
 def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     if maker_rec.get("status", "completed") != "completed":
         return {
@@ -643,6 +830,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
 
     # Q (bloķējoša): audums ĀRPUS maskas šauros līčos/kanālos.
     # Pretējais virziens P: tur fons ieiet maskā, te audums izkrīt ārā.
+    # S (bloķējoša): nelīdzena kontūra tur, kur avota mala ir vāja.
     # Kļūda šeit NEDRĪKST klusām pārvērsties par izlaistu pārbaudi
     # (kā brīdinājuma L), tāpēc izņēmums = vārti krīt.
     try:
@@ -650,10 +838,13 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
         _rot = int(maker_rec.get("rotation_cw") or 0)
         if _rot:
             _src = _src.rotate(-_rot, expand=True)
-        gate_q = lost_fabric_gate(np.asarray(_src), alpha)
-        del _src
+        _src_rgb = np.asarray(_src)
+        gate_q = lost_fabric_gate(_src_rgb, alpha)
+        gate_s = boundary_evidence_gate(_src_rgb, alpha)
+        del _src, _src_rgb
     except Exception as exc:  # noqa: BLE001
         gate_q = {"pass": False, "error": f"{type(exc).__name__}: {exc}"}
+        gate_s = {"pass": False, "error": f"{type(exc).__name__}: {exc}"}
     del alpha
 
     # D/F: gala formāts un tuvplāna pilnkadra pārklājums.
@@ -856,6 +1047,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
         "GATE_P_paper_at_border": border_leak,
         "GATE_Q_lost_fabric": gate_q,
         "GATE_R_reconcile": gate_r,
+        "GATE_S_boundary_evidence": gate_s,
         "GATE_T_speed": {
             "pass": bool(isinstance(total_s, (int, float)) and float(total_s) <= SPEED_LIMIT_S),
             "total_s": total_s,

@@ -2938,3 +2938,23 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   sabotāžas testi un validācija uz nākamajām grupām; pie
   neskaidra rezultāta vēlamā uzvedība ir STOP, nevis PASS.
   Krātuve: /home/user 92081291 B.
+
+### §115 GATE_S ieviests checkerī: 160601 vairs neiziet ar viltus PASS (2026-10-25)
+
+- Poga checker_first. `boundary_evidence_gate` (checker_v2.py,
+  lokāla matemātika, bez maker importa) + `GATE_S_*` konstantes
+  tieši no §114 kalibrācijas. Maker un workflow 2.10 NAV mainīti.
+- Testi **111/111 OK** (5 jauni TestGateS). Sabotāža šķir cēloni:
+  izplūdusi mala + viļņota kontūra krīt; izplūdusi+gluda iziet;
+  asa+viļņota iziet. Konstantes piespraustas testā.
+- Checker uz esošā A9: **2/3 PASS (exit 2)** agrākā 3/3 vietā.
+  160601 krīt TIKAI GATE_S: sliktākais posms 12 logi pret limitu 4
+  (aizdomīgi 20 no 97 vērtētiem; centrs [151,751] — lietotāja
+  atzīmētā augšējā kreisā mala). Kontrolēm S = 1 (160538) un 0
+  (160550), pārējie vārti nemainīgi PASS. Tieši tas bija mērķis:
+  defekta klasi tagad bloķē skaitlis, nevis tikai acs.
+- Atvērts apzināti: vārti ir tikai checkerī — maker joprojām
+  izrenderē kadru un checker to aptur pēc fakta. Maker spoguļ-
+  metrika ar STOP pirms rendera ir atsevišķs solis pēc pogas.
+  160601 gaida pārfotografēšanu; grupa kā 3 kadri nepiegādājama.
+  Krātuve: /home/user 92716187 B.
