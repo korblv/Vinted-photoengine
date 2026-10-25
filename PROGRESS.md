@@ -3512,3 +3512,44 @@ izpildes.
   grupas) paturēti. Krātuve 51,2 → 31,6 MB. uploads atkal 27 faili
   (24 slamjam + 3 md). Grupas stāvoklis: nulle; gaida nākamo grupu
   (inventārs + §91 + setup pēc augšupielādes).
+
+### §137 Jaunā grupa (2 bildes): rim defekta diagnoze, erozija 8, gaida kolāžas apstiprinājumu (2026-10-25, pārtraukts "turpināsim vēlāk")
+
+- Jauna grupa (poga "Jā, šīs ir visas"): MVIMG_20261025_145823
+  (4096x1888, pagriezts 90° CW pēc lietotāja atbildes) +
+  MVIMG_20261025_145938 (1888x4096). Abi kopskati. Papīrs silts
+  [212,206,193] R−B=19; dziļas ēnas (p10 14–19, ~33% kadra L<40).
+  Vide bija mirusi (sandbox pārstarts) → setup_v2.py atjaunots (modelis
+  sha256 OK).
+- Attempt 1: 145823 → plate_texture (ISNet QA "fragments", pad retry
+  noraidīts largest 0,832; plate pieņemts seg. 0,3253, iekšmala 0,823);
+  145938 → isnet_pad_retry (bāzes QA sadrumstalota 0,598<0,6 malu
+  robu dēļ; pad pieņemts seg. 0,3362). Profils auto WB [0,964;1;1,078]
+  uzticams=True. Checkeris 2/2 PASS (K −1,72/−1,22 — auto WB uz siltā
+  papīra dzesē audumu, bet vārtos).
+- Lietotājs noraidīja kolāžu: "ēnas/malas kvalitāte" → precizēts
+  "ēna uz fona" → "kontrasts uz maksimumu" → **"visticamāk tā ir maska,
+  nevis ēna"**. Diagnoze (skaitļos):
+  - 145823: maskas iekšpusē ~12–16px GAIŠA josla (rim 0–3px L 221–224
+    pret kodolu 56; gradients 224→211→147→77→55). decontam NElietoja
+    (tekstūras tests piepumu neatzīst — tā ir optiskā piepuma: mīksts
+    fokusā + ēnas, ne tīrs papīrs; provenance bez decontam stadijas).
+  - 145938: rim 0–3px L 76 pret 47 — normāla alfas pāreja, nav defekta.
+  - Ēnas variantu lapa (peak 0,32→0,10) uztaisīta (/home/user/
+    enas_varianti.jpg, V0 replikācija p99=4 no 255) — atmests, jo
+    defekts ir maska.
+- Poga: **erozija 8px** uz 145823 (no malu_zoom.jpg 1:1 salīdzinājuma;
+  rim L 221→204→153→104 attiecīgi e0/e8/e12/e16). Izpildīts ar
+  save_gray_png + provenance "manual_erode" (ellipse 17, −3,03% maskas)
+  + maker ierakstā manual_erode bloks. 145938 netika aiztikts.
+- Attempt 2 (--rerender-saved): profils tagad **WB uzticams=False →
+  identitāte** [1,1,1] (erozija nedaudz izmainīja fona novērtējumu,
+  hroma pārsniedza slieksni — dzinis pats pārslēdzās). Checkeris
+  **2/2 PASS**: K −0,02/+0,00 (bija −1,72/−1,22 — krāsa tagad
+  godīgāka), R fore_p99 8/5.
+- **STĀVOKLIS PĀRTRAUKUMAM:** kolāža (attempt 2) parādīta, gaida
+  apstiprinājumu. Atsākšana ar "Turpini loopu": ja apstiprina →
+  make_zip → "Lejupielādēju" → dzēšana pēc §126; ja gaišā apmale vēl
+  traucē → dziļāka erozija (e12/e16 skaitļi jau izmērīti; zoom lapa
+  /home/user/malu_zoom.jpg). Piezīme: ja nākamajā sesijā vide mirusi —
+  setup_v2.py; /tmp/workflow_v2_soft mīkstās maskas dzēšas.
