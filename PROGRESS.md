@@ -2743,3 +2743,27 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   izskats, vajadzīga alfa); §91 lēmums "atlikt" un karoga pienākums
   inventarizācijā paliek spēkā nemainīti.
 - Krātuve: /home/user 132374626 B. Nākamais — pogas lēmums par ieviešanu.
+
+### §107 Malas joslas aizpildīšana: pēdējās svītriņas izmērītas un aizvērtas prototipā (2026-10-24)
+
+- Lietotājs §106 kompozītā iezīmēja vēl 3 mazas svītriņas
+  (uploads/IMG_20261025_065854.jpg: labā mala x2, apakšmala).
+  Izmērītas precīzi: komponentes 515 px (x3060..3071, y3396..3443),
+  309 px (x3061..3071, y2358..2390), 215 px (apakšā) — 11 px platas
+  auduma šķēles pie pašas kadra malas (tex 5.4-8.4), kur apģērbs
+  iziet no kadra. Aizvēršana tās pēc konstrukcijas neņem: kanāls
+  iet GAR malu (dilatācija/erozija tur viena otru atceļ).
+- Malas josla (prototips): BG pikseļi <=16 px no kadra malas,
+  attālums līdz FG <=16 px un tekstūra >= 0.5x auduma kodola ->
+  aizpilda līdz malai. Rezultāts: +1133 px, atlikums pret plate
+  3783 -> **2650 px**, liekie nemainās (**+0** pret plate).
+  Kontroles: 160538 (malām nepieskaras) 0 px; 160601 4615 px
+  (audums iziet no kadra — tās pašas klases šķēles).
+- Pilna ķēde prototipā (pad_retry atjaunota bāze): zaudētais
+  375 446 -> 2650 px (99.3% atgūts), Q 2.922% -> 0.0%, apkakle
+  vesela, lietotāja svītras pazudušas (reclaim4_comp_160550.jpg).
+  Atlikuma kodols ir 1813 px pleca robežas domstarpība ar plate
+  (y~1307) — nevis iekšpuses caurumi.
+- Ražošanas pakete lēmumam: audzēšana v4 + aizvēršana R=10 +
+  malas josla 16, Q trigera iekšienē pirms plate, pieņemšana tikai
+  ja Q pēc <= trigeris. Krātuve: /home/user 133120337 B.
