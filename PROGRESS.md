@@ -2869,3 +2869,39 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Pēc tīrīšanas: /home/user 91904554 B (zem 100 MB iekšējā un 128 MB
   Arena limita). Mācība: benchmarka pilnizmēra maskas tmp_id
   jādzēš uzreiz pēc mērījuma, nevis jākrāj.
+
+### §113 160601 atzīmētā mala: GrabCut nav pietiekams; vajadzīgi robežas pierādījuma vārti (2026-10-25)
+
+- Lietotājs GrabCut kompozītā ar sarkanu iezīmēja tās pašas vietas
+  (uploads/IMG_20261025_074636.jpg, 768x1024 = 1:4): kreisā mala
+  x2..17/y200..267, plecs x18..262/y145..191, apkakles slīpums
+  x294..385/y165..205. Izmērīts tieši tur. A9 maska ņemta 1:4;
+  GrabCut siluets no kompozīta atgūts kā |RGB-243|>8 (fons tur ir
+  precīzi 243; augšpuses IoU pret A9 0.988 kā saprāta kontrole).
+  Nelīdzenums = robežas atlikums pret 21 px (SS mērogā) slīdošo
+  mediānu, pārrēķināts pilnā izšķirtspējā.
+- Plecs: A9 RMS 6.6 / p95 8 / maks. 40 px -> GrabCut 3.0 / 4 / 16 px
+  (uzlabo, bet neizzūd). Apkakles slīpums: A9 4.8 / 14 / 24 px ->
+  GrabCut 5.1 / 14 / 20 px (uzlabojuma nav). Kreisā mala
+  (y720..1120): A9 joslas mediāna 72, maks. 108 px, laukums
+  26 416 px²; GrabCut atstāj iecirtumu SS y201..252, maks. 56 px,
+  7 968 px². Secinājums: prototips novērš rupjo kodumu (§110), bet
+  lietotāja vizuālo kritēriju neiztur — ražošanā to neliek.
+- Sistēmas secinājums: šis nav "nelabojams pēc definīcijas", bet
+  trūkstoša pārbaude. §110 pārejas platums defokusā ir mediānā
+  18 px; GATE_Q tur klusē (tekstūra zema), GATE_H vērtē alfas
+  profilu, ne robežas novietojumu pret avota gradientu. Globāls
+  kontūras nelīdzenums viens pats arī nešķir droši: sliktākā
+  100 punktu segmenta RMS A9 6.81 pret kontrolēm 3.71 (160538) un
+  1.33 (160550), bet GrabCut 3.02 pārklājas ar kontroli. Vārtiem
+  jābūt kombinētiem: lokāls nelīdzenums + avota pārejas platums /
+  robežas nobīde no gradienta + kadra malas iecirtums.
+- Lietotājs: šī kadra kvalitāte ir nepieņemama, to pārfotografēs.
+  Tāpēc 160601 no šī avota nepiegādā un vienreizējo GrabCut
+  nelieto; kadrs gaida jaunu oriģinālu. 160538/160550 nemainīti.
+  Princips nākotnei: nenoteikta/defokusēta robeža = STOP ar
+  iemeslu (pārfotografēt vai labot ar pierādījumu), nevis PASS.
+- Nākamais solis tikai pēc pogas: offline kalibrēt robežas
+  pierādījuma metriku uz šī sliktā gadījuma + kontrolēm; ja ir
+  skaidra atdalīšana, ieviest checker vārtus un maker STOP/
+  trigeri ar sabotāžas testiem. Krātuve: /home/user 91808135 B.
