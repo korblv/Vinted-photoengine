@@ -2720,3 +2720,26 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Atlikušais risks (godīgi): Q-sliktam pilnkadra kadram maliņas
   noplūde iespējama; to ierobežo Q pieņemšanas pārbaude un GATE_E.
   Prototipa bāze joprojām atjaunota (§104 atruna). Krātuve: 131734771 B.
+
+### §106 Atlikušo svītru atribūcija + silueta iekšpuses aizvēršana; E13 konteksts (2026-10-24)
+
+- Lietotājs §105 kompozītā iezīmēja atlikušās svītras, kurās spīd
+  fons (uploads/IMG_20261025_063556.jpg), un prasīja produkcijas
+  iznākumu. Tikai mērījumi (tmp_id/residual2.py).
+- Atlikums pēc v4 (21 483 px pret plate): 1801 komponente, 64.9%
+  komponentēs <400 px, VISS <= 20 px no jaunās robežas — ieleju
+  dibenu mikrosegmenti (tumši/gludi, tekstūra logā zema) + robežas
+  domstarpības ar plate pie kadra malām. Karte
+  tmp_id/bench/residual_map.jpg sakrīt ar lietotāja atzīmēm.
+- Aizvēršana pilnā izšķirtspējā (elipse) uz v4 rezultāta: R=6 ->
+  8104 px, **R=10 -> 3783 px** (liekie tikai +1174), R=14 -> 2608,
+  R=20 -> 2599. Kompozīts reclaim3_comp_160550.jpg: svītras
+  pazudušas, apkakle vesela. Ražošanas vieta (ja ievieš): tikai uz
+  atgūtā kandidāta Q trigerī, nevis globāli visām maskām.
+- E13 saikne (lietotāja jautājums): Henley ir necaurspīdīgs (§93
+  pārbaude) — tā adījuma poras/ieleju dibeni NAV E13 gadījums;
+  produkcijas foto silueta iekšpusei jābūt cietai. Īstam tillam/
+  sietam aizvēršana būtu kļūda (§90: caurspīdīgums ir preces
+  izskats, vajadzīga alfa); §91 lēmums "atlikt" un karoga pienākums
+  inventarizācijā paliek spēkā nemainīti.
+- Krātuve: /home/user 132374626 B. Nākamais — pogas lēmums par ieviešanu.
