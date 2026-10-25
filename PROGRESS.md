@@ -2665,3 +2665,32 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   (a) līču/kanālu atgūšana uz pad_retry bāzes (§99 b); (b) kandidātu
   apvienošanas mērījums (union) offline; (c) pieņemt plate robus;
   (d) 160550 izslēgt. Makro joprojām STOP. Krātuve: 117619511 B.
+
+### §104 Prototips: līču/ieleju atgūšana uz pad_retry — kriteriji izpildīti mērījumā (2026-10-24)
+
+- Poga inlet_reclaim. Tikai mērījumi tmp_id/reclaim_proto.py;
+  ražošana nemainīta. Kritēriji pirms darba: zaudētais pret plate
+  <= 100k, Q <= 1.0%, apkakle (y<1000) nemainās.
+- Bāzes atruna: A6 masku A7 pārrakstīja, tāpēc pad_retry atjaunota
+  offline (isnet_padded_mask+clean+hole repair): segums 0.6965,
+  Q 2.922%, zaud. 375 446 (ražošanas A6 bija 0.6703 / 4.253% /
+  704 292; ceļš atšķiras ar JPEG audekla soli). Virziens derīgs,
+  gala skaitļi jāvalidē ražošanas mēģinājumā.
+- Variants close R=10 ds (aizvēršanas zona kā GATE_Q, tekstūra
+  L* mērogā 1:4, slieksnis max(2x fona E-atsauces, +1.0, 0.5x auduma
+  kodola), komponentes >= 8 ds px pie FG): atgūts 342 495 px,
+  zaudētais 375k -> **33 086**, liekie pret plate mainās par
+  **+135 px** (papīrs netiek ievilkts), apkakle Δ=0, Q -> 0.001%.
+  R=20/40 gandrīz identiski; bbox+distance variants sliktāks
+  (apkakle Δ=4995).
+- Divas godīgas piezīmes: (1) mans pirms-fiksētais "viltus E<6 ~ 0"
+  kritērijs izrādījās nederīgs (130 784 px) — ieleju krāsa pret
+  papīru E ziņā neatdalās, to zinām kopš §97; izšķirošais ir
+  plate-atsauces liekie (+135 px). (2) Q -> 0.001% daļēji cirkulāri
+  (atgūšanas zona = Q zona); neatkarīgie pierādījumi ir plate
+  salīdzinājums un acs: kompozīts tmp_id/bench/reclaim_comp_160550.jpg
+  (apkakle vesela, apakša aizpildīta; paliek sīki balti punktiņi
+  atsevišķās ielejās pie apakšējās malas).
+- Nākamais pēc pogas: ieviest ražošanā kā posmu pirms Q trigera
+  (config reclaim_*, testi, Attempt 8 validācija ar īsto ķēdi).
+  Krātuve: /home/user 130644607 B.
