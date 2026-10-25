@@ -476,6 +476,10 @@ class TestConfig(unittest.TestCase):
                        "dark_seed_min_frac": 0.0005,
                        "dark_carve_max_frac": 0.05},
             "decontam": {"max_px": 30, "tex_ratio": 0.45},
+            # §131 (pogu lēmums 2026-10-25): pilnkadra (makro) verifikācijas
+            # sliekšņi, fiksēti PIRMS mērījuma.
+            "lut_only": {"strip_width_pct": 0.03, "strip_min_px": 32,
+                         "strip_paper_max": 0.01, "global_paper_max": 0.02},
             "grade": {"curve_blend": 0.18, "highlight_knee": 0.86,
                       "exposure_target": 248.0, "exposure_min": 0.99,
                       "exposure_max": 1.06, "exposure_step": 0.01,
@@ -1536,6 +1540,148 @@ class TestSlamjamDetails(unittest.TestCase):
         # zilā "poga" pēc warp joprojām atrodama izējē
         button_px = int(((img[:, :, 2] > 150) & (img[:, :, 0] < 100)).sum())
         self.assertGreater(button_px, 50)
+
+
+# ---------------------------------------------------------------------------
+# §131: lut_only (pilnkadra makro) ceļš — verifikācija, ģeometrija, renderis,
+# checker vārti un make_zip atlase. Sliekšņi fiksēti ar pogu PIRMS mērījuma.
+# ---------------------------------------------------------------------------
+class TestLutOnlyCrops(unittest.TestCase):
+    def test_master_is_centered_square(self):
+        from engine.render import lut_only_crops
+        g = lut_only_crops(4096, 1888)
+        self.assertEqual(g["master"], {"x0": 0, "y0": 1104, "size": 1888})
+
+    def test_makro_is_centered_4to5(self):
+        from engine.render import lut_only_crops
+        g = lut_only_crops(4096, 1888)
+        self.assertEqual(g["makro"], {"x0": 0, "y0": 868, "w": 1888, "h": 2360})
+
+    def test_makro_aspect_within_half_pixel(self):
+        from engine.render import lut_only_crops
+        for h, w in ((4096, 1888), (3072, 4096), (2000, 2000), (999, 1000),
+                     (1000, 700), (1234, 1777)):
+            k = lut_only_crops(h, w)["makro"]
+            self.assertLess(abs(k["w"] / k["h"] - 0.8), 0.001, f"{h}x{w}")
+            self.assertLessEqual(k["x0"] + k["w"], w)
+            self.assertLessEqual(k["y0"] + k["h"], h)
+
+    def test_checker_geometry_is_spec_identical(self):
+        # Neatkarības princips: checker implementācija atsevišķa, bet spec
+        # viena — tāpēc abām jāsakrīt uz jebkuru izmēru.
+        from engine.render import lut_only_crops
+        for h, w in ((4096, 1888), (3072, 4096), (2000, 2000), (999, 1000),
+                     (1000, 700), (1234, 1777), (640, 480)):
+            self.assertEqual(lut_only_crops(h, w), ck._lut_only_crops(h, w),
+                             f"maker/checker atšķiras uz {h}x{w}")
+
+
+class TestLutOnlyVerify(unittest.TestCase):
+    def _fabric(self, h, w, seed=7):
+        rng = np.random.default_rng(seed)
+        base = rng.normal(200, 20, (h, w, 3)).clip(0, 255).astype(np.float32)
+        yy, xx = np.mgrid[0:h, 0:w]
+        return (base + (25 * np.sin(yy / 37.0) * np.cos(xx / 53.0))[..., None]
+                ).clip(0, 255).astype(np.uint8)
+
+    def test_fullframe_textured_passes(self):
+        from engine.masks import lut_only_verify
+        img = Image.fromarray(self._fabric(1024, 512))
+        v = lut_only_verify(img)
+        self.assertTrue(v["pass"], v["reason"])
+
+    def test_paper_border_stops(self):
+        from engine.masks import lut_only_verify
+        a = self._fabric(1024, 512)
+        # gluds, gaišs "papīrs" gar kreiso malu (platums > slieksnim)
+        a[:, :64] = (218, 218, 212)
+        img = Image.fromarray(a)
+        v = lut_only_verify(img)
+        self.assertFalse(v["pass"])
+        self.assertGreater(v["strip_fracs"]["left"], 0.01)
+        self.assertIn("STOP", v["reason"])
+
+
+class TestLutOnlyRenderAndChecker(unittest.TestCase):
+    def _profile(self):
+        from engine.grade import build_lut
+        lut = [list(map(int, r)) for r in build_lut(np.ones(3), 1.0, 0.18, 0.86)]
+        return {"lut_rgb": lut,
+                "output_sharpen": {"radius": 1.4, "percent": 25, "threshold": 3}}
+
+    def _make_source(self, td):
+        rng = np.random.default_rng(11)
+        h, w = 944, 2048
+        base = rng.normal(200, 20, (h, w, 3)).clip(0, 255).astype(np.float32)
+        yy, xx = np.mgrid[0:h, 0:w]
+        arr = (base + (25 * np.sin(yy / 37.0) * np.cos(xx / 53.0))[..., None]
+               ).clip(0, 255).astype(np.uint8)
+        p = Path(td) / "LUT_TEST.jpg"
+        Image.fromarray(arr).save(p, quality=95)
+        return p, arr
+
+    def test_roundtrip_honest_render_passes_and_sabotage_fails(self):
+        import engine.render as rv
+        from engine.grade import build_lut
+        with tempfile.TemporaryDirectory() as td:
+            src_path, _ = self._make_source(td)
+            out = Path(td) / "out"
+            (out / "master").mkdir(parents=True)
+            (out / "paraugs").mkdir(parents=True)
+            profile = self._profile()
+            rec = {"stem": "LUT_TEST", "source": str(src_path),
+                   "rotation_cw": 0, "lut_only": True}
+            with mock.patch.object(rv, "OUT", out):
+                rt = rv.render_lut_only(rec, profile, 3)
+            mp = out / "master" / "LUT_TEST_MASTER_1to1.png"
+            kp = out / "paraugs" / "LUT_TEST_MAKRO_2000x2500.jpg"
+            self.assertTrue(mp.is_file() and kp.is_file())
+            self.assertEqual(Image.open(mp).size, (944, 944))
+            self.assertEqual(Image.open(kp).size, (2000, 2500))
+            maker_rec = {"stem": "LUT_TEST", "source": str(src_path),
+                         "rotation_cw": 0, "lut_only": True,
+                         "mask_method": "lut_only", "status": "completed",
+                         "timing": {"total_s": 1.0}}
+            with mock.patch.object(ck, "OUT", out):
+                gates = ck.check_one_lut_only("LUT_TEST", maker_rec,
+                                              profile["lut_rgb"])
+            self.assertTrue(gates["ALL_PASS"], gates)
+            self.assertEqual(gates["GATE_A2_graded_pixels"]["max_diff"], 0)
+            # izlaistie vārti nes klusu pass: katram ir reason
+            for g in ("GATE_B_background", "GATE_C_mask", "GATE_F_fullframe_closeup",
+                      "GATE_H_edge", "GATE_L_paper_leak", "GATE_P_paper_at_border",
+                      "GATE_Q_lost_fabric", "GATE_S_boundary_evidence"):
+                self.assertIsNone(gates[g]["pass"])
+                self.assertIn("reason", gates[g])
+            # sabotāža: MAKRO aizstāts ar melnu kadru -> R jākrīt
+            Image.fromarray(np.zeros((2500, 2000, 3), np.uint8)).save(kp, quality=95)
+            with mock.patch.object(ck, "OUT", out):
+                g2 = ck.check_one_lut_only("LUT_TEST", maker_rec,
+                                           profile["lut_rgb"])
+            self.assertFalse(g2["ALL_PASS"])
+            self.assertFalse(g2["GATE_R_reconcile"]["pass"])
+
+    def test_missing_files_fail_loudly(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            out.mkdir()
+            maker_rec = {"stem": "X", "source": str(Path(td) / "nav.jpg"),
+                         "rotation_cw": 0, "lut_only": True, "status": "completed"}
+            with mock.patch.object(ck, "OUT", out):
+                gates = ck.check_one_lut_only("X", maker_rec, [list(range(256))] * 3)
+            self.assertFalse(gates["ALL_PASS"])
+            self.assertIn("missing", gates)
+
+
+class TestMakeZipLutOnly(unittest.TestCase):
+    def test_lut_only_stem_picks_makro_file(self):
+        import inspect
+        from engine import report as rp
+        src = inspect.getsource(rp.make_zip)
+        # statisks sargs: ja atlase tiek pārrakstīta, lai lut_only atkal
+        # prasītu PARAUGS, tests jāatjauno apzināti
+        self.assertIn("_MAKRO_2000x2500.jpg", src)
+        self.assertIn('get("lut_only")', src)
 
 
 if __name__ == "__main__":

@@ -101,7 +101,7 @@ from engine.masks import (  # noqa: E402,F401
     boundary_evidence_metric, lost_fabric_metric, paper_profile,
     plan_closeup_crop, plate_mask,
     reclaim_inlets, repair_interior_holes, run_isnet, run_isnet_auto,
-    save_seed_proposal,
+    save_seed_proposal, lut_only_verify, lut_only_sharpness,
 )
 
 
@@ -159,13 +159,17 @@ from engine.grade import (  # noqa: E402,F401
 # Renderēšana, kolāža, ZIP
 # ---------------------------------------------------------------------------
 
-from engine.render import NO_DECONTAM, render_one, write_collage  # noqa: E402,F401
+from engine.render import NO_DECONTAM, render_one, render_lut_only, write_collage  # noqa: E402,F401
 from engine.report import (  # noqa: E402,F401
     CHECKER_REPORT_PATH, COLLAGE_PATH, DELIVERY_REPORT_PATH,
     PROFILE_PATH, REPORT_PATH, _persist_report, _set_run_meta,
     _summary, make_zip,
 )
 
+# §131: šīs palaišanas deklarētie pilnkadra (makro) kadri. Aizpilda
+# main() no --lut-only pēc lietotāja pogas lēmuma; skaitliskā verifikācija
+# notiek masku fāzē (lut_only_verify).
+LUT_ONLY: set[str] = set()
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +240,9 @@ def main() -> int:
                          "(remēdija gadījumiem, kad maska iztur ISNet QA, bet krīt čekerī)")
     ap.add_argument("--no-decontam", nargs="*", default=[], metavar="STEM",
                     help="šiem stem: nepiemērot decontaminate_rim (makro kadri, kuros audums iet pāri malai)")
+    ap.add_argument("--lut-only", nargs="*", default=[], metavar="STEM",
+                    help="pilnkadra makro kadri (PROGRESS §131): bez maskas/fona/ēnas, "
+                         "tikai grupas LUT; maker verifikācija atrod papīru un STOP, ja tāds redzams")
     ap.add_argument("--no-collage", action="store_true")
     ap.add_argument("--preflight", action="store_true")
     ap.add_argument("--make-zip", action="store_true")
@@ -254,6 +261,10 @@ def main() -> int:
             print(f"Nevar nolasīt --overrides: {exc}", flush=True)
     ROTATIONS_CW.update(parse_rotations(args.rotate))
     NO_DECONTAM.update(str(x).strip() for x in (args.no_decontam or []) if str(x).strip())
+    # §131: deklarētie pilnkadra (makro) kadri — tikai pēc lietotāja pogas
+    # lēmuma; maker tos skaitliski verificē (lut_only_verify) un STOP, ja
+    # kadrā tomēr redzams papīra fons.
+    LUT_ONLY.update(str(x).strip() for x in (args.lut_only or []) if str(x).strip())
     _resolve_args(args)
     _set_run_meta(args)
     if args.isnet_worker:
@@ -327,6 +338,56 @@ def main() -> int:
             records.append(rec)
             _persist_report(records, args.attempt, "masks", profile_s)
             print(f"[{stem}] IZLAISTS: {_why}", flush=True)
+            continue
+
+        # --- §131: pilnkadra (makro) kadrs — lut_only ceļš -----------------
+        # Nav ko maskēt: fona nav. Pirms pieņemšanas skaitliska verifikācija
+        # (paper_background_mask): papīra daļa katrā no 4 malu joslām < 1 %
+        # un globāli < 2 % (config [lut_only]); pretējā gadījumā STOP ar
+        # skaitļiem — nevis klusa pāreja uz normālo ceļu, kas tādu kadru
+        # sabojātu ar izdomātu masku.
+        if stem in LUT_ONLY:
+            t_mask = time.perf_counter()
+            try:
+                orig = open_rgb_recorded(src, rot_cw)
+                verify = lut_only_verify(orig)
+                lapvar = lut_only_sharpness(orig)
+                source_size = list(orig.size)
+                del orig
+                mask_s = time.perf_counter() - t_mask
+                rec = {
+                    "stem": stem, "source": str(src), "source_name": fname,
+                    "source_sha256": source_sha, "rotation_cw": rot_cw,
+                    "source_size": source_size,
+                    "lut_only": True, "mask_method": "lut_only",
+                    "lut_verify": verify,
+                    "sharpness_lapvar": round(lapvar, 1),
+                    "full_shot": None, "no_auto_crop": True,
+                    "timing": {"verify_s": round(mask_s, 3),
+                               "mask_total_s": round(mask_s, 3)},
+                }
+                if verify["pass"]:
+                    rec["status"] = "mask_ready"
+                    print(f"[{stem}] lut_only: verifikācija OK ({verify['reason']}); "
+                          f"asums LapVar {lapvar:.0f} (informatīvi, bez vārtiem)",
+                          flush=True)
+                else:
+                    rec["status"] = "failed"
+                    rec["error"] = verify["reason"]
+                    print(f"[{stem}] {verify['reason']}", flush=True)
+            except Exception as exc:  # noqa: BLE001 - batch izolēšana pa bildēm
+                rec = {
+                    "stem": stem, "source": str(src), "source_name": fname,
+                    "source_sha256": source_sha, "rotation_cw": rot_cw,
+                    "lut_only": True, "mask_method": "lut_only",
+                    "status": "failed",
+                    "error": f"lut_only verifikācija krita: {type(exc).__name__}: {exc}",
+                    "timing": {"mask_total_s": round(time.perf_counter() - t_mask, 3)},
+                }
+                print(f"[{stem}] FAIL: {rec['error']}", flush=True)
+            records.append(rec)
+            _persist_report(records, args.attempt, "masks", profile_s)
+            gc.collect()
             continue
 
         old = old_images.get(stem)
@@ -881,6 +942,14 @@ def main() -> int:
     for rec in records:
         if rec.get("status") != "mask_ready":
             continue
+        if rec.get("lut_only"):
+            # §131: pilnkadrā nav priekšmeta robežas, ko pierādīt; GATE_S
+            # checkerī tiek izlaists AR atzīmi (nevis klusi).
+            rec["boundary_evidence"] = {
+                "pass": None, "skipped": True,
+                "reason": "lut_only: pilnkadrs, nav priekšmeta robežas (§131)",
+            }
+            continue
         try:
             _orig = open_rgb_recorded(rec["source"], rec.get("rotation_cw"))
             with Image.open(rec["mask_path"]).convert("L") as _im:
@@ -920,9 +989,19 @@ def main() -> int:
         print(f"V2.1 BLOĶĒTS: nav nevienas gatavas maskas. Kopsavilkums={report['summary']}", flush=True)
         return 2
 
+    # §131: LUT (WB/ekspozīcija/līkne) rēķinās TIKAI no kopskatiem —
+    # pilnkadra makro satur tikai audumu, no kā fona etalons nav atrodams.
+    # Grupa bez neviena kopskata = STOP: lut_only kadram nav no kā manto LUT.
+    profile_recs = [r for r in active if not r.get("lut_only")]
+    if not profile_recs:
+        report = _persist_report(records, args.attempt, "blocked", profile_s)
+        print("V2.1 BLOĶĒTS: lut_only grupā nav neviena kopskata — nav no kā "
+              "rēķināt LUT (§131). Piefotografē vismaz vienu kopskatu.", flush=True)
+        return 2
+
     # 2. fāze: viens krāsu profils pabeigtajām maskām.
     t = time.perf_counter()
-    profile = compute_grade_profile(active, args.wb_mode)
+    profile = compute_grade_profile(profile_recs, args.wb_mode)
     profile_s = time.perf_counter() - t
     atomic_write_json(PROFILE_PATH, profile)
     # LUT tiek saglabāts ARĪ katrai bildei atsevišķi. Iemesls: globālais
@@ -949,8 +1028,18 @@ def main() -> int:
     for rec in active:
         print(f"[{rec['stem']}] v2.1 renderēšana ...", flush=True)
         try:
-            rt = render_one(rec, profile, args.png_level)
-            rec["timing"].update(rt)
+            if rec.get("lut_only"):
+                rt = render_lut_only(rec, profile, args.png_level)
+                rec["timing"].update({"grade_s": rt["grade_s"],
+                                      "render_s": rt["render_s"]})
+                rec["full_shot"] = None
+                rec["closeup_crop"] = None
+                rec["lut_geometry"] = rt["lut_geometry"]
+                rec["makro_path"] = rt["makro_path"]
+                rec["shadow_model"] = rt["shadow_model"]
+            else:
+                rt = render_one(rec, profile, args.png_level)
+                rec["timing"].update(rt)
             rec["timing"]["profile_alloc_s"] = round(alloc_profile, 3)
             rec["timing"]["total_s"] = round(
                 float(rec["timing"].get("mask_total_s", 0.0)) + float(rt["render_s"]) + alloc_profile, 3

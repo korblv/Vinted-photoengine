@@ -1353,3 +1353,69 @@ def reclaim_inlets(binary: np.ndarray,
     if reclaimed:
         return out.astype(np.uint8), info
     return binary, info
+
+
+# --- lut_only: pilnkadra (makro) verifikācija (PROGRESS §131) -------------
+# Kadrs, kurā audums aizpilda visu rāmi, nav ko maskēt: fona nav, ko
+# aizvietot. Pirms šāda kadra pieņemšanas uz lut_only ceļa, skaitliski
+# jāpierāda, ka papīra fons tiešām nav redzams. Papīru atrod esošais
+# `paper_background_mask` (tekstūras-tolerants, no kadra malas
+# sasniedzams); ja rīks atsakās ("kadrā nav papīram līdzīga fona"),
+# papīra daļas ir 0. Sliekšņi dzīvo config.toml [lut_only] un tika
+# fiksēti PIRMS mērījuma (pogu lēmums 2026-10-25).
+
+def lut_only_verify(img: Image.Image) -> dict:
+    """§131: papīra daļa katrā no 4 malu joslām (platums
+    strip_width_pct no malas, min strip_min_px) < strip_paper_max UN
+    globāli < global_paper_max. Atgriež daļas, iemeslu un pass."""
+    from paper_leak import paper_background_mask
+
+    _C = CFG["lut_only"]
+    res = paper_background_mask(img)
+    w, h = img.size
+    kx = max(int(round(_C["strip_width_pct"] * w)), int(_C["strip_min_px"]))
+    ky = max(int(round(_C["strip_width_pct"] * h)), int(_C["strip_min_px"]))
+    if res.get("refused"):
+        fr = {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
+        glob = 0.0
+        why = f"paper_background_mask atteicās: {res.get('reason')}"
+    else:
+        bg = res["background"]
+        fr = {
+            "top": float(bg[:ky, :].mean()),
+            "bottom": float(bg[-ky:, :].mean()),
+            "left": float(bg[:, :kx].mean()),
+            "right": float(bg[:, -kx:].mean()),
+        }
+        glob = float(bg.mean())
+        why = ("papīra daļa: " +
+               ", ".join(f"{k}={v:.4f}" for k, v in fr.items()) +
+               f", globāli {glob:.4f}")
+    lim = {"strip_paper_max": _C["strip_paper_max"],
+           "global_paper_max": _C["global_paper_max"]}
+    ok = (all(v < _C["strip_paper_max"] for v in fr.values())
+          and glob < _C["global_paper_max"])
+    return {
+        "pass": bool(ok),
+        "reason": why if ok else
+                  f"STOP lut_only verifikācija: {why} (sliekšņi: katra mala "
+                  f"< {lim['strip_paper_max']}, globāli < {lim['global_paper_max']})",
+        "strip_fracs": {k: round(v, 5) for k, v in fr.items()},
+        "global_frac": round(glob, 5),
+        "strip_px": {"x": kx, "y": ky},
+        "refused": bool(res.get("refused")),
+        "paper_rgb": res.get("paper_rgb"),
+        "limits": lim,
+    }
+
+
+def lut_only_sharpness(img: Image.Image) -> float:
+    """Laplace dispersija uz centra kvadrāta. TIKAI informatīvi (§131):
+    bez priekšmeta robežas defokuss nav pierādāms, tāpēc nav vārtu —
+    gala QA ir lietotāja acs."""
+    g = np.asarray(img.convert("L"), dtype=np.float32)
+    h, w = g.shape
+    s = min(h, w)
+    y0, x0 = (h - s) // 2, (w - s) // 2
+    c = g[y0:y0 + s, x0:x0 + s]
+    return float(cv2.Laplacian(c, cv2.CV_32F).var())

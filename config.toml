@@ -139,3 +139,13 @@ clipping_limit_pct = 1.5
 sharpen_radius = 1.4
 sharpen_percent = 25
 sharpen_threshold = 3
+
+[lut_only]
+# Pilnkadra (makro) ceļa verifikācija, PROGRESS §131. Sliekšņi fiksēti
+# PIRMS mērījuma (pogu lēmums 2026-10-25): papīra daļa katrā no 4 malu
+# joslām un globāli. Papīru atrod paper_background_mask (tekstūras-
+# tolerants, no kadra malas sasniedzams); atteikšanās = daļas 0.
+strip_width_pct = 0.03
+strip_min_px = 32
+strip_paper_max = 0.01
+global_paper_max = 0.02

@@ -191,6 +191,7 @@ def write_collage(records: list[dict], out_path: Path = COLLAGE_PATH) -> str | N
     short_method = {
         "isnet": "ISNet",
         "grabcut_seed_library_fallback": "GrabCut/bibl.",
+        "lut_only": "LUT (pilnkadrs)",
     }
     for i, rec in enumerate(completed):
         r, c = divmod(i, cols)
@@ -200,9 +201,93 @@ def write_collage(records: list[dict], out_path: Path = COLLAGE_PATH) -> str | N
         total = rec.get("timing", {}).get("total_s")
         label = f"{rec['stem'][-6:]}  {method}" + (f"  {total:.1f}s" if isinstance(total, (int, float)) else "")
         d.text((x + 5, y + 13), label, fill=(0, 0, 0))
-        p = Path(OUT) / "paraugs" / f"{rec['stem']}_PARAUGS_2000x2500.jpg"
+        p = Path(OUT) / "paraugs" / (
+            f"{rec['stem']}_MAKRO_2000x2500.jpg" if rec.get("lut_only")
+            else f"{rec['stem']}_PARAUGS_2000x2500.jpg")
         with Image.open(p) as im:
             thumb = im.convert("RGB").resize((tw, th), Image.LANCZOS)
         sheet.paste(thumb, (x, y + label_h))
     save_image_atomic(sheet, Path(out_path), quality=92)
     return str(out_path)
+
+
+# --- lut_only: pilnkadra makro renderis (PROGRESS §131) --------------------
+# Kadrs, kurā audums aizpilda visu rāmi (verifikācija sk.
+# engine.masks.lut_only_verify): nav ko maskēt un nav fona, ko aizvietot.
+# Tiek pielikts TIKAI grupas LUT (WB + ekspozīcija + līkne — tas pats,
+# ko pārējiem grupas kadriem), un tad kadrs tiek nogriezts:
+#   MASTER 1:1  — centra kvadrāts min(h, w)
+#   MAKRO       — centra lodziņš ar malu attiecību precīzi 2000:2500
+# Visas malas ir MANTOTAS no oriģināla (nav izgudrota grieziena): kropis
+# nesasniedz neko, kam oriģinālā nebūtu pamata. Ēna, alfa, dekontaminācija
+# un fona aizvietošana šeit NEPASTĀV — tie būtu izdomāti pikseļi.
+
+def lut_only_crops(h: int, w: int) -> dict:
+    """Deterministiskie centra kropi (viens avots makerim; checkerim ir
+    sava neatkarīga implementācija pēc tās pašas §131 specifikācijas)."""
+    s = min(h, w)
+    mx0, my0 = (w - s) // 2, (h - s) // 2
+    if w / max(h, 1) <= 0.8:
+        cw = w
+        ch = int(round(cw / 0.8))
+        if ch > h:
+            ch = h
+            cw = int(round(ch * 0.8))
+    else:
+        ch = h
+        cw = int(round(ch * 0.8))
+        if cw > w:
+            cw = w
+            ch = int(round(cw / 0.8))
+    cx0, cy0 = (w - cw) // 2, (h - ch) // 2
+    return {
+        "master": {"x0": mx0, "y0": my0, "size": s},
+        "makro": {"x0": cx0, "y0": cy0, "w": cw, "h": ch},
+    }
+
+
+def render_lut_only(rec: dict, profile: dict, png_level: int) -> dict:
+    t_all = time.perf_counter()
+    stem = rec["stem"]
+    orig = open_rgb_recorded(rec["source"], rec.get("rotation_cw"))
+    arr = np.asarray(orig)
+    h, w = arr.shape[:2]
+    geo = lut_only_crops(h, w)
+
+    t = time.perf_counter()
+    graded = apply_lut(arr, profile["lut_rgb"])
+    grade_s = time.perf_counter() - t
+
+    m = geo["master"]
+    master = graded[m["y0"]:m["y0"] + m["size"], m["x0"]:m["x0"] + m["size"]]
+    save_image_atomic(
+        Image.fromarray(master), Path(OUT) / "master" / f"{stem}_MASTER_1to1.png",
+        optimize=False, compress_level=png_level,
+    )
+    del master
+
+    k = geo["makro"]
+    crop = graded[k["y0"]:k["y0"] + k["h"], k["x0"]:k["x0"] + k["w"]]
+    im = Image.fromarray(crop).resize((2000, 2500), Image.LANCZOS)
+    del crop, graded, arr, orig
+    sharp = profile.get("output_sharpen", {})
+    if sharp:
+        im = im.filter(
+            ImageFilter.UnsharpMask(
+                radius=float(sharp.get("radius", 1.4)),
+                percent=int(sharp.get("percent", 42)),
+                threshold=int(sharp.get("threshold", 3)),
+            )
+        )
+    makro_path = Path(OUT) / "paraugs" / f"{stem}_MAKRO_2000x2500.jpg"
+    save_image_atomic(im, makro_path, quality=95)
+    del im
+    return {
+        "grade_s": round(grade_s, 3),
+        "render_s": round(time.perf_counter() - t_all, 3),
+        "full_shot": None,
+        "closeup_crop": None,
+        "lut_geometry": geo,
+        "makro_path": str(makro_path),
+        "shadow_model": "none (lut_only)",
+    }

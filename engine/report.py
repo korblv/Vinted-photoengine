@@ -156,7 +156,12 @@ def make_zip(zip_name: str | None = None,
 
     files = []
     for stem in sorted(completed):
-        p = Path(OUT) / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg"
+        # §131: lut_only (pilnkadra makro) kadra piegāde ir MAKRO fails,
+        # nevis PARAUGS — maskas/fona tajos nav un nekad nav bijis.
+        if completed[stem].get("lut_only"):
+            p = Path(OUT) / "paraugs" / f"{stem}_MAKRO_2000x2500.jpg"
+        else:
+            p = Path(OUT) / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg"
         if not p.is_file():
             raise FileNotFoundError(p)
         files.append(p)

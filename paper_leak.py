@@ -509,6 +509,16 @@ def paper_background_mask(img: Image.Image, ring_px: int | None = None,
     paper_like = (dC <= t_c) & (tex <= t_t) & (L >= L_floor)
     paper_like = ndimage.binary_opening(paper_like, np.ones((3, 3)))
 
+    # §131 (labots 2026-10-25): ja kadrā tomēr nav NEVIENA papīram līdzīga
+    # pikseļa (pilnkadra makro ar "pieņemu" kandidātu riņķī), procentiles
+    # zemāk avarēja uz tukša masīva. Tukšs rezultāts nozīmē to pašu, ko
+    # measure_paper_colour atteikšanās: papīra nav — atgriežam atteikšanos.
+    if not paper_like.any():
+        return {"refused": True,
+                "reason": "papīram līdzīgu pikseļu nav (pēc atvēršanas)",
+                "peak": pick,
+                "fg_coverage": None}
+
     # A shadow band next to the fabric is smooth and paper-coloured, so colour
     # alone cannot reject it. It can, however, be rejected by construction:
     # real paper is reachable from the frame border through paper pixels

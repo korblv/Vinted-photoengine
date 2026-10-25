@@ -58,6 +58,8 @@ _CONFIG_SCHEMA: dict[str, dict[str, type]] = {
                "dark_uncertain_field": float, "dark_tex_ratio": float,
                "dark_seed_min_frac": float, "dark_carve_max_frac": float},
     "decontam": {"max_px": int, "tex_ratio": float},
+    "lut_only": {"strip_width_pct": float, "strip_min_px": int,
+                 "strip_paper_max": float, "global_paper_max": float},
     "grade": {"curve_blend": float, "highlight_knee": float,
               "exposure_target": float, "exposure_min": float,
               "exposure_max": float, "exposure_step": float,

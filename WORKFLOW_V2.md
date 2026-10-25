@@ -180,3 +180,29 @@ python3 /home/user/loop_bildes/checker_v2.py
 # Tikai pēc kolāžas apstiprinājuma ar pogu:
 python3 /home/user/loop_bildes/workflow_v2.py --make-zip --zip-name GALA_BILDES.zip
 ```
+
+## Pilnkadra (makro) kadri: `--lut-only` (§131, 2026-10-25)
+
+Ja drēbe kadrā aizpilda visu rāmi (fiziski nofotografēts makro), nav ko
+maskēt un nav fona, ko aizvietot. Šādi kadri tiek deklarēti ar
+`--lut-only STEM` (pēc lietotāja pogas lēmuma — automātiskās detekcijas
+nav, jo gaišs audums var būt krāsā identisks papīram) un skaitliski
+verificēti makerī:
+
+- `lut_only_verify` (engine/masks.py) ar esošo `paper_background_mask`:
+  papīra daļa katrā no 4 malu joslām (3% platums, min 32 px) **< 1%** UN
+  globāli **< 2%** (config `[lut_only]`). Rīka atteikšanās ("kadrā nav
+  papīram līdzīga fona") = daļas 0. Neiztur → STOP ar skaitļiem.
+- Apstrāde: BEZ ISNet maskas, fona, ēnas, dekontaminācijas — tikai grupas
+  LUT (WB + ekspozīcija + līkne, rēķināts TIKAI no grupas kopskatiem;
+  grupa bez kopskata → STOP).
+- Iznākumi: `MASTER_1to1.png` (centra kvadrāts) un
+  `paraugs/STEM_MAKRO_2000x2500.jpg` q95 (centra 4:5 krops + tā pati
+  izlaides asināšana). Visas malas mantotas no oriģināla. Ģeometrija:
+  `lut_only_crops` (engine/render.py) — checkerim ir sava neatkarīga
+  implementācija pēc tās pašas specifikācijas.
+- Checker (`check_one_lut_only`): patur A2/K/D/R/T; B/C/F/H/L/P/Q/S
+  izlaistas AR `reason: lut_only` (nekādu klusu izlaišanu). Asums
+  (Laplace var) makerī tikai informatīvi — bez robežas defokuss nav
+  pierādāms; gala QA ir lietotāja acs.
+- `make_zip` lut_only kadram piegādā `_MAKRO_2000x2500.jpg`.

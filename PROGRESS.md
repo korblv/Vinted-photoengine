@@ -3363,3 +3363,36 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   [187-198] std 34-38 (papīram butu std 3-4), p50 [200,201,208],
   52% >200, asums (grad var) 98 pret 226/234 kopskatiem — mērīšu
   vēl Laplacian var makeri.
+
+### §132 lut_only implementācija (2026-10-25, pēc §131 pogām)
+
+- config.toml [lut_only]: strip_width_pct 0.03, strip_min_px 32,
+  strip_paper_max 0.01, global_paper_max 0.02 (+ shēma engine/config.py;
+  migrācijas sarga tabula atjaunota pēc tā paša testā rakstītā noteikuma).
+- engine/masks.py: lut_only_verify (paper_background_mask + 4 malu
+  joslas + globālais slieksnis; atteikšanās = 0) un lut_only_sharpness
+  (LapVar, tikai informatīvi).
+- engine/render.py: lut_only_crops (centra kvadrāts + centra 4:5,
+  deterministisks) un render_lut_only (tikai LUT; MASTER 1:1 +
+  MAKRO 2000x2500 q95 ar izlaides asināšanu; bez maskas/ēnas/fona);
+  write_collage zina lut_only.
+- workflow_v2.py: --lut-only STEM; masku fāzes zars ar verifikāciju
+  (STOP ar skaitļiem); boundary cikls izlaiž ar atzīmi; profila avots
+  = tikai kopskati (bez kopskata -> STOP); rendera zars.
+- checker_v2.py: _lut_only_crops NEATKARĪGA implementācija (spec
+  viena, kods atsevišķs — faila augšas neatkarības princips);
+  check_one_lut_only: patur A2/K/D/R/T, pārējie izlaisti AR reason.
+- engine/report.py make_zip: lut_only kadram MAKRO fails.
+- paper_leak.py labojums (§131 darbības laukā): paper_background_mask
+  avarēja uz tukša paper_like (np.percentile uz 0 elementiem), ja
+  ringa kandidāts bija "pieņemams", bet papīra pikseļu nav; tagad
+  atgriež refused "papīram līdzīgu pikseļu nav". Īsto kadru rezultāti
+  nemainīgi (145345/145603 verifikācija FAIL ar tiem pašiem skaitļiem,
+  145647 PASS refused).
+- Testi: 122 -> 131 (9 jauni: ģeometrija 4, verifikācija 2,
+  renderis+checker aplinks un sabotāža 2, make_zip sargs 1);
+  visi 131 zaļi. Aplinks sintētiskajā: A2 max_diff 0, K shift_b -0.02,
+  R fore_p99 9.0 edge 1.208; melnas MAKRO sabotāža -> R FAIL.
+- Īsto kadru verifikācija: 145345 malas 42-70% global 45.6% -> STOP
+  (pareizi, kopskats); 145603 malas 62-77% global 43.0% -> STOP;
+  145647 refused, daļas 0 -> PASS. LapVar 770/802/221.

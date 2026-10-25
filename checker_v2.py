@@ -620,12 +620,172 @@ def boundary_evidence_gate(rgb: np.ndarray, alpha: np.ndarray) -> dict:
     }
 
 
+def _lut_only_crops(h: int, w: int) -> dict:
+    """§131 specifikācijas ģeometrija (NEATKARĪGA no maker implementācijas —
+    neatkarības princips faila augšā): MASTER = centra kvadrāts min(h, w);
+    MAKRO = centra lodziņš ar malu attiecību precīzi 2000:2500, pēc iespējas
+    liels. Ja maker kādreiz sāk griezt citur, šeit redzes starpību."""
+    s = min(h, w)
+    mx0, my0 = (w - s) // 2, (h - s) // 2
+    if w / max(h, 1) <= 0.8:
+        cw = w
+        ch = int(round(cw / 0.8))
+        if ch > h:
+            ch = h
+            cw = int(round(ch * 0.8))
+    else:
+        ch = h
+        cw = int(round(ch * 0.8))
+        if cw > w:
+            cw = w
+            ch = int(round(cw / 0.8))
+    cx0, cy0 = (w - cw) // 2, (h - ch) // 2
+    return {
+        "master": {"x0": mx0, "y0": my0, "size": s},
+        "makro": {"x0": cx0, "y0": cy0, "w": cw, "h": ch},
+    }
+
+
+def check_one_lut_only(stem: str, maker_rec: dict, lut_rows) -> dict:
+    """§131 lut_only (pilnkadra makro) vārti.
+
+    Patur: A2 (MASTER = LUT(oriģināls) centra kvadrāts bitu precizitātē),
+    K (b* godīgums pret oriģināla to pašu kropi), D (formāts 2000x2500),
+    R (piegādātais JPEG pret LUT rekonstrukciju bez asināšanas), T (ātrums).
+    Izlaiž AR atzīmi "lut_only": B/C/F/H/L/P/Q/S — pilnkadrā nav fona, maskas,
+    alfas, robežas, ko pārbaudīt. Nekādu klusu izlaišanu: katrs izlaistais
+    vārts satur reason."""
+    source = Path(maker_rec.get("source") or (Path(SRC_DIR) / f"{stem}.jpg"))
+    master_p = Path(OUT) / "master" / f"{stem}_MASTER_1to1.png"
+    makro_p = Path(OUT) / "paraugs" / f"{stem}_MAKRO_2000x2500.jpg"
+    missing = [str(p) for p in (source, master_p, makro_p) if not p.is_file()]
+    if missing:
+        return {"ALL_PASS": False, "error": "trūkst failu", "missing": missing}
+
+    orig = open_rgb(source, maker_rec.get("rotation_cw", 0))
+    h, w = orig.shape[:2]
+    geo = _lut_only_crops(h, w)
+    graded = _apply_lut(orig, lut_rows)
+
+    # A2: MASTER ir PNG -> jāsakrīt bitu precizitātē ar LUT centra kvadrātu.
+    m = geo["master"]
+    sq = graded[m["y0"]:m["y0"] + m["size"], m["x0"]:m["x0"] + m["size"]]
+    master = open_rgb(master_p)
+    if master.shape != sq.shape:
+        shape_err = f"MASTER forma {master.shape} != gaidītā {sq.shape}"
+        del master, graded, orig
+        return {"ALL_PASS": False, "error": shape_err}
+    diff = np.abs(master.astype(np.int16) - sq.astype(np.int16)).max(axis=2)
+    max_diff = int(diff.max())
+    core_n = int(sq.shape[0] * sq.shape[1])
+    clipped = ((sq <= 2) | (sq >= 253)).any(axis=2)
+    clipped_pct = float(clipped.mean() * 100)
+    del master, diff, clipped
+
+    # K un R: MAKRO pret oriģināla/LUT to pašu centra 4:5 kropi.
+    k = geo["makro"]
+    with Image.open(makro_p) as im:
+        makro_size = im.size
+        out_rgb = np.asarray(im.convert("RGB")) if makro_size == (2000, 2500) else None
+    chroma_check = {"pass": None, "shift_b": None, "limit": CHROMA_SHIFT_LIMIT,
+                    "note": "nav 2000x2500 MAKRO"}
+    gate_r = {"pass": None, "skipped": True, "note": "nav 2000x2500 MAKRO"}
+    if out_rgb is not None:
+        src_crop = orig[k["y0"]:k["y0"] + k["h"], k["x0"]:k["x0"] + k["w"]]
+        lut_crop = graded[k["y0"]:k["y0"] + k["h"], k["x0"]:k["x0"] + k["w"]]
+        ref_honest = np.asarray(
+            Image.fromarray(src_crop).resize((2000, 2500), Image.LANCZOS))
+        ref_recon = np.asarray(
+            Image.fromarray(lut_crop).resize((2000, 2500), Image.LANCZOS))
+        del src_crop, lut_crop
+        from paper_leak import lab_chunked
+
+        def _bstar(arr):
+            v = arr.reshape(-1, 3)
+            stride = max(1, len(v) // 60000)
+            lab = lab_chunked(v[::stride].reshape(1, -1, 3).astype(np.float32))[0]
+            return float(np.median(lab[:, 2]))
+
+        b_out, b_ref = _bstar(out_rgb), _bstar(ref_honest)
+        shift = b_out - b_ref
+        chroma_check = {
+            "pass": bool(abs(shift) <= CHROMA_SHIFT_LIMIT),
+            "shift_b": round(shift, 2),
+            "limit": CHROMA_SHIFT_LIMIT,
+            "b_out": round(b_out, 2),
+            "b_ref": round(b_ref, 2),
+            "note": "auduma b* pret oriģināla to pašu centra kropi (lut_only)",
+        }
+        fore = np.ones(out_rgb.shape[:2], bool)
+        back = np.zeros_like(fore)
+        mm = reconcile_metrics(ref_recon, out_rgb, fore, back)
+        reasons = []
+        if mm["fore_p99"] > GATE_R_P99_MAX:
+            reasons.append(f"apģērba p99 {mm['fore_p99']} > {GATE_R_P99_MAX}")
+        if not (GATE_R_EDGE_MIN <= mm["edge_ratio"] <= GATE_R_EDGE_MAX):
+            reasons.append(f"edge_ratio {mm['edge_ratio']} ārpus "
+                           f"[{GATE_R_EDGE_MIN}, {GATE_R_EDGE_MAX}]")
+        gate_r = {
+            "pass": bool(not reasons),
+            "reasons": reasons,
+            "note": ("lut_only: ref = LUT krops 2000x2500 bez asināšanas; "
+                     "fona nav, tāpēc bg p99 nav definēts"),
+            **mm,
+        }
+        del ref_honest, ref_recon, fore, back, mm
+    del graded, orig
+
+    total_s = maker_rec.get("timing", {}).get("total_s")
+
+    def _skip(note):
+        return {"pass": None, "skipped": True, "reason": note}
+
+    why_full = "lut_only: pilnkadrs — nav fona/maskas/alfas/robežas (§131)"
+    gates = {
+        "GATE_A2_graded_pixels": {
+            "pass": bool(max_diff <= 1 and clipped_pct <= 2.0),
+            "core_px": core_n,
+            "max_diff": max_diff,
+            "clipped_core_pct": round(clipped_pct, 4),
+            "note": "core = viss centra kvadrāts (nav maskas)",
+        },
+        "GATE_B_background": _skip(why_full),
+        "GATE_C_mask": _skip(why_full),
+        "GATE_D_format": {
+            "pass": bool(makro_size == (2000, 2500)),
+            "size": list(makro_size),
+            "corners_info_only": None,
+            "source_rotation_cw": int(maker_rec.get("rotation_cw") or 0),
+        },
+        "GATE_F_fullframe_closeup": _skip(
+            "lut_only: visas malas mantotas no oriģināla (centra krops, §131)"),
+        "GATE_H_edge": _skip(why_full),
+        "GATE_K_chroma_honesty": chroma_check,
+        "GATE_L_paper_leak": _skip(why_full),
+        "GATE_P_paper_at_border": _skip(why_full),
+        "GATE_Q_lost_fabric": _skip(why_full),
+        "GATE_R_reconcile": gate_r,
+        "GATE_S_boundary_evidence": _skip(why_full),
+        "GATE_T_speed": {
+            "pass": bool(isinstance(total_s, (int, float)) and float(total_s) <= SPEED_LIMIT_S),
+            "total_s": total_s,
+            "limit_s": SPEED_LIMIT_S,
+            "method": maker_rec.get("mask_method"),
+            "timing": maker_rec.get("timing", {}),
+        },
+    }
+    gates["ALL_PASS"] = all(v["pass"] in (True, None) for v in gates.values())
+    return gates
+
+
 def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     if maker_rec.get("status", "completed") != "completed":
         return {
             "ALL_PASS": False,
             "error": f"maker statuss nav completed: {maker_rec.get('status')}",
         }
+    if maker_rec.get("lut_only"):
+        return check_one_lut_only(stem, maker_rec, lut_rows)
 
     source = Path(maker_rec.get("source") or (Path(SRC_DIR) / f"{stem}.jpg"))
     mask_p = Path(maker_rec.get("mask_path") or (Path(OUT) / "masks" / f"{stem}_MASK.png"))
