@@ -3237,3 +3237,29 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   masku, attempt). Sērija "3 neredzētas grupas bez koda labojuma"
   joprojām 0/3 — nākamā (bikšu) grupa skaitīsies tajā.
   Gaida kadru augšupielādi; pēc tās: inventārs + §91 + setup.
+
+### §127 Bikšu grupa sākta: inventārs, §91, orientācija, vide (2026-10-25)
+
+- Augšupielādētas 2 bildes: MVIMG_20261020_160811.jpg (10.08 MB) un
+  MVIMG_20261020_161031.jpg (10.37 MB); abas 4096x3072 ainava,
+  POCO F7, uzņemtas 2026-10-20 16:08/16:10 (vecās sesijas kadri,
+  ne jaunā loga uzstādīšana). Krātuve 46.9 -> 66.8 MB.
+  Inventāra lapa ar mērījumiem: tmp_id/bikses_inventars.jpg.
+- Pogas: abas bildes = viens apģērbs, priekša+aizmugure, visas;
+  virsma = papīrs + redzama grīda stūrosos; §91 caurspīdīgu daļu nav.
+- Skaitļi: stūri pelēki [150-170] std 3-4 (tumši izpakavēts
+  papīrs), katrā bildē viens tumši brūns izkliedes stūris (koka
+  grīda); spilgtais reģions 13-14% RGB [218,218,212]; ekspozīcija
+  p50 ~165. Audums (tumši neitrāls, lum<130, |R-B|<=18) 28.6% /
+  22.8%; centrā ass (Laplacian var līdz 44 000), apakšējās joslas
+  gludas (78-376) — defokuss vēl nav pierādīts, izšķirs maskas
+  kvalitāte un GATE_S.
+- Orientācija: mani skaitliskie mēģinājumi (galu spraugas,
+  erozijas kodols, biezuma profils) deva pretrunīgus rezultātus
+  (161031 biezuma maksimums kreisajā pusē pretdāz vecajai piezīmei
+  "josta labajā"). Lēmums pēc lietotāja acs: **jostasvieta labajā
+  pusē abām bildēm** -> --rotate STEM:270 (90° pret pulksteņrādītāju,
+  labā mala uz augšu) abiem. 160811 saskan ar biezuma maksimumu
+  85% no kreisās; 161031 saskan ar vēsturisko piezīmi.
+- setup_v2.py: vide atjaunota (piespraudes OK, ISNet sha256 OK).
+  Nākamais: attempt 1 ar rotācijām, tad kolāža lietotājam.
