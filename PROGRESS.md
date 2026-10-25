@@ -2979,3 +2979,22 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Stāvoklis: sistēma šo klasi vairs nevar klusi izlaist nevienā
   posmā. Grupa gaida pārfotografēto 160601; pēc jaunā oriģināla —
   jauns attempt ar precīziem --files. Krātuve: 92793951 B.
+
+### §117 Jauna eksperimenta paraugi: Kiko Kostadinov Tomelilla (2026-10-25)
+
+- Lietotājs norādīja jaunu eksperimentu un lūdza no Slam Jam
+  produkta `kiko-kostadinov-clothing-tomelilla-top-white-j359802`
+  izvilkt visas 4 bildes kā papildus paraugus, pēc tam gaidīt.
+  Lapa ir Shopify: attēlu saraksts ņemts no produkta JSON
+  (`...j359802.js`), nevis no JS-renderētās galerijas.
+- Saglabāts `uploads/` pilnā izmērā 2000x2500:
+  `slamjam_kiko_tomelilla_1.jpg` (priekša, sha256 77507e8af7d2…),
+  `_2.jpg` (aizmugure, b67bca2ca4cb…), `_3.jpg` (kakla/birkas
+  detaļa, 7b0db03861d8…), `_4.jpg` (piedurknes/apakšmalas detaļa,
+  34ea2d2ea4dd…). Kopā +1 998 235 B.
+- Dzēšanas tvērums ("visas bildes, tikai priekša/aizmugure") bija
+  neskaidrs, tāpēc jautāts ar pogu pēc inventāra (uploads 15,
+  output 16, tmp_id 50 attēli). Lietotājs izvēlējās
+  **pagaidām neko nedzēst**. Nekas nav dzēsts; aktīvā Uniqlo
+  grupa un A10 stāvoklis nemainīti. Gaida nākamos norādījumus.
+  Krātuve: /home/user 94409738 B.
