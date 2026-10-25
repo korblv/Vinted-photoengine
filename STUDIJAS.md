@@ -530,6 +530,24 @@ no maskēta maksimālās izšķirtspējas avota (MASTER/#F3), citādi
 kadrā paliek papīra fons no oriģināla (redzams POC-2
 apakšmalas simulācijā).
 
+**POC-3 uzlabojumu varianti** (kakla zona; A = POC-2 bāze
+CUBIC bez asināšanas; B = LANCZOS4; C = B + USM r2/a0.6;
+D/E = C ar plašāku lauku SRC_H 1200/1400 px; F = USM r3/a1.0).
+Avota daļa no izejas: A/B/C/F 12.0%, D 19.1%, E 26.0%
+(efektīvais palielinājums 2.89x/2.29x/1.96x). Pogas ROI
+Laplacian dispersija pret īsto detaļu (7171): A 515, B 497,
+C 968, D 2349, E 4033, F 1697 — bet pēc asināšanas metrikas
+ir mākslīgi paceltas, tāpēc izšķirošs ir 100% skats: C dod
+tīrākas malas bez redzama halo, F jau kraukšķina (griesti
+pārsniegti), D/E adījums izskatās dabiskāks mazāka
+palielinājuma dēļ, bet E zaudē tuvplāna raksturu (pazīmes
+par mazu, kadrā pleci un fons). Ieteikums: **D līmenis** —
+plašāks lauks ar efektīvo palielinājumu ≤~2.3x (avots
+≥~19% no izejas pikseļiem) + LANCZOS4 + USM r2/a0.6; zonai
+jābūt izvēlētai tā, lai plašāks lauks nezaudē full-bleed
+raksturu. Īsta detaļa 100% mērogā joprojām ir nepārprotami
+asāka (adījuma cilpas, birkas teksts).
+
 **Nav pierādīts:** absolūtais kameras attālums un fokuss
 (EXIF bez fokusa visiem 24); Kiko _4, Jil Sander _4 un
 Wrangler _4 leņķi skaitliski; vai kopskats un detaļa uzņemti

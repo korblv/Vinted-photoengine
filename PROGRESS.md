@@ -3091,3 +3091,23 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   maksimālās izšķirtspējas avota (MASTER/#F3), ne no papīra
   oriģināla. Ražošanas kods nemainīts; rūtiņu attēli dzēsti.
   Krātuve: /home/user 116845717 B.
+
+### §122 M9 POC-3: simulācijas uzlabojumu varianti (2026-10-25)
+
+- Lietotājs izvēlējās vispirms uzlabot kvalitāti. Fiksēti 6
+  varianti kakla zonai (`tmp_id/poc_improve_variants.py`):
+  interpolācija CUBIC/LANCZOS4, USM r2/a0.6 vai r3/a1.0,
+  lauka augstums avotā 950/1200/1400 px. Lapas:
+  `poc_variants_sheet.jpg`, `poc_variants_100.jpg`; pilnā
+  izmērā saglabāti C un D varianti.
+- Mērījumi (avota daļa no izejas / Laplacian dispersija pogas
+  ROI; īstā detaļa 7171): A bāze 12.0%/515; B LANCZOS 497
+  (~bez izmaiņām); C +USM0.6 968; D lauks 1200 19.1%/2349;
+  E lauks 1400 26.0%/4033; F USM1.0 1697. Pēc acs 100%
+  mērogā: C tīrs bez halo, F kraukšķina bez jaunas
+  detalizācijas, D/E dabiskāks adījums, bet E vairs nav
+  tuvplāns. Ieteiktā recepte: efektīvais palielinājums
+  ≤~2.3x (avots ≥~19%), LANCZOS4, USM r2/a0.6. Īsta detaļa
+  joprojām asāka. Gaida lietotāja lēmumu par ražošanu.
+- Ražošanas kods nemainīts. Krātuve: /home/user 121765193 B
+  (POC materiāli tmp_id — pēc lēmuma jāiztīra).
