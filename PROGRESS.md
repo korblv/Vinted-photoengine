@@ -3287,3 +3287,27 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   tmp_id/bikses_rezultats.jpg; kolāža output/V2_KOLAZA.jpg.
   Gaida lietotāja apstiprinājumu (§3.4): kolāža -> Apstiprināt/
   Noraidīt -> ZIP -> dzēst pēc "Lejupielādēju".
+
+### §129 Orientācijas labojums priekšpusē; 4 auto detaļas (2026-10-25)
+
+- Lietotāja acs §128 kolāžā noķēra: priekšpuse (160811) iznāca
+  KĀJĀM Gaisā — mana 270 rotācija bija nepareiza šai bildei
+  (josta oriģinālā kreisajā, ne labajā pusē; aizmugure 161031
+  pareizi). Labojums: --rotate 160811:90 (CW; kreisā mala ->
+  augša), aizmugure paliek 270.
+- SVARĪGI: §128 secinājums "izpletstas staras -> jostas zona nav
+  atvasināma" bija ORIENTĀCIJAS mānīgs — pickeris "jostas joslā"
+  redzēja staru zonu (kas bija augšā pēc nepareizās rotācijas).
+  Ar pareizo rotāciju tipa loģika PRIEKŠPUSĒ pati atrod jostu
+  (segums 0.820) un kabatu (0.845), palielinājums 1.73x. Aizmugure
+  nemainīgi josta 0.847 + kabata 0.834 (1.77x). Zonas fails
+  vairs nav vajadzīgs — visas 4 detaļas automātiskas.
+- Attempt 3 (rotācija 160811:90, 161031:270; identity WB; 160811
+  jauna maska isnet 0.381, 161031 pārmantota isnet_pad_retry):
+  **checker 2/2 PASS**. Krātuve 101.1 MB / 128 MB.
+- Dzēsts novecojušais MVIMG_20261020_160811_DETALA_1_apaksmala_
+  ATVASINATA.jpg (radīts no nepareizi rotēta MASTER §128 mēģinājumā,
+  atskaitē vairs nav — lai neiekļūtu piegādē).
+- Godīgi: sērijā "3 bez koda labojuma" šī grupa = 1/3 AR parametru
+  maiņām (identity WB; rotācijas labojums) un ar vienu lietotāja
+  QA negatīvu ciklu (orientācija). Kods netika labīts.
