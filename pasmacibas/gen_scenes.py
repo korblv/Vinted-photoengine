@@ -109,12 +109,13 @@ def _save(img, path):
 
 
 def scene_kopskats(out, name, seed, paper_rgb=(165, 165, 163), garment=(201, 201, 203),
-                   floor=True, touch_right=False, shadow=0.35, shadow_split=False):
+                   floor=True, touch_right=False, shadow=0.35, shadow_split=False,
+                   scale=1.0):
     rng = np.random.default_rng(seed)
     scene = _paper(W, H, rng, paper_rgb)
     if floor:
         scene = _floor_corner(scene, rng)
-    mask = _shirt_mask(W, H, touch_right=touch_right)
+    mask = _shirt_mask(W, H, touch_right=touch_right, scale=scale)
     fab = _fabric(H, W, rng, garment)
     if shadow_split:
         # krekla augšdaļa dziļā ēnā (reālais 145345 gadījums: p10 16-31)
@@ -145,6 +146,27 @@ def scene_makro(out):
     rng = np.random.default_rng(505)
     fab = _fabric(H, W, rng, (201, 201, 203), sigma=16, folds=7)
     _save(fab, Path(out) / "PDR_F_makro.jpg")
+
+
+def scene_extra(out):
+    """2. kārtas ainas (P_REZULTATI §5):
+    - G_plats: milzīgs krekls, ķermenis pāri pilnam platumam -> kontakts
+      >= 50% abās vertikālajās malās -> auto KADRĒJUMAM jāizvēlas original
+      (vienīgais līdz šim neizprovocētais auto atzars).
+    - C2_zemkontrasts: zemas kontrasta krekls [178] uz [156] papīra ar
+      cietu ēnas joslu -> mēģinājums izsaukt isnet_pad_retry ceļu."""
+    # G: scale 1.95 -> body 1.01xW plats, 0.78H augsts
+    scene_kopskats(out, "G_plats", seed=707, floor=False, scale=1.95)
+    rng = np.random.default_rng(808)
+    scene = _paper(W, H, rng)
+    mask = _shirt_mask(W, H)
+    fab = _fabric(H, W, rng, (178, 178, 178))
+    yy = np.mgrid[0:H, 0:W][0].astype(np.float32)
+    ramp = np.clip(1.0 - 0.80 * np.exp(-((yy - H * 0.30) / (H * 0.09)) ** 2), 0.20, 1.0)
+    fab *= ramp[..., None]
+    scene = np.where(mask[..., None], fab, scene)
+    scene = _drop_shadow(scene, mask, rng, strength=0.30)
+    _save(scene, Path(out) / "PDR_C2_zemkontrasts.jpg")
 
 
 def main():

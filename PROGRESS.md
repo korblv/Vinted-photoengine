@@ -3424,3 +3424,28 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Mācības rīku higiēnā: checker ar pozicionālo filtru pārraksta
   report_v2.json — pirms make_zip vienmēr pilns checker.
 - Komits: pasmacibas/ (P0_PLANS, gen_scenes, P_REZULTATI).
+
+### §134 Defekta labojums + 2. pašmācību kārta (2026-10-25)
+
+- Poga "Labot": engine/report.py _persist_report lut_only izdzīvošana
+  pēc MAKRO faila; 2 regresa testi (131 -> 133 zaļi); P5 atkārtots
+  end-to-end: F izdzīvo citu --files palaišanu, checker 6/6, ZIP
+  5 PARAUGS + 1 MAKRO, CRC OK. Komits 3dd0569.
+- 2. kārta (P_REZULTATI §6-8): auto->original atzars IEGUTS ar
+  H_salocits (salocīts apģērbs, noapaļots taisnstūris pāri platumam,
+  kontakts 0,58; "original (auto: atvērts siluets -> original)",
+  12/13 vārti zaļi). Neizdevās: G_plats (elipse sašaurinās -> kontakts
+  0,46 + boundary STOP 9 logi), C2 (ISNet pārāk labs -> isnet tīri;
+  pad_retry paliek tikai reālais 161031).
+- P7 sabotāža ražošanas mērogā: sagandēts MAKRO -> GATE_R FAIL
+  (K paliek True — R ir notvērējs); atjaunots -> PASS.
+- **ATKLĀJUMS (GATE_K atsauce, P_REZULTATI §7):** GATE_K reference
+  sablīvē VISU avotu 2000x2500 un mēra via reģionā — kad proporcijas
+  neatšķiras tikai ar mērogu, via iekļauj papīru -> b_ref nobīde
+  pret patieso auduma b* lidz +2 (H: ref +0,93 pret audumu -1,11;
+  kopā ar LUT -1,19 -> -3,27 > 2,5). Uz reāliem slamjam kopskatiem
+  nobīde maza (145603 identity -0,98). GATE_R lieto korektu ģeometriju,
+  GATE_K ne. Piedāvāts labojums: GATE_K atsaucei ta pati rendera
+  ģeometrija (bbox/crop/lut_only krops). Gaida pogu.
+- Neaizmirst: Uniqlo 145345 lēmums vēl nav pieņemts (pārfotografēt /
+  piegādāt bez / skatīties failus); 145603 puse nav apstiprināta.

@@ -125,8 +125,8 @@ python3 checker_v2.py
 - [x] P3 WB auto/identity (E2: −4,13 → −0,98; E v1 deva boundary_uncertain bonusu)
 - [x] P4 lut_only ražošanas mērogā (arī bez-refused atzars)
 - [x] P5 make_zip jaukts (ATRASTS DEFEKTS: lut_only ieraksti izkrīt no akumulācijas — sk. P_REZULTATI §2)
-- [ ] P6 closeup zonas (atlikts; t125 sedz)
-- [ ] P7 checker sabotāžas ražošanas mērogā (atlikts)
+- [~] P6 auto→original atzars (2. kārta: H_salocits ✓); closeup zonas joprojām t125
+- [x] P7 checker sabotāža ražošanas mērogā (2. kārta: MAKRO → R FAIL ✓)
 - [x] P8 boundary_uncertain (iegūts P3 E v1: zemas kontrasta robeža)
 
 Rezultāti: `P_REZULTATI.md`.

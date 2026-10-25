@@ -72,3 +72,68 @@ atkārtotu palaišanos ar citiem --files.
 4. GATE_K sadalījums rotētajai A ainai (−3,12 auto → −2,13 identity):
    atlikusī daļa no chroma_seeded maskas/ēnas — izpētīt, vai maska
    neiekļauj zilganu ēnas joslu.
+
+---
+
+# 2. kārta (2026-10-25, pēc §133 defekta labojuma pogas)
+
+## 5. Defekta labojums un P5 pierādījums
+
+- Labojums `engine/report.py` `_persist_report`: lut_only ieraksta
+  izdzīvošanas pārbaude skatās `makro_path` / `MAKRO_2000x2500.jpg`.
+- 2 jauni regresa testi (131 → 133; visi zaļi): lut_only ieraksts
+  izdzīvo nākamo palaišanu ar citiem --files; bez MAKRO faila — izzūd.
+- P5 atkārtots end-to-end: attempt 13 (F atpakaļ atskaitē) → attempt 14
+  (citi --files) → **F izdzīvo** (completed/lut_only True) →
+  **checker 6/6 PASS** → **ZIP satur 5 PARAUGS + 1 MAKRO**, CRC OK.
+- Komits `3dd0569`.
+
+## 6. 2. kārtas treniņi
+
+| # | aina / darbība | gaidīja | faktiski | secinājums |
+|---|---|---|---|---|
+| P6 | G_plats (elipses krekls pāri platumam, scale 1.95) | auto→original | slamjam (kontakts 0,46 < 0,50), tad **STOP boundary_uncertain** (9 logi ≥ 4) | elipse malās sašaurinās uz punktu → kontakts nepietiek; sašaurinātā, mīkstā robeža dod GATE_S STOP — taisnas malas ir svarīgas |
+| P6b | C2_zemkontrasts (krekls [178] uz [156] + cietā ēna 0,8) | isnet_pad_retry | isnet tīri (seg. 0,2854) | ISNet uz sintētikas pārāk robusts; pad_retry paliek segts tikai ar reālo 161031 |
+| P6c | **H_salocits (salocīts apģērbs: noapaļots taisnstūris pāri pilnam platumam, kontakts 0,58)** | auto→original | ✓ **"original (auto: atvērts siluets -> original)"**; isnet seg. 0,618; 12/13 vārti zaļi (arī F: malas mantotas) | **pēdējais auto atzars iegūts**; vienīgais kritums — GATE_K (sk. §7) |
+| P7 | Sabotāža ražošanas mērogā: MAKRO aizstāts ar viendabīgu pelēku | R/K krit | ✓ **GATE_R FAIL** (K palika True — mediāna b\* viendabīgā krāsā ietilpst limitā; R ķer) | R ir tam notvērējs; pēc atjaunošanas atkal PASS |
+| — | GATE_K sadalījums (H) | izprast −3,27 | b\* soļi: audums −1,11 → LUT −2,30 → PARAUGS −2,34; **checker ref +0,93** | sk. §7 |
+
+## 7. ATklājums par GATE_K atsauces būvi (labojumam vajag pogu)
+
+GATE_K reference tiek būvēta, VISPĀRĒJO avotu sablīvējot 2000×2500
+(`src_im.resize((2000,2500))`) un mērot `via` (novietojuma maskas)
+reģionā. Kad avota un audekla proporcijas neatšķiras tikai ar
+augšupielādes mērogu (H: avots 0,46 platums/augstums pret audeklu 0,8;
+`via` sedz 94,7% audekla), `via` reģionā iekļūst ARĪ papīrs →
+b_ref nobīdās pret patieso auduma b\* par **+2,04** (H: ref +0,93 pret
+audumu −1,11). Kopā ar LUT zilo pieguvumu (−1,19 no WB [1,1,1,026] uz
+nedaudz sarkanīga papīra fona [161,161,158]) tas dod −3,27 > limits 2,5.
+
+- Uz REĀLIEM slamjam kopskatiem (portrets → portrets, via ≈ 0,74×0,78)
+  šī approksimācija ir maza (145603: identity −0,98 PASS), bet eksistē.
+- GATE_R jau lieto ĢEOMETRIJAI korektu rekonstrukciju
+  (`reconcile_reference`); GATE_K to nedara.
+- Piedāvātais labojums (pēc pogas): GATE_K atsaucei izmantot to pašu
+  ģeometriju kā renderim (bbox kopskatam / crop lodziņš tuvplānam /
+  lut_only krops — tam jau tā ir), nevis visa avota sablīvējumu.
+
+## 8. Ceļu segums pēc 2. kārtas
+
+| ceļš | segums |
+|---|---|
+| isnet | ✓ |
+| isnet_pad_retry | tikai reālais 161031 (godīgi: sintētiski nav izdevies 2 mēģinājumos) |
+| chroma_seeded | ✓ P2 |
+| plate_texture | vēsturiski reāls; sintētiski nav provocēts |
+| lut_only | ✓ P4 + 145647; akumulācijas defekts izlabots (§5) |
+| needs_seed_review STOP | ✓ |
+| boundary_uncertain STOP | ✓ 2 gadījumi (E v1 zemas kontrasta; G mīkstā sašaurinātā robeža) |
+| slamjam | ✓ |
+| original (renderis) | ✓ (karogs + AUTO atzars caur H_salocits) |
+| WB auto→fail→identity | ✓ |
+| rotācijas 90/270 | ✓ |
+| make_zip PARAUGS+MAKRO | ✓ pēc labojuma |
+| checker sabotāžas (R) | ✓ P7 |
+
+Atlikušais godīgais parāds: pad_retry un plate sintētiskā provocēšana;
+GATE_K atsauces ģeometrijas labojums (§7, gaida pogu).
