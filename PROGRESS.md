@@ -3263,3 +3263,27 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   85% no kreisās; 161031 saskan ar vēsturisko piezīmi.
 - setup_v2.py: vide atjaunota (piespraudes OK, ISNet sha256 OK).
   Nākamais: attempt 1 ar rotācijām, tad kolāža lietotājam.
+
+### §128 Bikšu grupa: attempt 1-2, detaļas, checker 2/2 PASS (2026-10-25)
+
+- Attempt 1 (rotācijas 270 abām): 160811 maska isnet (segums
+  0.383), 161031 AI QA noraidīja sadrumstalotu silueti (0.584<0.6),
+  apmales retry pieņēma (0.367, overflow 0.0). Checker: **GATE_K
+  krāsu godīgums FAIL abām** — auto WB (zilais +7.3% siltā papīra
+  [183,180,172] dēļ) pavirzīja auduma b* par −2.72/−2.52 (limits
+  2.5). Pārējie vārti zaļi (C/Q/S/P/H/A2/B/D/R/T), defokusa nav
+  (GATE_S 0 aizdomīgu logu abās).
+- Attempt 2 `--rerender-saved --wb-mode identity` (maske pārmantota;
+  §116 precedents): **checker 2/2 PASS**. Audums paliek
+  nofotografētajā krāsā, fons aizvietots ar #F3F3F3.
+- Atvasinātās detaļas no jaunā profila: aizmugure (161031)
+  automātiski josta (segums 0.847) + kabata (0.834), palielinājums
+  1.77x; priekša (160811) tipa loģika jostas zonu neatrada —
+  staras izpletstas, jostas joslā nav neviena kandidāta ar segumu
+  >=0.70 (sprauga starp starām iekrīt laukā). Vārtus nemīkstināju;
+  mērīta apakšmalas zona caur zones-file: segums 0.960, 1.73x.
+  Kopā 3 detaļas, visas `_ATVASINATA`, izcelsme _TUVPLANI.json.
+- Krātuve: 66.8 -> 99.0 MB. Rezultātu lapa
+  tmp_id/bikses_rezultats.jpg; kolāža output/V2_KOLAZA.jpg.
+  Gaida lietotāja apstiprinājumu (§3.4): kolāža -> Apstiprināt/
+  Noraidīt -> ZIP -> dzēst pēc "Lejupielādēju".
