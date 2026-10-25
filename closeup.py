@@ -27,11 +27,29 @@ Akcenta izvēle ir mērīta, nevis nejauša:
   A) "detaļa" — augstākā detaļu enerģija (Laplacian) apģērba iekšpusē
   B) "zīmols" — lielākā hromas novirze no auduma vidējā (etiķete, aplikācija);
      ja izteiktas novirzes nav, ņem nākamo labāko detaļu.
+
+Slam Jam režīms (`--mode slamjam`, PROGRESS §118-§123, STUDIJAS M9)
+-----------------------------------------------------------------
+Atvasināta detaļa no tā paša MASTERA ar perspektīvas transformāciju,
+kas simulē Slam Jam tuvplāna ģeometriju: kamera ~56° virs auduma
+plaknes (novirze no normāles 34°, priekšsaīsinājums cos34°), apģērba
+pagrieziens -7°, perspektīvas mēroga gradients apakša/augša 1.22.
+Kvalitātes vārti (D recepte, POC-3): efektīvais ģeometriskais
+palielinājums <= 2.3x (ekvivalenti avota reģions >= 19% no izejas
+pikseļiem) un apģērba segums kadrā >= 0.70; ja vārti neiziet, detaļa
+netiek rakstīta, bet tiek ierakstīta atskaitē ar iemeslu. Katrs
+atvasinātais kadrs atskaitē nes pilnu izcelsmi (avota MASTERIS, centrs,
+lauks, ģeometrija, vārtu skaitļi) un faila nosaukumā marķējums
+_ATVASINATA. Zonas var norādīt precīzi ar `--zones-file` (JSON:
+{stem: [{"tag": ..., "center_xy": [x, y], "src_h": px}]}); bez tā
+darbojas automātiskā akcenta izvēle, kurai jebkurā gadījumā
+nepieciešams lietotāja apstiprinājums kolāžā.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -50,6 +68,19 @@ CANVAS = (2000, 2500)      # 4:5, tāds pats kā overview
 ASPECT = 1.25              # h / w
 MIN_COVERAGE = 0.88        # kā atsauces slamjam_3 blīvums
 SCORE_SIZE = (800, 1000)   # ar ko meklē akcentu (smalkākā granularitāte)
+
+# Slam Jam režīma noklusējumi (STUDIJAS M9, POC-3 "D" recepte).
+SLAMJAM_TILT_DEG = 34.0        # novirze no normāles; 56° virs plaknes
+SLAMJAM_ROTATION_DEG = -7.0    # apģērba pagrieziens kadrā (mediāna)
+SLAMJAM_PERSPECTIVE = 1.22     # mēroga attiecība apakša/augša
+SLAMJAM_FIELD_FRAC = 0.45      # vēlamais lauka augstums / apģērba bbox augstums
+SLAMJAM_MAX_UPSCALE = 2.3      # kvalitātes vārti: efektīvais palielinājums
+SLAMJAM_MIN_SOURCE_FRAC = 0.19  # tas pats vārtu slieksnis laukuma izteiksmē
+SLAMJAM_MIN_COVERAGE = 0.80    # apģērba segums; Slam Jam detaļās fons <=17%
+                               # (diagonālām piedurknēm izņēmumu dod ar CLI)
+SLAMJAM_USM_RADIUS = 2.0
+SLAMJAM_USM_PERCENT = 60
+SLAMJAM_USM_THRESHOLD = 3
 
 
 def _integral(img: np.ndarray) -> np.ndarray:
@@ -171,6 +202,150 @@ def fit_window(center, mask, want=(2000, 2500)):
     return chosen
 
 
+def slamjam_metrics(src_h, canvas=CANVAS, tilt_deg=SLAMJAM_TILT_DEG):
+    """Efektīvie mērogi Slam Jam laukam ar avota augstumu ``src_h`` px.
+
+    Ģeometriskais palielinājums ir ``sqrt(sx*sy)``; avota daļa ir
+    ``1/(sx*sy)``, tāpēc abi vārtu sliekšņi (2.3x un 19%) ir viens
+    un tas pats kritērijs divās izteiksmēs.
+    """
+    ow, oh = canvas
+    cos_t = math.cos(math.radians(tilt_deg))
+    avg_w = src_h * (ow / oh) * cos_t
+    sx = ow / avg_w
+    sy = oh / src_h
+    return {
+        "src_h": float(src_h),
+        "src_avg_w": float(avg_w),
+        "scale_x": float(sx),
+        "scale_y": float(sy),
+        "upscale_geom": float(math.sqrt(sx * sy)),
+        "source_fraction": float(avg_w * src_h / (ow * oh)),
+    }
+
+
+def min_src_h_for_upscale(max_upscale=SLAMJAM_MAX_UPSCALE, canvas=CANVAS,
+                          tilt_deg=SLAMJAM_TILT_DEG,
+                          min_source_fraction=SLAMJAM_MIN_SOURCE_FRAC):
+    """Mazākais avota lauka augstums, kas iziet abus vārtu sliekšņus."""
+    _ow, oh = canvas
+    cos_t = math.cos(math.radians(tilt_deg))
+    by_upscale = oh / (max_upscale * math.sqrt(cos_t))
+    by_fraction = oh * math.sqrt(min_source_fraction) / math.sqrt(cos_t)
+    return max(by_upscale, by_fraction)
+
+
+def slamjam_quad(center_yx, src_h, canvas=CANVAS,
+                 tilt_deg=SLAMJAM_TILT_DEG,
+                 rotation_deg=SLAMJAM_ROTATION_DEG,
+                 perspective=SLAMJAM_PERSPECTIVE):
+    """Avota četrstūris (x, y) izejas kadra stūriem TL, TR, BR, BL."""
+    ow, oh = canvas
+    cos_t = math.cos(math.radians(tilt_deg))
+    avg_w = src_h * (ow / oh) * cos_t
+    top_w = avg_w * 2 * perspective / (1 + perspective)
+    bot_w = avg_w * 2 / (1 + perspective)
+    rel = np.float32([[-top_w / 2, -src_h / 2], [top_w / 2, -src_h / 2],
+                      [bot_w / 2, src_h / 2], [-bot_w / 2, src_h / 2]])
+    th = math.radians(rotation_deg)
+    rot = np.float32([[math.cos(th), -math.sin(th)],
+                      [math.sin(th), math.cos(th)]])
+    cy, cx = center_yx
+    return rel @ rot.T + np.float32([cx, cy])
+
+
+def choose_slamjam_src_h(mask, src_h=None, field_frac=SLAMJAM_FIELD_FRAC,
+                         max_upscale=SLAMJAM_MAX_UPSCALE, canvas=CANVAS,
+                         tilt_deg=SLAMJAM_TILT_DEG,
+                         min_source_fraction=SLAMJAM_MIN_SOURCE_FRAC):
+    """Lauka augstums: vēlamā apģērba daļa, bet ne zem vārtu minimuma."""
+    if src_h:
+        return float(src_h), None
+    ys, _xs = np.nonzero(mask)
+    bbox_h = int(ys.max() - ys.min() + 1) if len(ys) else mask.shape[0]
+    desired = field_frac * bbox_h
+    minimum = min_src_h_for_upscale(max_upscale, canvas, tilt_deg,
+                                    min_source_fraction)
+    return float(max(desired, minimum)), bbox_h
+
+
+def slamjam_gate(metrics, coverage, max_upscale=SLAMJAM_MAX_UPSCALE,
+                 min_source_fraction=SLAMJAM_MIN_SOURCE_FRAC,
+                 min_coverage=SLAMJAM_MIN_COVERAGE):
+    """Atgriež (iziet, [iemesli]); sliekšņus nekad nepielāgo klusi."""
+    reasons = []
+    if metrics["upscale_geom"] > max_upscale:
+        reasons.append(
+            f"upscale_geom {metrics['upscale_geom']:.2f}x > {max_upscale}x")
+    if metrics["source_fraction"] < min_source_fraction:
+        reasons.append(
+            f"source_fraction {metrics['source_fraction']:.3f} "
+            f"< {min_source_fraction}")
+    if coverage < min_coverage:
+        reasons.append(f"coverage {coverage:.3f} < {min_coverage}")
+    return (not reasons), reasons
+
+
+def render_slamjam(master, mask, profile, center_yx, src_h, canvas=CANVAS,
+                   tilt_deg=SLAMJAM_TILT_DEG,
+                   rotation_deg=SLAMJAM_ROTATION_DEG,
+                   perspective=SLAMJAM_PERSPECTIVE,
+                   usm_radius=SLAMJAM_USM_RADIUS,
+                   usm_percent=SLAMJAM_USM_PERCENT,
+                   usm_threshold=SLAMJAM_USM_THRESHOLD):
+    """Perspektīvas atvasinātā detaļa: warp no MASTERA + svaiga ēna.
+
+    Audums un maska tiek transformēti atsevišķi; studijas fons ar ēnu
+    tiek ģenerēts no jauna izejas mērogā, lai avota ēna netiktu
+    izstiepta līdzi audumam.
+    """
+    ow, oh = canvas
+    graded = apply_lut(np.asarray(master), profile["lut_rgb"])
+    quad = slamjam_quad(center_yx, src_h, canvas, tilt_deg, rotation_deg,
+                        perspective)
+    dst = np.float32([[0, 0], [ow - 1, 0], [ow - 1, oh - 1], [0, oh - 1]])
+    mtx = cv2.getPerspectiveTransform(quad, dst)
+    fg = cv2.warpPerspective(graded, mtx, (ow, oh),
+                             flags=cv2.INTER_LANCZOS4,
+                             borderMode=cv2.BORDER_CONSTANT,
+                             borderValue=(243, 243, 243))
+    alpha = cv2.warpPerspective(mask.astype(np.float32), mtx, (ow, oh),
+                                flags=cv2.INTER_LINEAR,
+                                borderMode=cv2.BORDER_CONSTANT,
+                                borderValue=0)
+    alpha = np.clip(alpha, 0.0, 1.0)
+    coverage = float((alpha > 0.5).mean())
+    bg = studio_shadow_bg((oh, ow), (alpha > 0.5).astype(np.uint8),
+                          canvas_scale=1.0)
+    comp = (fg.astype(np.float32) * alpha[..., None]
+            + bg.astype(np.float32)[..., None] * (1.0 - alpha[..., None]))
+    comp = np.clip(comp, 0, 255).astype(np.uint8)
+    if usm_percent > 0:
+        comp = np.asarray(Image.fromarray(comp).filter(
+            ImageFilter.UnsharpMask(radius=float(usm_radius),
+                                    percent=int(usm_percent),
+                                    threshold=int(usm_threshold))))
+    metrics = slamjam_metrics(src_h, canvas, tilt_deg)
+    return comp, quad, metrics, coverage
+
+
+def load_zones(path):
+    """JSON zonu fails -> {stem: [(tag, (cy, cx), src_h|None), ...]}."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("zonu fails: gaidīts objekts {stem: [...]}")
+    out = {}
+    for stem, entries in data.items():
+        parsed = []
+        for e in entries:
+            cx, cy = e["center_xy"]
+            parsed.append((str(e.get("tag", "detaļa")),
+                           (int(cy), int(cx)),
+                           (float(e["src_h"]) if e.get("src_h") else None)))
+        out[str(stem)] = parsed
+    return out
+
+
 def render(master, mask, profile, win, sharpen_extra=0.35):
     """Izgriež, palielina uz 2000x2500, uzliek LUT un ēnu."""
     x0, y0, cw, ch, _cov = win
@@ -215,7 +390,30 @@ def render(master, mask, profile, win, sharpen_extra=0.35):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="slamjam stila tuvplāni")
     ap.add_argument("--stems", nargs="+", required=True)
+    ap.add_argument("--mode", choices=["crop", "slamjam"], default="crop",
+                    help="crop: līdzšinējais taisnstūra logs; slamjam: "
+                         "atvasināta detaļa ar perspektīvas transformāciju")
+    ap.add_argument("--zones-file", default=None,
+                    help="JSON {stem: [{tag, center_xy, src_h}]}; bez tā "
+                         "centrus izvēlas pick_centers")
+    ap.add_argument("--tilt-deg", type=float, default=SLAMJAM_TILT_DEG)
+    ap.add_argument("--rotation-deg", type=float,
+                    default=SLAMJAM_ROTATION_DEG)
+    ap.add_argument("--perspective", type=float,
+                    default=SLAMJAM_PERSPECTIVE)
+    ap.add_argument("--field-frac", type=float, default=SLAMJAM_FIELD_FRAC)
+    ap.add_argument("--max-upscale", type=float,
+                    default=SLAMJAM_MAX_UPSCALE)
+    ap.add_argument("--min-source-frac", type=float,
+                    default=SLAMJAM_MIN_SOURCE_FRAC)
+    ap.add_argument("--min-coverage", type=float,
+                    default=SLAMJAM_MIN_COVERAGE)
+    ap.add_argument("--usm-radius", type=float, default=SLAMJAM_USM_RADIUS)
+    ap.add_argument("--usm-percent", type=int, default=SLAMJAM_USM_PERCENT)
+    ap.add_argument("--usm-threshold", type=int,
+                    default=SLAMJAM_USM_THRESHOLD)
     args = ap.parse_args(argv)
+    zones = load_zones(args.zones_file) if args.zones_file else {}
 
     outdir = OUT / "tuvplani"
     outdir.mkdir(parents=True, exist_ok=True)
@@ -234,8 +432,59 @@ def main(argv=None):
         master = np.asarray(Image.open(master_p).convert("RGB"))
         mask = (np.asarray(Image.open(mask_p).convert("L")) > 128)
 
+        if stem in zones:
+            centers = zones[stem]
+        else:
+            centers = [(tag, center, None)
+                       for tag, center in pick_centers(master, mask)]
         rec = []
-        for i, (tag, center) in enumerate(pick_centers(master, mask), start=1):
+        for i, (tag, center, zone_src_h) in enumerate(centers, start=1):
+            if args.mode == "slamjam":
+                src_h, _bbox_h = choose_slamjam_src_h(
+                    mask, zone_src_h, args.field_frac, args.max_upscale,
+                    CANVAS, args.tilt_deg, args.min_source_frac)
+                img, quad, metrics, cov = render_slamjam(
+                    master, mask, profile, center, src_h, CANVAS,
+                    args.tilt_deg, args.rotation_deg, args.perspective,
+                    args.usm_radius, args.usm_percent, args.usm_threshold)
+                passed, reasons = slamjam_gate(
+                    metrics, cov, args.max_upscale, args.min_source_frac,
+                    args.min_coverage)
+                entry = {
+                    "index": i, "tag": tag, "derived": True,
+                    "mode": "slamjam", "source_master": master_p.name,
+                    "center_xy": [int(center[1]), int(center[0])],
+                    "src_h": round(float(src_h), 1),
+                    "quad_xy": [[round(float(x), 1), round(float(y), 1)]
+                                for x, y in quad],
+                    "tilt_deg": args.tilt_deg,
+                    "rotation_deg": args.rotation_deg,
+                    "perspective": args.perspective,
+                    "upscale_geom": round(metrics["upscale_geom"], 3),
+                    "source_fraction": round(metrics["source_fraction"], 4),
+                    "coverage": round(float(cov), 4),
+                    "gate_pass": bool(passed), "gate_reasons": reasons,
+                }
+                name = f"{stem}_DETALA_{i}_{tag}_ATVASINATA.jpg"
+                if passed:
+                    Image.fromarray(img).save(outdir / name, quality=95,
+                                              subsampling=0)
+                    entry["file"] = name
+                    entry["status"] = "written"
+                    print(f"  {stem[:22]:24s} #{i} {tag:7s} slamjam "
+                          f"lauks h={src_h:.0f} segums {cov:.3f} "
+                          f"palielin. {metrics['upscale_geom']:.2f}x "
+                          f"-> {name}")
+                else:
+                    entry["status"] = "gate_fail"
+                    stale = outdir / name
+                    if stale.exists():
+                        stale.unlink()
+                        entry["removed_stale_file"] = name
+                    print(f"  {stem[:22]:24s} #{i} {tag:7s} slamjam "
+                          f"VARTI NEIZGĀJA: {'; '.join(reasons)}")
+                rec.append(entry)
+                continue
             win = fit_window(center, mask)
             img = render(master, mask, profile, win)
             name = f"{stem}_TUVPLANS_{i}_{tag}.jpg"

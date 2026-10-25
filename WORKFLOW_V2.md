@@ -17,6 +17,11 @@ Apstrādāt vienas kompozīcijas bildes ražošanas tempā: mērķis ir aptuveni
   komplektam. Tā maina pikseļu vērtības, bet nemaina apģērba ģeometriju,
   krokas, birkas, tekstūru vai defektus.
 - Fons ir deterministisks `#F3F3F3`, ar mīkstu ēnu un 2000×2500 kadru.
+- Vienīgais izņēmums deformācijas aizliegumam ir **atvasinātie detaļu
+  kadri** (skat. sadaļu zemāk): deterministiska perspektīvas
+  transformācija no MASTER pikseļiem, bez ģeneratīvas pārzīmēšanas,
+  ar vārtiem, izcelsmes pierakstu un marķējumu faila nosaukumā.
+  Galvenie priekšas/aizmugures kadri šim izņēmumam neattiecas.
 
 ## Pipeline
 0. Pirms grupas palaiž `setup_v2.py --check` vai maker `--preflight`.
@@ -51,6 +56,36 @@ Apstrādāt vienas kompozīcijas bildes ražošanas tempā: mērķis ir aptuveni
    tuvplāns ir full-bleed, alfa paliek šaurā malas joslā un kopējais laiks
    ir mērķa zonā. Nepabeigtie/`failed` ieraksti tiek atsevišķi uzskaitīti
    checker `_meta` sadaļā un bloķē sekmīgu koprezultātu.
+
+## Atvasinātās detaļas (Slam Jam režīms, PROGRESS §118–§123)
+No pabeigtiem priekšas/aizmugures `MASTER_1to1` kadriem (ar masku un
+profilu) `closeup.py --mode slamjam` veido 2000×2500 detaļu kadrus
+Slam Jam ģeometrijā (STUDIJAS M9 mērījumi; POC-1..3 kvalitātes
+robežas).
+- **Zonas:** ražošanas lietojumā 2 detaļas vienam apģērbam; zonas
+  norāda ar `--zones-file` (JSON `{stem: [{tag, center_xy, src_h}]}`,
+  koordinātas MASTER pikseļos). Bez zonu faila darbojas automātiskā
+  akcenta izvēle tikai kā priekšlikums. Zonas un rezultātu rāda
+  lietotājam kolāžā apstiprināšanai pirms piegādes.
+- **Ģeometrija (D recepte):** novirze no normāles 34° (kamera ~56°
+  virs plaknes), pagrieziens −7°, perspektīvas gradients 1.22,
+  LANCZOS4, USM r=2/60%/slieksnis 3. Audums un maska tiek
+  transformēti atsevišķi; LUT no avota profila; studijas ēna tiek
+  ģenerēta no jauna izejas mērogā.
+- **Vārti:** efektīvais ģeometriskais palielinājums ≤ 2.3×, avota
+  reģions ≥ 19% no izejas pikseļiem, apģērba segums ≥ 0.80
+  (pazemināt drīkst tikai apzināti ar CLI, piem. diagonālai
+  piedurknei). Ja vārti neiziet: fails netiek rakstīts, tāda paša
+  nosaukuma novecojusi versija tiek noņemta, iemesls paliek
+  `_TUVPLANI.json`. Lauka noklusējums: `max(0.45 × apģērba bbox
+  augstums, vārtu minimums)` vai `src_h` no zonu faila.
+- **Izcelsme un robežas:** failos marķējums `_ATVASINATA`; atskaite
+  glabā avota MASTERI, centru, četrstūri, ģeometrijas parametrus un
+  vārtu skaitļus. Mikrodetalizācija nerodas no jauna: 100% mērogā
+  atvasināta detaļa ir mīkstāka par īstu tuvplānu, un birkas teksts
+  ir salasāms tikai tad, ja tas ir salasāms avota reģionā.
+- Piemērs: `python3 closeup.py --stems STEM_FRONT STEM_BACK
+  --mode slamjam --zones-file zones.json`.
 
 ## Orientācijas noteikums (lietotāja norāde 2026-10-21)
 Ja atsūtītā bilde ir „uz sāniem" (piemēram, bikšu jostasvieta ir pie kadra

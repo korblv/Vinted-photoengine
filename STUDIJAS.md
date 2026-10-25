@@ -548,6 +548,15 @@ jābūt izvēlētai tā, lai plašāks lauks nezaudē full-bleed
 raksturu. Īsta detaļa 100% mērogā joprojām ir nepārprotami
 asāka (adījuma cilpas, birkas teksts).
 
+**Ieviešana (§123).** Lietotājs apstiprināja D recepti ražošanai.
+`closeup.py --mode slamjam` no MASTER+maskas+profila veido
+atvasinātas detaļas ar šo ģeometriju, zonu failu, vārtiem
+(palielinājums ≤2.3x, avots ≥19%, segums ≥0.80) un pilnu izcelsmi
+`_TUVPLANI.json`; specifikācija WORKFLOW_V2 sadaļā "Atvasinātās
+detaļas". Validēts uz Uniqlo 160538 MASTER: 2 kadri iziet vārtus
+(2.294x; segums 0.924/0.844), testi 119/119. Iebūvēšana maker
+attempt/kolāžas/ZIP plūsmā vēl priekšā.
+
 **Nav pierādīts:** absolūtais kameras attālums un fokuss
 (EXIF bez fokusa visiem 24); Kiko _4, Jil Sander _4 un
 Wrangler _4 leņķi skaitliski; vai kopskats un detaļa uzņemti

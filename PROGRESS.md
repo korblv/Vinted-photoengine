@@ -3111,3 +3111,34 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   joprojām asāka. Gaida lietotāja lēmumu par ražošanu.
 - Ražošanas kods nemainīts. Krātuve: /home/user 121765193 B
   (POC materiāli tmp_id — pēc lēmuma jāiztīra).
+
+### §123 D recepte ieviesta: closeup.py Slam Jam režīms (2026-10-25)
+
+- Lietotājs ar pogu apstiprināja D receptes ieviešanu. Solis =
+  specifikācija + ģenerators + vārti + testi (maker attempt
+  integrācija vēl priekšā). WORKFLOW_V2 papildināts ar sadaļu
+  "Atvasinātās detaļas" un sarkano līniju izņēmumu tikai šiem
+  kadriem: deterministiska perspektīva no MASTER pikseļiem,
+  bez ģeneratīvas pārzīmēšanas; galvenie kadri nemainīti.
+- `closeup.py` jauns `--mode slamjam` (noklusētais `crop`
+  nemainīgs; regresijas skrējiens deva tos pašus logus
+  941x1176/1556x1945): ģeometrija 34°/−7°/1.22, LANCZOS4,
+  USM 2/60/3, LUT no profila, ēna no jauna izejas mērogā.
+  Zonas: `--zones-file` JSON vai automātisks priekšlikums.
+  Vārti: palielinājums ≤2.3x, avots ≥19%, segums ≥0.80;
+  neizejot fails netiek rakstīts un novecojusi tāda paša
+  nosaukuma versija tiek noņemta. Atskaite ar izcelsmi
+  `output/tuvplani/_TUVPLANI.json`, faili `*_DETALA_*_ATVASINATA.jpg`.
+- Validācija uz Uniqlo 160538 MASTER (zonas
+  `tmp_id/zones_uniqlo_s123.json`): kakls un apakšmala ar
+  lauku h=1197 px, palielinājums 2.294x, avots 0.190, segums
+  0.924/0.844 — abi written. Vārtu atteikums pārbaudīts ar
+  src_h=600 (4.58x, 0.048): faili nav rakstīti, vecie noņemti,
+  pēc tam labie atjaunoti.
+- Testi: +4 (ģeometrija, vārtu robežas, sintētisks renders),
+  kopā **119/119 OK**. POC pilna izmēra simulācijas dzēstas
+  (lapas un skripti paliek tmp_id); bāzes crop testa faili
+  dzēsti. Krātuve: /home/user 117006359 B.
+- Atliek pēc apstiprinājuma: iebūvēt maker attempt plūsmā
+  (zonu priekšlikums kolāžā, checker atpazīšana, ZIP piegāde
+  ar atvasinātajiem kadriem).

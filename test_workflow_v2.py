@@ -1436,5 +1436,60 @@ class TestBoundaryEvidenceMetric(unittest.TestCase):
             self.assertEqual(not g["pass"], expect_bad, (kw, g))
 
 
+# ---------------------------------------------------------------------------
+# Atvasinātās Slam Jam detaļas (PROGRESS §123)
+# ---------------------------------------------------------------------------
+class TestSlamjamDetails(unittest.TestCase):
+    """D receptes ģeometrija un vārti closeup.py slamjam režīmā."""
+
+    def test_min_src_h_satisfies_both_gates(self):
+        import closeup as cu
+        src_h = cu.min_src_h_for_upscale()
+        m = cu.slamjam_metrics(src_h)
+        self.assertLessEqual(m["upscale_geom"], cu.SLAMJAM_MAX_UPSCALE + 1e-9)
+        self.assertGreaterEqual(m["source_fraction"],
+                                cu.SLAMJAM_MIN_SOURCE_FRAC - 1e-9)
+        passed, reasons = cu.slamjam_gate(m, coverage=0.95)
+        self.assertTrue(passed, reasons)
+
+    def test_gate_rejects_small_field_and_low_coverage(self):
+        import closeup as cu
+        m = cu.slamjam_metrics(600)  # pārāk tuvu: palielinājums ~4.6x
+        passed, reasons = cu.slamjam_gate(m, coverage=0.95)
+        self.assertFalse(passed)
+        self.assertTrue(any("upscale_geom" in r for r in reasons), reasons)
+        m2 = cu.slamjam_metrics(cu.min_src_h_for_upscale())
+        passed2, reasons2 = cu.slamjam_gate(m2, coverage=0.50)
+        self.assertFalse(passed2)
+        self.assertTrue(any("coverage" in r for r in reasons2), reasons2)
+
+    def test_quad_has_perspective_trapezoid(self):
+        import closeup as cu
+        quad = cu.slamjam_quad((1600, 1430), 1200)
+        top = float(np.linalg.norm(quad[1] - quad[0]))
+        bottom = float(np.linalg.norm(quad[2] - quad[3]))
+        self.assertGreater(top, bottom)  # tālākā mala aptver vairāk auduma
+        self.assertAlmostEqual(float(quad[:, 0].mean()), 1430, delta=2.0)
+        self.assertAlmostEqual(float(quad[:, 1].mean()), 1600, delta=2.0)
+
+    def test_render_slamjam_synthetic(self):
+        import closeup as cu
+        master = np.zeros((500, 400, 3), np.uint8)
+        master[:] = (200, 180, 160)
+        master[200:260, 150:250] = (40, 60, 200)  # "poga"
+        mask = np.zeros((500, 400), bool)
+        mask[60:440, 40:360] = True
+        profile = {"lut_rgb": [list(range(256))] * 3}
+        img, _quad, metrics, coverage = cu.render_slamjam(
+            master, mask, profile, (250, 200), 180, canvas=(200, 250),
+            usm_percent=0)
+        self.assertEqual(img.shape, (250, 200, 3))
+        self.assertGreater(coverage, 0.80)
+        self.assertGreater(metrics["upscale_geom"], 1.0)
+        # zilā "poga" pēc warp joprojām atrodama izējē
+        button_px = int(((img[:, :, 2] > 150) & (img[:, :, 0] < 100)).sum())
+        self.assertGreater(button_px, 50)
+
+
 if __name__ == "__main__":
     unittest.main()
