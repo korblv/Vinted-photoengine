@@ -98,7 +98,8 @@ from engine.config import (  # noqa: E402,F401
 from engine.masks import (  # noqa: E402,F401
     TMP_SOFT, _mask_polygons, _mask_stats, ai_mask_qa, closeup_mask_qa,
     isnet_auto_worker, isnet_padded_mask, isnet_worker, pad_guards,
-    lost_fabric_metric, paper_profile, plan_closeup_crop, plate_mask,
+    boundary_evidence_metric, lost_fabric_metric, paper_profile,
+    plan_closeup_crop, plate_mask,
     reclaim_inlets, repair_interior_holes, run_isnet, run_isnet_auto,
     save_seed_proposal,
 )
@@ -870,6 +871,48 @@ def main() -> int:
 
     for r in records:
         r.setdefault("rotation_cw", rotation_for(Path(r["source"])))
+
+    # --- Robežas pierādījuma STOP pirms rendera (2.11, §116) ----------
+    # Spogulis checker GATE_S uz GALA maskas (pēc visiem trigeriem un
+    # labojumiem, ieskaitot --resume/--rerender-saved saglabātās):
+    # nelīdzena kontūra posmā ar vāju avota malu = robeža nav
+    # pierādāma, tāpēc kadrs netiek renderēts un nevar kļūt par
+    # klusu PASS kolāžā. Checker GATE_S paliek neatkarīgais tiesnesis.
+    for rec in records:
+        if rec.get("status") != "mask_ready":
+            continue
+        try:
+            _orig = open_rgb_recorded(rec["source"], rec.get("rotation_cw"))
+            with Image.open(rec["mask_path"]).convert("L") as _im:
+                _mask_bin = (np.asarray(_im) > 127).astype(np.uint8)
+            _s_metric = boundary_evidence_metric(_mask_bin, _orig)
+            del _orig, _mask_bin
+            rec["boundary_evidence"] = _s_metric
+            _tim = rec.setdefault("timing", {})
+            _tim["boundary_s"] = _s_metric.get("seconds")
+            _tim["mask_total_s"] = round(
+                float(_tim.get("mask_total_s", 0.0))
+                + float(_s_metric.get("seconds") or 0.0), 3)
+            if _s_metric.get("uncertain"):
+                rec["status"] = "boundary_uncertain"
+                rec["stop_reason"] = "boundary_uncertain"
+                rec["error"] = (
+                    "boundary_uncertain: robeža nav pierādāma "
+                    f"(aizdomīgi logi posmā "
+                    f"{_s_metric.get('worst_span_windows')} >= "
+                    f"{_s_metric.get('limit_windows')}; centrs "
+                    f"{_s_metric.get('worst_center_xy_fullres')}). "
+                    "Kadrs jāpārfotografē asākā fokusā vai robeža "
+                    "jālabo ar atsevišķu apstiprinātu soli.")
+                print(f"[{rec['stem']}] STOP boundary_uncertain: "
+                      f"{rec['error']}", flush=True)
+        except Exception as exc:  # noqa: BLE001 - izolēšana pa bildēm
+            rec["status"] = "failed"
+            rec["error"] = (f"boundary_evidence metrika krita: "
+                            f"{type(exc).__name__}: {exc}")
+            print(f"[{rec['stem']}] FAIL: {rec['error']}", flush=True)
+        gc.collect()
+    _persist_report(records, args.attempt, "masks", profile_s)
 
     active = [r for r in records if r.get("status") == "mask_ready"]
     if not active:

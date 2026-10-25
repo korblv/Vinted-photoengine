@@ -1067,6 +1067,159 @@ def lost_fabric_metric(binary: np.ndarray, orig: Image.Image) -> dict:
     return out
 
 
+def boundary_evidence_metric(binary: np.ndarray, orig: Image.Image) -> dict:
+    """Robežas pierādījuma mērījums gala maskai — maker puses spogulis
+    checker GATE_S (PROGRESS §114-§116): nelīdzena kontūra garā posmā,
+    kur avota malas gradients ir vājš (defokuss), nozīmē, ka robeža
+    nav pierādāma no pikseļiem. Maker to izmanto kā STOP pirms
+    rendera (statuss boundary_uncertain); slieksnis dzīvo checkerī
+    un checker paliek tiesnesis. Parametri: config.toml [mask] s_*
+    (piesprausti pret GATE_S_*)."""
+    from scipy import ndimage
+
+    t0 = time.perf_counter()
+    C = CFG["mask"]
+    sc = float(C["s_scale"])
+    win = int(C["s_win_samples"])
+    step = int(C["s_step_samples"])
+    limit = int(C["s_limit_windows"])
+    out: dict = {"worst_span_windows": None, "limit_windows": limit,
+                 "suspicious_windows": 0, "evaluated_windows": 0,
+                 "uncertain": False, "seconds": 0.0}
+
+    def done(**kw):
+        out.update(kw)
+        out["seconds"] = round(time.perf_counter() - t0, 3)
+        return out
+
+    gray = cv2.cvtColor(np.asarray(orig.convert("RGB")),
+                        cv2.COLOR_RGB2GRAY).astype(np.float32)
+    g = cv2.resize(gray, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
+    g = ndimage.gaussian_filter(g, 1.0)
+    fg = cv2.resize((binary > 0).astype(np.float32),
+                    (g.shape[1], g.shape[0]),
+                    interpolation=cv2.INTER_AREA) > 0.5
+    if int(fg.sum()) < 100:
+        return done(skipped=True, note="maska praktiski tukša")
+    cnts, _ = cv2.findContours(fg.astype(np.uint8), cv2.RETR_EXTERNAL,
+                               cv2.CHAIN_APPROX_NONE)
+    if not cnts:
+        return done(skipped=True, note="kontūra nav atrasta")
+    contour = max(cnts, key=cv2.contourArea)[:, 0, :].astype(np.float64)
+    n = int(len(contour))
+    out["contour_points"] = n
+    if n < win:
+        return done(skipped=True, note="kontūra īsāka par vienu segmentu")
+
+    ext = np.vstack([contour[-10:], contour, contour[:10]])
+    med = np.median(
+        np.lib.stride_tricks.sliding_window_view(ext, 21, axis=0), axis=2)
+    rough = np.linalg.norm(contour - med, axis=1)
+
+    h, w = g.shape
+    tangent = np.roll(contour, -5, axis=0) - np.roll(contour, 5, axis=0)
+    tnorm = np.hypot(tangent[:, 0], tangent[:, 1])
+    normal = np.zeros_like(contour)
+    ok = tnorm > 0
+    normal[ok, 0] = -tangent[ok, 1] / tnorm[ok]
+    normal[ok, 1] = tangent[ok, 0] / tnorm[ok]
+
+    def _fg_at(pts):
+        xi = np.rint(pts[:, 0]).astype(int)
+        yi = np.rint(pts[:, 1]).astype(int)
+        inside = (xi >= 0) & (xi < w) & (yi >= 0) & (yi < h)
+        vals = np.zeros(len(pts), bool)
+        vals[inside] = fg[yi[inside], xi[inside]]
+        return vals
+
+    plus_fg = _fg_at(contour + 3.0 * normal)
+    minus_fg = _fg_at(contour - 3.0 * normal)
+    sign = np.zeros(n)
+    sign[plus_fg & ~minus_fg] = 1.0
+    sign[minus_fg & ~plus_fg] = -1.0
+    t = np.arange(-8, 9, dtype=float)
+    pts = (contour[:, None, :]
+           + (sign[:, None] * normal)[:, None, :] * t[None, :, None])
+    in_bounds = ((pts[..., 0] >= 0) & (pts[..., 0] <= w - 1)
+                 & (pts[..., 1] >= 0) & (pts[..., 1] <= h - 1)).all(axis=1)
+    prof = ndimage.map_coordinates(
+        g, [pts[..., 1].ravel(), pts[..., 0].ravel()],
+        order=1, mode="nearest").reshape(n, len(t))
+    prof[~in_bounds | (sign == 0)] = np.nan
+
+    evaluated = 0
+    susp_starts: list[int] = []
+    susp_centers: list[np.ndarray] = []
+    win0 = np.arange(win)
+    for s in range(0, n, step):
+        idx = (s + win0) % n
+        block = prof[idx]
+        rows_ok = np.isfinite(block).all(axis=1)
+        if float(rows_ok.mean()) < 0.7:
+            continue
+        sm = ndimage.gaussian_filter1d(np.median(block[rows_ok], axis=0), 0.8)
+        out_lvl, in_lvl = float(np.median(sm[:3])), float(np.median(sm[-3:]))
+        c = in_lvl - out_lvl
+        if abs(c) < 8:
+            continue
+        deriv = np.gradient(sm)
+        ec = 3 + int(np.argmax(np.abs(deriv[3:14])))
+        npf = (sm - out_lvl) / c
+        lo = hi = None
+        for j in range(ec, -1, -1):
+            if npf[j] <= 0.1:
+                lo = j
+                break
+        for j in range(ec, len(sm)):
+            if npf[j] >= 0.9:
+                hi = j
+                break
+        if lo is None or hi is None or hi <= lo:
+            continue
+        evaluated += 1
+        grad = float(abs(deriv[ec]))
+        rough_frac = float(np.mean(rough[idx] >= float(C["s_rough_ds"])))
+        if (rough_frac >= float(C["s_rough_frac_min"])
+                and grad <= float(C["s_grad_max"])):
+            susp_starts.append(int(s))
+            susp_centers.append(contour[idx].mean(axis=0))
+
+    if evaluated < int(C["s_min_windows"]):
+        return done(skipped=True, evaluated_windows=int(evaluated),
+                    note="pārāk maz vērtējamu robežas segmentu")
+
+    worst = 0
+    worst_center = None
+    span = int(C["s_span_samples"])
+    if susp_starts:
+        starts = np.array(susp_starts, dtype=int)
+        centers = np.array(susp_centers, dtype=float)
+        if n <= span:
+            worst = int(len(starts))
+            worst_center = centers.mean(axis=0)
+        else:
+            ext_starts = np.concatenate([starts, starts + n])
+            j = 0
+            for i in range(len(starts)):
+                j = max(j, i)
+                while (j + 1 < i + len(starts)
+                       and ext_starts[j + 1] - ext_starts[i] <= span):
+                    j += 1
+                cnt = int(j - i + 1)
+                if cnt > worst:
+                    worst = cnt
+                    sel = [k % len(starts) for k in range(i, j + 1)]
+                    worst_center = centers[sel].mean(axis=0)
+    center_full = None
+    if worst_center is not None:
+        center_full = [int(round(float(v) / sc)) for v in worst_center]
+    return done(worst_span_windows=int(worst),
+                suspicious_windows=int(len(susp_starts)),
+                evaluated_windows=int(evaluated),
+                uncertain=bool(worst >= limit),
+                worst_center_xy_fullres=center_full)
+
+
 def reclaim_inlets(binary: np.ndarray,
                    orig: Image.Image) -> tuple[np.ndarray, dict]:
     """Atgūst audumu, ko kandidāta maska pazaudējusi līčos un ieleju

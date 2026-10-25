@@ -31,7 +31,8 @@ import setup_v2
 import workflow_v2 as wf
 from engine.chroma import (_dark_uncertain, _median_cut_palette,
                            chroma_mask, structural_qa)
-from engine.masks import (lost_fabric_metric, plate_mask, reclaim_inlets,
+from engine.masks import (boundary_evidence_metric, lost_fabric_metric,
+                          plate_mask, reclaim_inlets,
                           repair_interior_holes)
 
 SEED = 12345
@@ -407,7 +408,8 @@ class TestMaskProvenance(unittest.TestCase):
         # 2.8 = zaudētā auduma (GATE_Q) trigeris kandidātu izvēlē (§103);
         # 2.9 = līču atgūšana Q trigerī pirms plate (§108);
         # 2.10 = union kandidāts Q trigerī (§109).
-        self.assertEqual(wf.WORKFLOW_VERSION, "2.10")
+        # 2.11 = robežas pierādījuma STOP pirms rendera (§116).
+        self.assertEqual(wf.WORKFLOW_VERSION, "2.11")
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +447,13 @@ class TestConfig(unittest.TestCase):
                      "q_scale": 0.25, "q_close_r_ds": 10,
                      "q_tex_bg_ratio": 2.5, "q_tex_bg_abs": 2.0,
                      "q_tex_fg_ratio": 0.5, "q_trigger_pct": 1.0,
+                     # robežas pierādījuma STOP (§116) — jāsakrīt ar
+                     # checker GATE_S konstantēm
+                     "s_scale": 0.25, "s_win_samples": 32,
+                     "s_step_samples": 8, "s_rough_ds": 1.0,
+                     "s_rough_frac_min": 0.20, "s_grad_max": 5.0,
+                     "s_span_samples": 160, "s_limit_windows": 4,
+                     "s_min_windows": 4,
                      # līču atgūšana (§108)
                      "reclaim_ds": 4, "reclaim_max_dist_ds": 60,
                      "reclaim_tex_bg_ratio": 2.5, "reclaim_tex_bg_abs": 1.0,
@@ -671,6 +680,21 @@ class TestCheckerIndependence(unittest.TestCase):
         self.assertEqual(q["q_tex_bg_ratio"], ck.GATE_Q_TEX_BG_RATIO)
         self.assertEqual(q["q_tex_bg_abs"], ck.GATE_Q_TEX_BG_ABS)
         self.assertEqual(q["q_tex_fg_ratio"], ck.GATE_Q_TEX_FG_RATIO)
+
+    def test_gate_s_constants_equal_maker_mirror(self):
+        """KRUSTSARGS (§116): maker STOP s_* parametriem jāsakrīt ar
+        checker GATE_S konstantēm — citādi maker apturētu citus
+        kadrus nekā checker soda (vai nepamanītu tos pašus)."""
+        m = wf.CFG["mask"]
+        self.assertEqual(m["s_scale"], ck.GATE_S_SCALE)
+        self.assertEqual(m["s_win_samples"], ck.GATE_S_WIN_SAMPLES)
+        self.assertEqual(m["s_step_samples"], ck.GATE_S_STEP_SAMPLES)
+        self.assertEqual(m["s_rough_ds"], ck.GATE_S_ROUGH_DS)
+        self.assertEqual(m["s_rough_frac_min"], ck.GATE_S_ROUGH_FRAC_MIN)
+        self.assertEqual(m["s_grad_max"], ck.GATE_S_GRAD_MAX)
+        self.assertEqual(m["s_span_samples"], ck.GATE_S_SPAN_SAMPLES)
+        self.assertEqual(m["s_limit_windows"], ck.GATE_S_LIMIT_WINDOWS)
+        self.assertEqual(m["s_min_windows"], ck.GATE_S_MIN_WINDOWS)
 
     def test_spec_constants_equal_current_maker_values(self):
         """KRUSTSARGS: checker specifikācija šodien sakrīt ar maker
@@ -1375,6 +1399,41 @@ class TestGateS(unittest.TestCase):
         self.assertEqual(ck.GATE_S_GRAD_MAX, 5.0)
         self.assertEqual(ck.GATE_S_ROUGH_FRAC_MIN, 0.20)
         self.assertEqual(ck.GATE_S_SCALE, 0.25)
+
+
+# ---------------------------------------------------------------------------
+# Maker robežas pierādījuma STOP metrika (PROGRESS §116)
+# ---------------------------------------------------------------------------
+class TestBoundaryEvidenceMetric(unittest.TestCase):
+    """Tā pati sintētiskā aina kā TestGateS (TestGateS._scene):
+    maker spogulim uz binārās maskas jāsakrīt virzienā ar checker."""
+
+    def _metric(self, **kw):
+        rgb, alpha = TestGateS()._scene(**kw)
+        binary = (alpha > 127).astype(np.uint8)
+        return boundary_evidence_metric(binary, Image.fromarray(rgb))
+
+    def test_clean_mask_not_uncertain(self):
+        m = self._metric()
+        self.assertFalse(m["uncertain"], m)
+        self.assertLess(m["worst_span_windows"], m["limit_windows"])
+
+    def test_defocused_jagged_uncertain(self):
+        m = self._metric(blur_sigma=14.0, jagged=True)
+        self.assertTrue(m["uncertain"], m)
+        self.assertGreaterEqual(m["worst_span_windows"],
+                                m["limit_windows"])
+        self.assertIsNotNone(m["worst_center_xy_fullres"])
+
+    def test_agrees_with_checker_gate_direction(self):
+        for kw, expect_bad in [({}, False),
+                               ({"blur_sigma": 14.0, "jagged": True}, True)]:
+            rgb, alpha = TestGateS()._scene(**kw)
+            m = boundary_evidence_metric((alpha > 127).astype(np.uint8),
+                                         Image.fromarray(rgb))
+            g = ck.boundary_evidence_gate(rgb, alpha)
+            self.assertEqual(m["uncertain"], expect_bad, (kw, m))
+            self.assertEqual(not g["pass"], expect_bad, (kw, g))
 
 
 if __name__ == "__main__":

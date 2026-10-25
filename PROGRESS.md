@@ -2958,3 +2958,24 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   metrika ar STOP pirms rendera ir atsevišķs solis pēc pogas.
   160601 gaida pārfotografēšanu; grupa kā 3 kadri nepiegādājama.
   Krātuve: /home/user 92716187 B.
+
+### §116 2.11: maker STOP pirms rendera (boundary_uncertain) (2026-10-25)
+
+- Poga maker_stop. Pirms koda pārbaudīts pieņēmums, ka checker
+  metrika (kalibrēta uz alfas) strādā arī uz maker binārās maskas:
+  160601 worst=12, kontroles 1/0 — tas pats lēmums.
+- `boundary_evidence_metric` (engine/masks.py) + config `s_*`
+  (krustsargs pret GATE_S_*) + centrāls STOP pēc 1. fāzes, pirms
+  profila/rendera — sedz arī --resume/--rerender-saved maskas.
+  Statuss `boundary_uncertain` ar iemeslu un centra koordināti;
+  kopsavilkumā jauns skaitītājs. Testi **115/115 OK**.
+- Attempt 10 (rerender-saved, identity, no-decontam 160550):
+  maker **2/3 completed, exit 2** — 160601 apstājās PIRMS rendera
+  (maker worst 9 pret limitu 4, centrs [89,792]; binārās maskas
+  mēroga noapaļošana pret checker alfas 12, lēmums tas pats),
+  kontroles completed (maker worst 1/1). Checker: 2/2 completed
+  PASS, meta 1 boundary_uncertain, exit 2. Kolāža tagad satur
+  tikai 2 pabeigtos kadrus (nav apstiprināta, nav piegāde).
+- Stāvoklis: sistēma šo klasi vairs nevar klusi izlaist nevienā
+  posmā. Grupa gaida pārfotografēto 160601; pēc jaunā oriģināla —
+  jauns attempt ar precīziem --files. Krātuve: 92793951 B.

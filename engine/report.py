@@ -39,6 +39,7 @@ def _summary(records: list[dict]) -> dict:
         "completed": int(sum(1 for r in records if r.get("status") == "completed")),
         "mask_ready": int(sum(1 for r in records if r.get("status") == "mask_ready")),
         "needs_seed_review": int(sum(1 for r in records if r.get("status") == "needs_seed_review")),
+        "boundary_uncertain": int(sum(1 for r in records if r.get("status") == "boundary_uncertain")),
         "failed": int(sum(1 for r in records if r.get("status") == "failed")),
         "total_s": round(sum(totals), 3),
         "mean_s": round(float(np.mean(totals)) if totals else 0.0, 3),

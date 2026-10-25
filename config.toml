@@ -56,6 +56,19 @@ q_tex_bg_ratio = 2.5
 q_tex_bg_abs = 2.0
 q_tex_fg_ratio = 0.5
 q_trigger_pct = 1.0        # virs šī kandidāts neuzticas -> plate/chroma
+# Robežas pierādījuma STOP (PROGRESS §113-§116): maker puses spogulis
+# checker GATE_S metrikai. Vērtībām JĀSAKRĪT ar checker GATE_S_*
+# konstantēm — krustsargs testos. Virs limita kadrs apstājas pirms
+# rendera ar statusu boundary_uncertain; checker paliek tiesnesis.
+s_scale = 0.25
+s_win_samples = 32
+s_step_samples = 8
+s_rough_ds = 1.0
+s_rough_frac_min = 0.20
+s_grad_max = 5.0
+s_span_samples = 160
+s_limit_windows = 4
+s_min_windows = 4
 # Līču/ieleju atgūšana Q trigerī (PROGRESS §104-§108): audzēšana pa
 # tekstūru mērogā + iekšpuses aizvēršana + kadra malas josla. Palaiž
 # tikai kad Q trigeris jau nostrādājis; pieņem, ja Q pēc <= q_trigger_pct.

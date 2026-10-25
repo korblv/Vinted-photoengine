@@ -8,7 +8,7 @@ import json
 import tomllib
 from pathlib import Path
 
-WORKFLOW_VERSION = "2.10"
+WORKFLOW_VERSION = "2.11"
 
 # ---------------------------------------------------------------------------
 # Konfigurācija (solis 4): parametri dzīvo config.toml, specifikācija —
@@ -34,6 +34,11 @@ _CONFIG_SCHEMA: dict[str, dict[str, type]] = {
              "hole_bg_E": float, "q_scale": float, "q_close_r_ds": int,
              "q_tex_bg_ratio": float, "q_tex_bg_abs": float,
              "q_tex_fg_ratio": float, "q_trigger_pct": float,
+             "s_scale": float, "s_win_samples": int,
+             "s_step_samples": int, "s_rough_ds": float,
+             "s_rough_frac_min": float, "s_grad_max": float,
+             "s_span_samples": int, "s_limit_windows": int,
+             "s_min_windows": int,
              "reclaim_ds": int, "reclaim_max_dist_ds": int,
              "reclaim_tex_bg_ratio": float, "reclaim_tex_bg_abs": float,
              "reclaim_tex_lo_fg_ratio": float, "reclaim_tex_min": float,
