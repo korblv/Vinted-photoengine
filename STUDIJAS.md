@@ -434,9 +434,12 @@ apstrādes. Ražošana 2. kārtā nemainīta.
 ## M9 — Slam Jam tuvplānu kameras ģeometrija (sākts 2026-10-25)
 
 Mērķis (lietotāja uzdevums): iemācīties nolikt kameru tādā pašā
-leņķī un attālumā kā Slam Jam detaļās. Paraugi: mfpen bikšu
-4 kadri un Kiko Kostadinov Tomelilla 4 kadri (`uploads/slamjam_*`,
-visi 2000x2500; EXIF bez fokusa — tikai izmērs un `imagery4`).
+leņķī un attālumā kā Slam Jam detaļās. Paraugi: 6 komplekti pa
+4 kadriem — mfpen bikses, Kiko Kostadinov Tomelilla, Junya Watanabe MAN
+denim bikses, Patagonia flanela krekls, Wrangler 11MJZ jaka,
+Puma x Jil Sander longsleeve (`uploads/slamjam_*`, visi
+2000x2500; visiem 24 failiem EXIF tikai 6 lauki bez fokusa —
+izmērs/orientācija un `imagery4`).
 
 **Definīcijas.** Kopskati ir gandrīz perpendikulāri auduma
 plaknei. Detaļai mēra (a) palielinājumu `M` pret kopskatu (tas ir
@@ -446,9 +449,11 @@ nevar), (b) optiskās ass novirzi no plaknes normāles no
 priekšsaīsinājuma (anizotropija = cos(novirze); kameras augstums
 virs plaknes = 90° − novirze), (c) rotāciju kadrā.
 
-**Mērījumi** (SIFT homogrāfija detaļa→kopskats; Kiko gludajam
-audumam SIFT deģenerējas un tika noraidīts — tur birka mērīta
-manuāli kā plakans taisnstūris abos kadros):
+**Mērījumi** (SIFT homogrāfija detaļa→kopskats, pieņemta tikai
+ar sakarīgiem projektētajiem stūriem un ciešu pāru mērogu
+izkliedi; kur SIFT deģenerējas — Kiko un Jil Sander gludie
+audumi, Wrangler tumšais denims — plakans etalons abos kadros:
+birka kā taisnstūris, pogas platums, kniežu bāze):
 
 | Detaļa | M | Novirze no normāles | Kamera virs plaknes | Rotācija | Fons kadrā |
 |---|---|---|---|---|---|
@@ -456,28 +461,47 @@ manuāli kā plakans taisnstūris abos kadros):
 | mfpen _4 jostas priekša | 6.6x (SIFT pāru mediāna 6.64x) | ~41° | ~49° | −3° | 6.9% |
 | mfpen _3 aizmugures kabata | 4.4x | ~34° | ~56° | −14° | 9.7% |
 | Kiko _4 piedurkne/apakšmala | nav pierādīts ar homogrāfiju | — | — | piedurkne likta pa diagonāli (stils, ne kameras rullis) | 15.7% |
+| Junya Watanabe MAN _3 jostas priekša | 6.1x (SIFT 122 inl.) | ~24° | ~66° | −6° | 10.4% |
+| Junya Watanabe MAN _4 aizmugures kabata | 4.7x (SIFT 10 inl.; pāru attiecības 0.210–0.216) | ~27° | ~63° | −15° | 0.0% |
+| Patagonia _3 krūšu kabata | 4.8x (SIFT 26 inl.) | ~32° | ~58° | −9° | 0.0% |
+| Patagonia _4 apkakle/birka | 4.5x (SIFT 91 inl.) | ~33° | ~57° | −13° | 12.1% |
+| Wrangler _3 krūšu kabata | 4.8x ģeom. (birka 5.57x/4.10x; pogas platums 5.55x) | ~43° | ~47° | ~0° | 0.0% |
+| Wrangler _4 rāvējslēdzējs | ~5.3x (kniežu attālums) | nav pierādīts (mēlīte karājas ārpus plaknes) | — | +3° | 0.0% |
+| Jil Sander _3 kakls | 3.9x (SIFT 14 inl.) | ~39° | ~51° | −9° | 9.6% |
+| Jil Sander _4 piedurkne | nav pierādīts | — | — | piedurkne pa diagonāli | 25.7% |
 
-Kopskatos fons ir 55.9–64.5%; detaļās audums ir full-bleed
-(fons tikai 6.9–16.7%, parasti viens stūris/josla). Šķērs-
-pārbaude mērogam: mfpen pogas elipse detaļā ~192x223 px
-(attiecība 0.86); ja poga ir tipiski 17–20 mm, kadra augstums
-auduma plaknē ir ~22–26 cm — saskan ar M no kopskata lauka.
+Kopsavilkums (9 detaļas ar leņķi): novirze no normāles
+24–43°, mediāna 34° — t.i. kamera 47–66° virs plaknes,
+mediāna ~56°, vidējā puse izlases ~51–58°. M (10 detaļas):
+3.9–6.6x, mediāna ~4.8x. Rotācija −15..+5°, mediāna −7.5°.
+Kopskatos fons ir 54.6–66.3%; detaļās audums ir full-bleed
+(fons 0.0–16.7%; izņēmums — diagonālās piedurkņu detaļas ar
+fona stūri līdz 25.7%). Šķērspārbaude mērogam: mfpen un
+Wrangler pogas detaļās ~180–220 px no 2500 px augstuma; ja
+poga ir tipiski 17–20 mm, kadra augstums auduma plaknē ir
+~22–28 cm — saskan ar M no kopskatu lauka. Brīdinājums:
+homogrāfija mēra lokālo auduma plakni; ja detaļai apģērbs ir
+pārlikts (jostasvieta, apkakle), daļa izkliedes ir apģērba
+novietojums, ne kameras leņķis — tāpēc mērķis ir koridors,
+ne viens skaitlis.
 
 **Darba hipotēze mūsu uzņemšanai:** kamera nav perpendikulāra
-un nav gandrīz gar plakni — tā ir ~50–55° virs auduma plaknes
-(35–40° novirze no perpendikula; sarunvalodā "ap 45°"), rullis
-~0 (horizonts taisns), bet pats apģērbs/detaļa kadrā pagriezta
-0 līdz −15° vai likta pa diagonāli. Attālumu kontrolē nevis ar
-cm, bet ar lauku: detaļas kadra augstums plaknē ~20–30 cm
-(4.4–6.6x tuvāk nekā kopskats pie tā paša fokusa). Detaļa
+un nav gandrīz gar plakni — mērķē uz ~55° virs auduma plaknes
+(~35° novirze no perpendikula; darba koridors 50–60°, izmērītie
+galējie 47–66°). Telefona rullis ~0 (horizonts taisns), bet
+pats apģērbs/detaļa kadrā pagriezta parasti 0 līdz −15° vai
+likta pa diagonāli. Attālumu kontrolē nevis ar cm, bet ar
+lauku: detaļas kadra augstums plaknē ~20–30 cm (mediāna
+~4.8x tuvāk nekā kopskats pie tā paša fokusa). Detaļa
 aizpilda kadru līdz malām; ass fokuss visā laukā — tātad
 jāuzmanās ar telefona seklo DOF pie slīpas plaknes (sal. mūsu
 160601 defokuss, §110).
 
 **Nav pierādīts:** absolūtais kameras attālums un fokuss
-(EXIF tukšs); Kiko _4 leņķis skaitliski; vai kopskats un detaļa
-uzņemti ar vienu objektīvu. Validācija: kontrolēts mūsu tests
-ar zināmu režģa/objekta izmēru vairākos leņķos un attālumos,
+(EXIF bez fokusa visiem 24); Kiko _4, Jil Sander _4 un
+Wrangler _4 leņķi skaitliski; vai kopskats un detaļa uzņemti
+ar vienu objektīvu. Validācija: kontrolēts mūsu tests ar
+zināmu režģa/objekta izmēru vairākos leņķos un attālumos,
 tad salīdzināt anizotropiju un lauka izmēru ar šo tabulu.
 
 ## KPI žurnāls (papildināt pēc katras grupas)

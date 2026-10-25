@@ -3015,3 +3015,35 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Kods nemainīts. Skripts tmp_id/study_slamjam_angles.py;
   palielinājuma rūtiņu kropi pēc mērījuma dzēsti.
   Krātuve: /home/user 94510090 B.
+
+### §119 M9 paplašināts: 6 komplekti, leņķa koridors precizēts (2026-10-25)
+
+- Lietotājs ar pogu izvēlējās vairāk paraugu. No Slam Jam
+  publiskā Shopify JSON deterministiski atlasīti 4 apģērbu
+  komplekti pa kategorijām (bikses/krekls/jaka/tops), katram
+  priekša+aizmugure+2 detaļas; pilna izmēra 2000x2500 bildes
+  saglabātas `uploads/slamjam_{junya_denim_pants,
+  patagonia_flannel,wrangler_11mjz,jilsander_longsleeve}_*.jpg`
+  (+13.5 MB). Visiem 24 Slam Jam failiem EXIF vienādi 6 lauki
+  bez fokusa — absolūts attālums joprojām nav pierādāms.
+- Metode nemainīga: SIFT homogrāfija detaļa→kopskats ar
+  sakarīguma pārbaudi (projektētie stūri + pāru mērogu
+  izkliede); deģenerētās noraidītas. Wrangler tumšajam denimam
+  SIFT sabrūk vienā punktā arī ar CLAHE/ROI — tā vietā zilās
+  birkas taisnstūris (64x30 px kopskatā -> 357x123 px detaļā)
+  un pogas platums (5.55x); rāvējslēdzēja detaļai tikai kniežu
+  attālums, leņķis nav pierādīts (mēlīte ārpus plaknes).
+- Rezultāts (kopā 9 detaļas ar leņķi, 10 ar mērogu): novirze
+  no normāles **24–43° (mediāna 34°)**, t.i. kamera
+  **47–66° virs plaknes (mediāna ~56°)**; palielinājums
+  **3.9–6.6x (mediāna ~4.8x)**; rotācija −15..+5°. Fons
+  kopskatos 54.6–66.3%, detaļās 0.0–16.7% (diagonālai
+  piedurknei 25.7%). Darba mērķis mūsu uzņemšanai: ~55° virs
+  plaknes, koridors 50–60°, rullis 0, apģērbu pagriež
+  0 līdz −15°, lauka augstums ~20–30 cm. Pilna tabula
+  STUDIJAS M9. Homogrāfija mēra lokālo auduma plakni — daļa
+  izkliedes ir apģērba pārlikšana detaļai, ne kamera.
+- Kods nemainīts. Pagaidu kandidātu lapa un Wrangler rūtiņu
+  attēli pēc mērījuma dzēsti; skripts papildināts ar jaunajiem
+  pāriem un puses izšķirtspējas SIFT. Krātuve: /home/user
+  107681774 B.
