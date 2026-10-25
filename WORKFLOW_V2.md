@@ -64,8 +64,12 @@ Slam Jam ģeometrijā (STUDIJAS M9 mērījumi; POC-1..3 kvalitātes
 robežas).
 - **Zonas:** ražošanas lietojumā 2 detaļas vienam apģērbam; zonas
   norāda ar `--zones-file` (JSON `{stem: [{tag, center_xy, src_h}]}`,
-  koordinātas MASTER pikseļos). Bez zonu faila darbojas automātiskā
-  akcenta izvēle tikai kā priekšlikums. Zonas un rezultātu rāda
+  koordinātas MASTER pikseļos). Bez zonu faila Slam Jam režīms lieto
+  tipa apzinīgu automātisko priekšlikumu: augšdaļai kakls/birka +
+  aproce vai apakšmala, apakšdaļai jostasvieta + kabata vai
+  apakšmala (tips no apģērba bbox malu attiecības; ja kandidātu
+  nepietiek — kritiens atpakaļ uz veco akcentu meklētāju).
+  Priekšlikums nav piegādes lēmums: zonas un rezultātu rāda
   lietotājam kolāžā apstiprināšanai pirms piegādes.
 - **Ģeometrija (D recepte):** novirze no normāles 34° (kamera ~56°
   virs plaknes), pagrieziens −7°, perspektīvas gradients 1.22,

@@ -1472,6 +1472,45 @@ class TestSlamjamDetails(unittest.TestCase):
         self.assertAlmostEqual(float(quad[:, 0].mean()), 1430, delta=2.0)
         self.assertAlmostEqual(float(quad[:, 1].mean()), 1600, delta=2.0)
 
+    def test_pick_zones_top_synthetic(self):
+        import closeup as cu
+        mask = np.zeros((1200, 1400), bool)
+        mask[150:1050, 350:1050] = True          # torss
+        mask[250:950, 50:350] = True             # kreisā piedurkne
+        mask[250:950, 1050:1350] = True          # labā piedurkne
+        detail = np.zeros(mask.shape, np.float32)
+        chroma = np.zeros(mask.shape, np.float32)
+        chroma[210:245, 675:725] = 100.0         # birka
+        for y in (300, 400, 500):                # Henley pogas
+            detail[y:y + 24, 688:712] = 80.0
+        detail[880:950, 80:330] = 70.0           # aproces josla
+        detail[1000:1025, 400:1000] = 55.0       # apakšmalas šuve
+        zones = cu._pick_slamjam_from_maps(mask, detail, chroma, 420)
+        self.assertEqual(len(zones), 2, zones)
+        (tag1, (cy1, cx1), _), (tag2, (cy2, cx2), _) = zones
+        self.assertEqual(tag1, "kakls")
+        self.assertTrue(620 <= cx1 <= 790, zones)
+        self.assertTrue(240 <= cy1 <= 540, zones)
+        self.assertIn(tag2, ("aproce", "apaksmala"))
+        self.assertGreater(cy2, cy1 + 200)
+
+    def test_pick_zones_bottom_synthetic(self):
+        import closeup as cu
+        mask = np.zeros((1600, 800), bool)
+        mask[100:260, 200:600] = True            # jostasvieta
+        mask[260:1500, 200:385] = True           # kreisā stara
+        mask[260:1500, 415:600] = True           # labā stara
+        detail = np.zeros(mask.shape, np.float32)
+        chroma = np.zeros(mask.shape, np.float32)
+        detail[165:195, 388:412] = 90.0          # jostas poga
+        chroma[120:150, 360:440] = 80.0          # jostas birka/ielāps
+        detail[340:520, 215:330] = 85.0          # kabata
+        detail[1440:1470, 210:590] = 45.0        # staru apakšmala
+        zones = cu._pick_slamjam_from_maps(mask, detail, chroma, 500)
+        self.assertEqual(len(zones), 2, zones)
+        self.assertEqual(zones[0][0], "josta")
+        self.assertIn(zones[1][0], ("kabata", "apaksmala"))
+
     def test_render_slamjam_synthetic(self):
         import closeup as cu
         master = np.zeros((500, 400, 3), np.uint8)

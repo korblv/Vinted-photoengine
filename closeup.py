@@ -177,6 +177,194 @@ def pick_centers(master, mask):
             (tag, (best_brand[0], best_brand[1]))]
 
 
+def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
+                            tilt_deg=SLAMJAM_TILT_DEG):
+    """Zonu priekšlikums no struktūras/hromas kartēm (tīra funkcija).
+
+    Loģika ir tipa apzinīga: pēc apģērba bbox malu attiecības izšķir
+    augšdaļu (tops/jaka) un apakšdaļu (bikses). Pirmā zona vienmēr ir
+    augšējā centrālā (kakls/birka vai jostasvieta), otrā — aproce,
+    kabata vai apakšmala. Segumu vērtē ar lauka taisnstūri; detaļu un
+    hromu — ar mazāku centrālo logu, lai maza birka nepazustu lielā
+    lauka vidējā vērtībā. Atgriež [(tag, (cy, cx), src_h), ...] vai
+    [] ja pārliecinošu kandidātu nav.
+    """
+    ys, xs = np.nonzero(mask)
+    if not len(xs):
+        return []
+    bx0, bx1 = int(xs.min()), int(xs.max())
+    by0, by1 = int(ys.min()), int(ys.max())
+    bw, bh = bx1 - bx0 + 1, by1 - by0 + 1
+    is_top = (bw / max(bh, 1)) >= 0.75
+
+    ow, oh = canvas
+    cos_t = math.cos(math.radians(tilt_deg))
+    fw = int(max(80, round(src_h * (ow / oh) * cos_t)))
+    fh = int(max(100, round(src_h)))
+    if fw >= mask.shape[1] or fh >= mask.shape[0]:
+        return []
+    iw, ih = max(60, fw // 2), max(80, fh // 2)
+    idet = _integral(detail)
+    ichr = _integral(chroma)
+    imsk = _integral(mask.astype(np.uint8))
+
+    cands = []
+    step = max(12, min(fw, fh) // 16)
+    for (y, x) in _windows(mask.shape, (fw, fh), step):
+        cov = _box_mean(imsk, y, x, fh, fw)
+        if cov < 0.50:
+            continue
+        cy, cx = y + fh / 2.0, x + fw / 2.0
+        iy = int(np.clip(cy - ih / 2, 0, mask.shape[0] - ih))
+        ix = int(np.clip(cx - iw / 2, 0, mask.shape[1] - iw))
+        cands.append({
+            "cy": cy, "cx": cx, "cov": float(cov),
+            "det": float(_box_mean(idet, iy, ix, ih, iw)),
+            "chr": float(_box_mean(ichr, iy, ix, ih, iw)),
+            "u": (cx - bx0) / bw, "v": (cy - by0) / bh,
+        })
+    if not cands:
+        return []
+
+    def _norm(key):
+        vals = np.array([c[key] for c in cands], np.float64)
+        p95 = float(np.percentile(vals, 95)) if len(vals) else 0.0
+        return p95 if p95 > 0 else 1.0
+
+    det_n, chr_n = _norm("det"), _norm("chr")
+    for c in cands:
+        c["det_n"] = min(c["det"] / det_n, 1.5)
+        c["chr_n"] = min(c["chr"] / chr_n, 1.5)
+
+    def best(pred, score_fn, min_cov, exclude=None, min_sep=0.0):
+        pool = []
+        for c in cands:
+            if c["cov"] < min_cov or not pred(c):
+                continue
+            if exclude is not None and np.hypot(
+                    c["cy"] - exclude["cy"], c["cx"] - exclude["cx"]) < min_sep:
+                continue
+            pool.append((score_fn(c), c))
+        return max(pool, key=lambda t: t[0])[1] if pool else None
+
+    def central(c):
+        return max(0.0, 1.0 - abs(c["u"] - 0.5) / 0.5)
+
+    if is_top:
+        def score_neck(c):
+            v_prior = max(0.0, 1.0 - abs(c["v"] - 0.22) / 0.22)
+            return (0.45 * c["det_n"] + 0.65 * c["chr_n"] + 0.35 * c["cov"]
+                    + 0.30 * central(c) + 0.20 * v_prior)
+
+        z1 = best(lambda c: 0.32 <= c["u"] <= 0.68 and 0.10 <= c["v"] <= 0.40,
+                  score_neck, min_cov=0.70)
+        tag1 = "kakls"
+    else:
+        def score_waist(c):
+            v_prior = max(0.0, 1.0 - abs(c["v"] - 0.16) / 0.18)
+            return (0.50 * c["det_n"] + 0.55 * c["chr_n"] + 0.35 * c["cov"]
+                    + 0.25 * central(c) + 0.20 * v_prior)
+
+        z1 = best(lambda c: 0.22 <= c["u"] <= 0.78 and 0.05 <= c["v"] <= 0.32,
+                  score_waist, min_cov=0.70)
+        tag1 = "josta"
+    if z1 is None:
+        return []
+
+    def score_second(c, bonus=0.0):
+        return (0.75 * c["det_n"] + 0.20 * c["chr_n"] + 0.50 * c["cov"]
+                + bonus)
+
+    # Apakšmalai centram jābūt tik zemu, lai apakšmala būtu kadra
+    # apakšējā trešdaļā, nevis vienkārši "zemākajā auduma vietā".
+    hem_v = 1.0 - 0.42 * (src_h / max(bh, 1))
+
+    def score_hem(c):
+        v_prior = max(0.0, 1.0 - abs(c["v"] - hem_v) / 0.18)
+        return score_second(c) + 0.30 * v_prior
+
+    # Semantiskās zonas jau atšķiras pēc reģiona; attāluma sargs ir
+    # piesaistīts laukam, lai kabata tuvu jostasvietai netiktu noraidīta.
+    min_sep = 0.5 * src_h
+    if is_top:
+        # Aproci meklē kā piedurknes gala klasteri maskas sānu apakšējā
+        # daļā; kadra centru nobīda uz iekšu, lai aproce būtu kadrā.
+        # Ja šāds kadrs nesasniedz segumu 0.80, aproci nepiedāvā.
+        cuff, cuff_score = None, None
+        total_mask = int(mask.sum())
+        y_start = by0 + int(0.55 * bh)
+        for side in ("left", "right"):
+            if side == "left":
+                sub = mask[y_start:by1 + 1, bx0:bx0 + int(0.16 * bw)]
+                x_off = bx0
+            else:
+                x0c = bx0 + int(0.84 * bw)
+                sub = mask[y_start:by1 + 1, x0c:bx1 + 1]
+                x_off = x0c
+            sy, sx = np.nonzero(sub)
+            if len(sx) < 0.003 * total_mask:
+                continue
+            y_lo = sy.min() + 0.75 * (sy.max() - sy.min())
+            end = sy >= y_lo
+            cuff_cx = float(np.median(sx[end]) + x_off)
+            cuff_cy = float(np.median(sy[end]) + y_start)
+            want_cx = cuff_cx + (0.22 * fw if side == "left" else -0.22 * fw)
+            want_cy = cuff_cy - 0.18 * fh
+            near = min(cands, key=lambda c: (c["cx"] - want_cx) ** 2
+                       + (c["cy"] - want_cy) ** 2)
+            if near["cov"] < 0.80:
+                continue
+            if np.hypot(near["cy"] - z1["cy"], near["cx"] - z1["cx"]) < min_sep:
+                continue
+            s = score_second(near, 0.10)
+            if cuff_score is None or s > cuff_score:
+                cuff, cuff_score = near, s
+        hem = best(lambda c: 0.22 <= c["u"] <= 0.78
+                   and c["v"] >= max(0.68, hem_v - 0.10),
+                   score_hem, min_cov=0.80,
+                   exclude=z1, min_sep=min_sep)
+        options = [(score_second(cuff, 0.10), "aproce", cuff) if cuff else None,
+                   (score_hem(hem), "apaksmala", hem) if hem else None]
+    else:
+        pocket = best(lambda c: (c["u"] <= 0.38 or c["u"] >= 0.62)
+                      and 0.10 <= c["v"] <= 0.48,
+                      lambda c: score_second(c, 0.10), min_cov=0.80,
+                      exclude=z1, min_sep=min_sep)
+        hem = best(lambda c: c["v"] >= max(0.72, hem_v - 0.10),
+                   score_hem, min_cov=0.80,
+                   exclude=z1, min_sep=min_sep)
+        options = [(score_second(pocket, 0.10), "kabata", pocket)
+                   if pocket else None,
+                   (score_hem(hem), "apaksmala", hem) if hem else None]
+    options = [o for o in options if o is not None]
+    if not options:
+        return [(tag1, (int(z1["cy"]), int(z1["cx"])), float(src_h))]
+    _score, tag2, z2 = max(options, key=lambda t: t[0])
+    return [(tag1, (int(z1["cy"]), int(z1["cx"])), float(src_h)),
+            (tag2, (int(z2["cy"]), int(z2["cx"])), float(src_h))]
+
+
+def pick_slamjam_centers(master, mask, src_h=None, canvas=CANVAS,
+                         tilt_deg=SLAMJAM_TILT_DEG,
+                         field_frac=SLAMJAM_FIELD_FRAC,
+                         max_upscale=SLAMJAM_MAX_UPSCALE,
+                         min_source_fraction=SLAMJAM_MIN_SOURCE_FRAC):
+    """Automātisks Slam Jam zonu priekšlikums (2 zonas vai kritiens atpakaļ)."""
+    chosen_h, _bbox_h = choose_slamjam_src_h(
+        mask, src_h, field_frac, max_upscale, canvas, tilt_deg,
+        min_source_fraction)
+    detail, chroma = _maps(master, mask)
+    zones = _pick_slamjam_from_maps(mask, detail, chroma, chosen_h,
+                                    canvas, tilt_deg)
+    if len(zones) >= 2:
+        return zones
+    # Kritiens atpakaļ uz veco akcentu meklētāju, ja tipa loģikai
+    # kandidātu nepietiek (piem. neparasta silueta dēļ).
+    old = [(tag, center, float(chosen_h))
+           for tag, center in pick_centers(master, mask)]
+    return old
+
+
 def fit_window(center, mask, want=(2000, 2500)):
     """Lielākais 4:5 logs ap centru, kurā segums >= MIN_COVERAGE."""
     H, W = mask.shape
@@ -434,6 +622,11 @@ def main(argv=None):
 
         if stem in zones:
             centers = zones[stem]
+        elif args.mode == "slamjam":
+            centers = pick_slamjam_centers(
+                master, mask, canvas=CANVAS, tilt_deg=args.tilt_deg,
+                field_frac=args.field_frac, max_upscale=args.max_upscale,
+                min_source_fraction=args.min_source_frac)
         else:
             centers = [(tag, center, None)
                        for tag, center in pick_centers(master, mask)]

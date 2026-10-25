@@ -3142,3 +3142,32 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Atliek pēc apstiprinājuma: iebūvēt maker attempt plūsmā
   (zonu priekšlikums kolāžā, checker atpazīšana, ZIP piegāde
   ar atvasinātajiem kadriem).
+
+### §124 Zonu priekšlikums pēc apģērba tipa (2026-10-25)
+
+- Lietotājs izvēlējās vispirms uzlabot zonu izvēli. Kritērijs
+  pirms koda: uz Uniqlo 160538 pirmajai zonai jātrāpa augšējā
+  centrā ap kaklu/Henley (manuālais mērķis [1430,1600]),
+  otrajai — aprocē vai apakšmalā (manuāli [1450,3050]), ar
+  vārtu segumu ≥0.80.
+- Bāze pirms izmaiņas: vecais akcentu meklētājs deva
+  "detaļa" [1060,1688] (380 px no kakla mērķa, kadrs ar plecu/
+  piedurkni) un "zīmols" [1654,2612] (torsa vidus).
+- Jauns `pick_slamjam_centers` tikai Slam Jam režīmā (`crop`
+  režīms nemainīgs): tips no bbox malu attiecības; augšdaļai
+  kakls (centra + hromas/birkas priors, vērtēšana mazākā
+  centrālā logā) + aproce no maskas piedurkņu galu klasteriem
+  vai apakšmala ar vertikālo prioritāti; apakšdaļai josta +
+  kabata vai apakšmala. Ja kandidātu nav — kritiens atpakaļ
+  uz veco meklētāju. Zonu fails joprojām pārraksta auto izvēli.
+- Pēc izmaiņas uz tā paša MASTER: **kakls [1573,1627]**
+  (146 px no mērķa) un **apaksmala [1426,2950]** (103 px no
+  mērķa); automātiski ģenerētie kadri iziet vārtus (segums
+  0.947/0.943, palielinājums 2.294x; lapa
+  `tmp_id/s124_auto_sheet.jpg`). Aproce šim apģērbam netika
+  izvēlēta izmērīta iemesla dēļ: aproču kadru segums būtu
+  tikai 0.48/0.42 (< 0.80), tāpēc priekšlikums godīgi dod
+  apakšmalu.
+- Testi: +2 sintētiskie tipu testi; kopā **121/121 OK**.
+  Maker/checker/ZIP integrācija joprojām nākamais solis.
+  Krātuve: /home/user 117884996 B.
