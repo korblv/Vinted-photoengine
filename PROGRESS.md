@@ -3047,3 +3047,27 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   attēli pēc mērījuma dzēsti; skripts papildināts ar jaunajiem
   pāriem un puses izšķirtspējas SIFT. Krātuve: /home/user
   107681774 B.
+
+### §120 M9 POC: detaļu simulācija no kopskatiem (2026-10-25)
+
+- Lietotājs precizēja uzdevumu un ar pogām apstiprināja
+  simulācijas testu: turpmāk no **2 kadriem (priekša+aizmugure)
+  jāizveido 2 tuvplāni Slam Jam ģeometrijā**; zonas izvēlas
+  katram apģērbam atsevišķi. Tests ir izņēmums §3.2 (perspektīvas
+  transformācija), ražošanā vēl nav ieviests.
+- Neredzamā simulācija mfpen komplektam
+  (`tmp_id/poc_simulate_details.py`): no kopskatiem vien
+  izvēlētas zonas (jostas priekša 1000,560; aizmugures kabata
+  1150,560), recepte 56°/M4.8x/−7°/perspektīva 1.22, izeja
+  2000x2500 bez asināšanas. Salīdzinājums ar īstajām detaļām:
+  `tmp_id/poc_mfpen_compare.jpg` un `poc_mfpen_compare_100.jpg`.
+- Mērījumi: avota reģions ~219 tūkst. px = 4.4% no izejas;
+  Tenengrad SIM/ĪSTA 67% (josta) un 53% (kabata); Laplacian
+  dispersija 4%/2%. Vizuāli: kompozīcija un leņķis atbilst,
+  bet birkas/pogas teksts nav salasāms un mikrostruktūras nav.
+  POC avots bija jau 2000x2500 web kadrs (sliktākais gadījums);
+  no telefona oriģināla avota pikseļu būtu vairāk — jāpārbauda
+  uz mūsu grupas materiāla pirms lēmuma par ražošanu.
+- Ražošanas kods nemainīts. Rūtiņu attēli zonu izvēlei dzēsti;
+  simulētie kadri un salīdzinājuma lapas saglabātas lietotāja
+  spriedumam. Krātuve: /home/user 111195334 B.

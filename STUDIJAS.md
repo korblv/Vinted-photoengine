@@ -497,6 +497,24 @@ aizpilda kadru līdz malām; ass fokuss visā laukā — tātad
 jāuzmanās ar telefona seklo DOF pie slīpas plaknes (sal. mūsu
 160601 defokuss, §110).
 
+**Simulācijas POC (2026-10-25).** Lietotāja precizētais
+uzdevums: no priekšas+aizmugures kopskatiem izveidot 2 detaļu
+kadrus Slam Jam ģeometrijā. Neredzamā simulācija mfpen
+komplektam (zonas izvēlētas tikai no kopskatiem: jostas
+priekša ar birku/pogu; aizmugures kabata ar ielāpu) ar fiksētu
+recepti (56° virs plaknes, M=4.8x, rotācija −7°, perspektīvas
+gradients 1.22; `tmp_id/poc_simulate_details.py`). Rezultāts:
+kompozīcija un leņķis trāpa īstajām detaļām (mēroga nobīde
+atbilst īstajiem M 6.6x/4.4x pret receptes 4.8x), bet asums
+netrāpa: avota reģions ir tikai ~219 tūkst. px (4.4% no izejas
+5 Mpx), Tenengrad 53–67% no īstās detaļas, Laplacian
+dispersija tikai 2–4% — birkas un pogas teksts 100% mērogā
+nav salasāms, auduma mikrostruktūras nav. Secinājums:
+ģeometriju no kopskata simulēt var, mikrodetalizāciju nevar;
+simulācija jāveic no maksimālās izšķirtspējas oriģināla, ne
+no gatava 2000x2500 kadra (POC avots bija jau web izmērs —
+sliktākais gadījums).
+
 **Nav pierādīts:** absolūtais kameras attālums un fokuss
 (EXIF bez fokusa visiem 24); Kiko _4, Jil Sander _4 un
 Wrangler _4 leņķi skaitliski; vai kopskats un detaļa uzņemti
