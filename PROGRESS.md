@@ -3311,3 +3311,29 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Godīgi: sērijā "3 bez koda labojuma" šī grupa = 1/3 AR parametru
   maiņām (identity WB; rotācijas labojums) un ar vienu lietotāja
   QA negatīvu ciklu (orientācija). Kods netika labīts.
+
+### §130 Bikšu grupa piegādāta un dzēsta (2026-10-25)
+
+- Lietotājs apstiprināja (poga) rezultātu lapu ar 4 auto detaļām;
+  ZIP V2_BIKSES_GALA_20261025.zip (6 faili: 2 PARAUGI + 4
+  _ATVASINATA detaļas, 11.9 MB, CRC OK) prezentēts lejupielādei;
+  poga "Lejupielādēju".
+- Dzēsti: 2 oriģināli (/home/user/uploads), MASTER/PARAUGS/maskas
+  (8 faili)/profili/tuvplani/_TUVPLANI.json, V2_KOLAZA.jpg, ZIP,
+  report_v2.json, report_v2_maker.json, grade_profile_v2.json,
+  tmp_id/zones_bikses_front.json. Pirms dzēšanas attempt 3
+  atskaites nokopētas uz output/audits/bikses_attempt3_report_v2_
+  {checker,maker}.json (auditācijas pēda). Vecās grupas audits
+  (11:50, stumbri 201332/161746/161944/161959) nepieskarti.
+  Krātuve 113.1 -> 48.4 MB (atbrīvoti 64.7 MB).
+- Saglabāti pierādījumi: tmp_id/bikses_inventars.jpg,
+  tmp_id/bikses_rezultats.jpg; PROGRESS §127-130.
+- Mācība (nākamajām grupām): orientācijas jautājums jāprecizē
+  NEVIS tikai "jostas puse oriģinālā", bet "kura puse augšā
+  iznākumā" — §127 pogu atbilde "abām labajā" noveda pie kļūdas
+  priekšpusē (josta bija kreisajā). Skaitliskās heuristikas
+  nenošķir (apstiprināts vēlreiz).
+- Sērijas stāvoklis: 1/3 (ar parametru maiņām + 1 QA ciklu).
+  Neizdarītais nemainīgs: detaļu maker integrācija ZIP (make_zip
+  ņem tikai PARAUGUS — manuāli būvēju), Boundary IoU un ēnas
+  holdout, 50 MP asuma mērījums, Uniqlo pārfotografēšana.
