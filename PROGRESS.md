@@ -2998,3 +2998,20 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   **pagaidām neko nedzēst**. Nekas nav dzēsts; aktīvā Uniqlo
   grupa un A10 stāvoklis nemainīti. Gaida nākamos norādījumus.
   Krātuve: /home/user 94409738 B.
+
+### §118 M9 sākts: Slam Jam tuvplānu leņķis un mērogs izmērīti (2026-10-25)
+
+- Lietotāja uzdevums: iemācīties kameras leņķi/attālumu Slam Jam
+  tuvplāniem. Metode: detaļa pret atbilstošo kopskatu (SIFT
+  homogrāfija; Kiko gludajam audumam tā deģenerējas — noraidīta,
+  birka mērīta manuāli). Pilna tabula un brīdinājumi STUDIJAS M9.
+- Rezultāts (3 izmērītas detaļas): palielinājums pret kopskatu
+  **4.4–6.6x**; optiskā ass **34–41° no plaknes normāles**
+  (kamera ~49–56° virs auduma plaknes); rotācija kadrā −14..+5°
+  (drīzāk apģērba pagrieziens, ne kameras rullis); fons detaļās
+  tikai 6.9–16.7% (kopskatos 55.9–64.5%). Lauka augstums plaknē
+  pēc pogas šķērspārbaudes ~22–26 cm. Absolūts attālums/fokuss
+  no JPEG nav pierādāms (EXIF bez fokusa).
+- Kods nemainīts. Skripts tmp_id/study_slamjam_angles.py;
+  palielinājuma rūtiņu kropi pēc mērījuma dzēsti.
+  Krātuve: /home/user 94510090 B.

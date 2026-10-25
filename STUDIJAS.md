@@ -431,6 +431,55 @@ ne-papīra grupas. E13: lietotājs lēmumu atlika (§91) - pie
 inventarizācijas caurspīdīgu apģērbu KAROGOT un jautāt pirms
 apstrādes. Ražošana 2. kārtā nemainīta.
 
+## M9 — Slam Jam tuvplānu kameras ģeometrija (sākts 2026-10-25)
+
+Mērķis (lietotāja uzdevums): iemācīties nolikt kameru tādā pašā
+leņķī un attālumā kā Slam Jam detaļās. Paraugi: mfpen bikšu
+4 kadri un Kiko Kostadinov Tomelilla 4 kadri (`uploads/slamjam_*`,
+visi 2000x2500; EXIF bez fokusa — tikai izmērs un `imagery4`).
+
+**Definīcijas.** Kopskati ir gandrīz perpendikulāri auduma
+plaknei. Detaļai mēra (a) palielinājumu `M` pret kopskatu (tas ir
+relatīvais attālums: pie nemainīga fokusa detaļa ir `M` reizes
+tuvāk; absolūtos cm bez fokusa/objekta izmēra no JPEG pierādīt
+nevar), (b) optiskās ass novirzi no plaknes normāles no
+priekšsaīsinājuma (anizotropija = cos(novirze); kameras augstums
+virs plaknes = 90° − novirze), (c) rotāciju kadrā.
+
+**Mērījumi** (SIFT homogrāfija detaļa→kopskats; Kiko gludajam
+audumam SIFT deģenerējas un tika noraidīts — tur birka mērīta
+manuāli kā plakans taisnstūris abos kadros):
+
+| Detaļa | M | Novirze no normāles | Kamera virs plaknes | Rotācija | Fons kadrā |
+|---|---|---|---|---|---|
+| Kiko _3 kakls/birka | 4.7x (platums 5.26x, augstums 4.27x) | ~36° | ~54° | +5° | 16.7% |
+| mfpen _4 jostas priekša | 6.6x (SIFT pāru mediāna 6.64x) | ~41° | ~49° | −3° | 6.9% |
+| mfpen _3 aizmugures kabata | 4.4x | ~34° | ~56° | −14° | 9.7% |
+| Kiko _4 piedurkne/apakšmala | nav pierādīts ar homogrāfiju | — | — | piedurkne likta pa diagonāli (stils, ne kameras rullis) | 15.7% |
+
+Kopskatos fons ir 55.9–64.5%; detaļās audums ir full-bleed
+(fons tikai 6.9–16.7%, parasti viens stūris/josla). Šķērs-
+pārbaude mērogam: mfpen pogas elipse detaļā ~192x223 px
+(attiecība 0.86); ja poga ir tipiski 17–20 mm, kadra augstums
+auduma plaknē ir ~22–26 cm — saskan ar M no kopskata lauka.
+
+**Darba hipotēze mūsu uzņemšanai:** kamera nav perpendikulāra
+un nav gandrīz gar plakni — tā ir ~50–55° virs auduma plaknes
+(35–40° novirze no perpendikula; sarunvalodā "ap 45°"), rullis
+~0 (horizonts taisns), bet pats apģērbs/detaļa kadrā pagriezta
+0 līdz −15° vai likta pa diagonāli. Attālumu kontrolē nevis ar
+cm, bet ar lauku: detaļas kadra augstums plaknē ~20–30 cm
+(4.4–6.6x tuvāk nekā kopskats pie tā paša fokusa). Detaļa
+aizpilda kadru līdz malām; ass fokuss visā laukā — tātad
+jāuzmanās ar telefona seklo DOF pie slīpas plaknes (sal. mūsu
+160601 defokuss, §110).
+
+**Nav pierādīts:** absolūtais kameras attālums un fokuss
+(EXIF tukšs); Kiko _4 leņķis skaitliski; vai kopskats un detaļa
+uzņemti ar vienu objektīvu. Validācija: kontrolēts mūsu tests
+ar zināmu režģa/objekta izmēru vairākos leņķos un attālumos,
+tad salīdzināt anizotropiju un lauka izmēru ar šo tabulu.
+
 ## KPI žurnāls (papildināt pēc katras grupas)
 
 | Grupa | Attempt 1 maskas | Attempt 1 checker | Koda labojumi pa ceļam | s/bilde |
