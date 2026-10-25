@@ -2905,3 +2905,36 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   pierādījuma metriku uz šī sliktā gadījuma + kontrolēm; ja ir
   skaidra atdalīšana, ieviest checker vārtus un maker STOP/
   trigeri ar sabotāžas testiem. Krātuve: /home/user 91808135 B.
+
+### §114 Robežas pierādījuma kalibrācija: v1 noraidīts, v2 atdala ar rezervi (2026-10-25)
+
+- Poga calibrate_gate. Kritērijs pirms mērījuma: metrika der tikai
+  tad, ja iezīmē gan A9 160601, gan GrabCut atlikumu, bet ne
+  160538/160550 kontroles. Skripti tmp_id/boundary_calib{,2}.py,
+  v2 skaitļi tmp_id/boundary_calib2.json. Ražošanas kods NAV mainīts.
+- v1 (profils ±48 px katram paraugam; platums/nobīde) **noraidīts**:
+  pārejas platuma mediāna kontrolēm 24-28 px un sliktajam 32 px,
+  maksimums kontrolei 76 px pret sliktā 56 px; nobīde piesātinās
+  pie meklēšanas robežas 32 px visiem. Profils mēra apģērba
+  ēnojumu/ribas, nevis malas pierādījumu.
+- v2 (tā pati 1:4 skala): kontūras paraugam nelīdzenums pret
+  21 parauga slīdošo mediānu; normāles profils ±8 ds px; segmentam
+  (32 paraugi, solis 8) ņem mediāno profilu un tā maksimālo
+  gradientu. Aizdomīgs logs = vismaz 20% paraugu ar nelīdzenumu
+  >=1 ds px **un** segmenta gradients <=5 (vāja malas liecība
+  avotā). Kandidāta lēmums: >=4 aizdomīgi logi jebkurā 160 paraugu
+  kontūras posmā.
+- Rezultāts (sliktākais 160 posms): kontroles **1** (160538) un
+  **0** (160550); A9 160601 **12**; GrabCut prototips **14**.
+  Karogi krīt tieši lietotāja joslā (centri y170..256 ds). Plato
+  apgabals stabils: arī pie 25%/grad<=6 kontroles 0, sliktie
+  10-11. Slieksnis 4 ir ~ģeometriskais vidus starp 1 un 12.
+  Kadra malas iecirtums viens pats neder (GrabCut 56 px/7968 px²,
+  bet A9 alfai tikai 112 px²) — paliek kā diagnostika.
+- Godīgi ierobežojumi: tikai 2 kontroles no tās pašas sesijas;
+  sliekšņi kalibrēti uz šiem pašiem gadījumiem; metrika sedz
+  "nelīdzena kontūra tur, kur avota mala ir vāja/defokusēta",
+  nevis gludi nobīdītu robežu. Tāpēc ieviešanai obligāti
+  sabotāžas testi un validācija uz nākamajām grupām; pie
+  neskaidra rezultāta vēlamā uzvedība ir STOP, nevis PASS.
+  Krātuve: /home/user 92081291 B.
