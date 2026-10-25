@@ -88,8 +88,17 @@ def _persist_report(records: list[dict], attempt: int, stage: str,
         for stem, rec in prev.items():
             if stem in merged:
                 continue
-            para = rec.get("paraugs_path") or str(
-                Path(OUT) / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg")
+            # Izdzīvošanas pārbaude: lut_only kadra piegāde ir MAKRO fails,
+            # nevis PARAUGS (§131). Pirms šī labojuma (P5 treniņš, §133)
+            # lut_only ieraksts KLUSSI izkrita no akumulācijas jebkurā
+            # nākamajā palaišanā ar citiem --files — un tad arī no checker
+            # un make_zip.
+            if rec.get("lut_only"):
+                para = rec.get("makro_path") or str(
+                    Path(OUT) / "paraugs" / f"{stem}_MAKRO_2000x2500.jpg")
+            else:
+                para = rec.get("paraugs_path") or str(
+                    Path(OUT) / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg")
             if Path(para).is_file():
                 merged[stem] = rec
     report = {

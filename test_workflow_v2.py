@@ -1686,3 +1686,55 @@ class TestMakeZipLutOnly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPersistReportLutOnlySurvival(unittest.TestCase):
+    """§133 P5 defekta regresa tests: lut_only ierakstam PARAUGS nav
+    (ir MAKRO), tāpēc akumulācijas izdzīvošanas pārbaude tam jāskatās
+    MAKRO fails — citādi jebkurā nākamajā palaišanā ar citiem --files
+    lut_only kadrs klusi izkrīt no atskaites, checker un ZIP."""
+
+    def test_lut_only_record_survives_next_run(self):
+        import engine.report as rp
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            (out / "paraugs").mkdir(parents=True)
+            makro = out / "paraugs" / "X_MAKRO_2000x2500.jpg"
+            Image.fromarray(np.zeros((2500, 2000, 3), np.uint8)).save(
+                makro, quality=95)
+            report_path = Path(td) / "report_v2_maker.json"
+            lut_rec = {"stem": "X", "status": "completed", "lut_only": True,
+                       "mask_method": "lut_only",
+                       "makro_path": str(makro)}
+            norm_rec = {"stem": "Y", "status": "completed",
+                        "paraugs_path": str(out / "paraugs" / "Y_PARAUGS_2000x2500.jpg")}
+            with mock.patch.object(rp, "OUT", out), \
+                 mock.patch.object(rp, "REPORT_PATH", report_path):
+                # 1. palaišana: tikai lut_only kadrs
+                rp._persist_report([lut_rec], 1, "done")
+                self.assertIn("X", json.loads(report_path.read_text())["images"])
+                # 2. palaišana ar CITIEM --files: lut_only ierakstam jāizdzīvo
+                rp._persist_report([norm_rec], 2, "done")
+                images = json.loads(report_path.read_text())["images"]
+                self.assertIn("X", images, "lut_only ieraksts izkrita no akumulācijas")
+                self.assertEqual(images["X"]["makro_path"], str(makro))
+                self.assertIn("Y", images)
+
+    def test_lut_only_record_dies_when_makro_missing(self):
+        import engine.report as rp
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            (out / "paraugs").mkdir(parents=True)
+            report_path = Path(td) / "report_v2_maker.json"
+            lut_rec = {"stem": "X", "status": "completed", "lut_only": True,
+                       "mask_method": "lut_only",
+                       "makro_path": str(out / "paraugs" / "X_MAKRO_2000x2500.jpg")}
+            norm_rec = {"stem": "Y", "status": "completed",
+                        "paraugs_path": str(out / "paraugs" / "Y_PARAUGS_2000x2500.jpg")}
+            with mock.patch.object(rp, "OUT", out), \
+                 mock.patch.object(rp, "REPORT_PATH", report_path):
+                rp._persist_report([lut_rec], 1, "done")
+                rp._persist_report([norm_rec], 2, "done")
+                images = json.loads(report_path.read_text())["images"]
+                self.assertNotIn("X", images, "bez MAKRO faila ierakstam jāizzūd")
+                self.assertIn("Y", images)
