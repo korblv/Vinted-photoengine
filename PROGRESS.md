@@ -3337,3 +3337,29 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   Neizdarītais nemainīgs: detaļu maker integrācija ZIP (make_zip
   ņem tikai PARAUGUS — manuāli būvēju), Boundary IoU un ēnas
   holdout, 50 MP asuma mērījums, Uniqlo pārfotografēšana.
+
+### §131 Lēmums: lut_only ceļš dzinējā + jauna Uniqlo grupa (2026-10-25)
+
+- Lietotāja priekšlikums: ja drēbe aizpilda visu kadrā (makro),
+  apstrādāt bez maskas/fona — tikai LUT. Pogas (4 atbildes):
+  (1) kārtula apstiprināta 6 punktos kā rakstīta; (2) detekcija
+  TIKAI DEKLARĒTA (--lut-only STEM pēc pogas lēmuma; maker
+  verifikē skaitliski, STOP ja neiziet); (3) 145345+145603 =
+  kopskati, 145647 = makro; §91 caurspīdīgu daļu nav (netika
+  norādītas); (4) Uniqlo krekls, abi kopskati jau pareizi
+  orientēti (rotācija 0).
+- Fiksētie sliekšņi (pirms mērījuma): papīra daļa (ar esošo
+  paper_background_mask) katrā no 4 malu joslām (3% platums,
+  min 32 px) < 1% UN globāli < 2%; pretējā gadījumā STOP ar
+  skaitļiem. Grupā jābūt >=1 kopskatam (LUT avots).
+- Uzvedība: bez ISNet/fona/ēnas/dekontaminācijas; tikai grupas
+  LUT (WB+ekspozīcija+līkne) visam kadrā; MASTER 1:1 PNG +
+  *_MAKRO_2000x2500.jpg q95 (centra kropji, malas mantotas);
+  method="lut_only" atskaitē; checker patur A2/K/D/R/T, pārējos
+  izlaiž AR atzīmi; make_zip iekļauj MAKRO; asums informatīvi.
+- Inventārs: 1888x4096 portrets (telefona 1.6x krops no 3072x4096),
+  2026-10-25 14:53-14:56; kopskatiem kreisā mala = papīrs,
+  apakša = silta grīda; makro visas malas gaišs tekstūrēts audums
+  [187-198] std 34-38 (papīram butu std 3-4), p50 [200,201,208],
+  52% >200, asums (grad var) 98 pret 226/234 kopskatiem — mērīšu
+  vēl Laplacian var makeri.
