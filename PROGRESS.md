@@ -3216,3 +3216,24 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   tajā testēs gan zonu priekšlikumu, gan visu plūsmu reālā
   materiālā. Pirms jebkāda maker attempt: inventārs + §91
   caurspīdīgums + `setup_v2.py --check`.
+
+### §126 Uniqlo krekla grupa pilnībā iztīrīta; nākamā grupa — bikses (2026-10-25)
+
+- Lietotājs: krekls tiks pārbildēts viss no jauna; tagad būs
+  bikses īstajam testam. Dzēšanas tvērums apstiprināts ar pogu
+  (pilna grupas tīrīšana) PIRMS dzēšanas.
+- Dzēsts: uploads 3 oriģināli MVIMG_20261020_{160538,160550,
+  160601} (25.6 MB) + 4 SS IMG_20261025_* (1.8 MB); output:
+  3 MASTER (36.2 MB), 3 PARAUGS (4.1 MB), 12 masku faili,
+  3 profili, kolāža, delivery/report/grade JSON, tuvplani
+  (2 DETALA + _TUVPLANI.json), audits attempt9/attempt10.
+- Pārbaudīts un **paturēts**: audits attempt1/attempt2 — to
+  stumbri ir 161746/161944/161959 (vecākas grupas ēnas iterācijas
+  laiks), tie nav Uniqlo faili. tmp_id studiju materiāli
+  (lapas, skripti) paliek kā M9 pierādījumi.
+- Krātuve: 119 654 112 -> **46 810 303 B**. uploads paliek
+  24 Slam Jam paraugi + 3 md dokumenti.
+- Uniqlo grupas stāvoklis: atiestatīts uz nulli (nav oriģinālu,
+  masku, attempt). Sērija "3 neredzētas grupas bez koda labojuma"
+  joprojām 0/3 — nākamā (bikšu) grupa skaitīsies tajā.
+  Gaida kadru augšupielādi; pēc tās: inventārs + §91 + setup.
