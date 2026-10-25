@@ -1511,6 +1511,14 @@ class TestSlamjamDetails(unittest.TestCase):
         self.assertEqual(zones[0][0], "josta")
         self.assertIn(zones[1][0], ("kabata", "apaksmala"))
 
+    def test_warp_coverage_bool_mask_regression(self):
+        """§125: bool maska bez *255 deva 0.000 segumu visiem kandidātiem."""
+        import closeup as cu
+        mask = np.zeros((1000, 800), bool)
+        mask[100:900, 100:700] = True
+        cov = cu._warp_coverage(mask, (500, 400), 300)
+        self.assertGreater(cov, 0.90, cov)
+
     def test_render_slamjam_synthetic(self):
         import closeup as cu
         master = np.zeros((500, 400, 3), np.uint8)

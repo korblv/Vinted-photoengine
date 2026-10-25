@@ -178,7 +178,10 @@ def pick_centers(master, mask):
 
 
 def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
-                            tilt_deg=SLAMJAM_TILT_DEG):
+                            tilt_deg=SLAMJAM_TILT_DEG,
+                            rotation_deg=SLAMJAM_ROTATION_DEG,
+                            perspective=SLAMJAM_PERSPECTIVE,
+                            min_render_cov=SLAMJAM_MIN_COVERAGE):
     """Zonu priekšlikums no struktūras/hromas kartēm (tīra funkcija).
 
     Loģika ir tipa apzinīga: pēc apģērba bbox malu attiecības izšķir
@@ -186,7 +189,9 @@ def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
     augšējā centrālā (kakls/birka vai jostasvieta), otrā — aproce,
     kabata vai apakšmala. Segumu vērtē ar lauka taisnstūri; detaļu un
     hromu — ar mazāku centrālo logu, lai maza birka nepazustu lielā
-    lauka vidējā vērtībā. Atgriež [(tag, (cy, cx), src_h), ...] vai
+    lauka vidējā vērtībā. Izvēlētais kandidāts vēl jāiziet rendera
+    seguma prognozei (``_warp_coverage``); ja neiziet, ņem nākamo
+    pēc vērtējuma. Atgriež [(tag, (cy, cx), src_h), ...] vai
     [] ja pārliecinošu kandidātu nav.
     """
     ys, xs = np.nonzero(mask)
@@ -245,7 +250,15 @@ def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
                     c["cy"] - exclude["cy"], c["cx"] - exclude["cx"]) < min_sep:
                 continue
             pool.append((score_fn(c), c))
-        return max(pool, key=lambda t: t[0])[1] if pool else None
+        pool.sort(key=lambda t: t[0], reverse=True)
+        for _s, c in pool:
+            wc = _warp_coverage(mask, (c["cy"], c["cx"]), src_h, canvas,
+                                tilt_deg, rotation_deg, perspective)
+            if wc >= min_render_cov:
+                return c
+        # Ja neviens neiziet rendera segumu, atgriežam augstāko —
+        # gala vārti to godīgi noraidīs ar iemeslu.
+        return pool[0][1] if pool else None
 
     def central(c):
         return max(0.0, 1.0 - abs(c["u"] - 0.5) / 0.5)
@@ -260,12 +273,18 @@ def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
                   score_neck, min_cov=0.70)
         tag1 = "kakls"
     else:
+        # Jostas logs balstās uz apģērba augšmalu: ja lauka augstums
+        # nesasniedz vidukli, centra mērķis ir "puse lauka no bbox
+        # augšas", nevis fiksēts 0.16 — citādi logs sniedzas virs
+        # jostas malas fona un rendera seguma vārti to noraida.
+        waist_v = max(0.16, 0.5 * fh / max(bh, 1))
+
         def score_waist(c):
-            v_prior = max(0.0, 1.0 - abs(c["v"] - 0.16) / 0.18)
+            v_prior = max(0.0, 1.0 - abs(c["v"] - waist_v) / 0.18)
             return (0.50 * c["det_n"] + 0.55 * c["chr_n"] + 0.35 * c["cov"]
                     + 0.25 * central(c) + 0.20 * v_prior)
 
-        z1 = best(lambda c: 0.22 <= c["u"] <= 0.78 and 0.05 <= c["v"] <= 0.32,
+        z1 = best(lambda c: 0.22 <= c["u"] <= 0.78 and 0.05 <= c["v"] <= 0.40,
                   score_waist, min_cov=0.70)
         tag1 = "josta"
     if z1 is None:
@@ -283,9 +302,11 @@ def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
         v_prior = max(0.0, 1.0 - abs(c["v"] - hem_v) / 0.18)
         return score_second(c) + 0.30 * v_prior
 
-    # Semantiskās zonas jau atšķiras pēc reģiona; attāluma sargs ir
-    # piesaistīts laukam, lai kabata tuvu jostasvietai netiktu noraidīta.
-    min_sep = 0.5 * src_h
+    # Semantiskās zonas jau atšķiras pēc reģiona; attāluma sargs tikai
+    # novērš to pašu vietu divreiz. Augšdaļām zona atšķiras pēc augstuma
+    # (kakls/apakšmala), bet bikšu kabatas pie jostas vietas ir tuvu
+    # centram, tāpēc tur sargs ir piesaistīts lauka platumam.
+    min_sep = 0.5 * src_h if is_top else 0.15 * fw
     if is_top:
         # Aproci meklē kā piedurknes gala klasteri maskas sānu apakšējā
         # daļā; kadra centru nobīda uz iekšu, lai aproce būtu kadrā.
@@ -313,6 +334,10 @@ def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
             near = min(cands, key=lambda c: (c["cx"] - want_cx) ** 2
                        + (c["cy"] - want_cy) ** 2)
             if near["cov"] < 0.80:
+                continue
+            if _warp_coverage(mask, (near["cy"], near["cx"]), src_h, canvas,
+                              tilt_deg, rotation_deg,
+                              perspective) < min_render_cov:
                 continue
             if np.hypot(near["cy"] - z1["cy"], near["cx"] - z1["cx"]) < min_sep:
                 continue
@@ -346,6 +371,8 @@ def _pick_slamjam_from_maps(mask, detail, chroma, src_h, canvas=CANVAS,
 
 def pick_slamjam_centers(master, mask, src_h=None, canvas=CANVAS,
                          tilt_deg=SLAMJAM_TILT_DEG,
+                         rotation_deg=SLAMJAM_ROTATION_DEG,
+                         perspective=SLAMJAM_PERSPECTIVE,
                          field_frac=SLAMJAM_FIELD_FRAC,
                          max_upscale=SLAMJAM_MAX_UPSCALE,
                          min_source_fraction=SLAMJAM_MIN_SOURCE_FRAC):
@@ -355,14 +382,26 @@ def pick_slamjam_centers(master, mask, src_h=None, canvas=CANVAS,
         min_source_fraction)
     detail, chroma = _maps(master, mask)
     zones = _pick_slamjam_from_maps(mask, detail, chroma, chosen_h,
-                                    canvas, tilt_deg)
+                                    canvas, tilt_deg, rotation_deg,
+                                    perspective)
     if len(zones) >= 2:
         return zones
-    # Kritiens atpakaļ uz veco akcentu meklētāju, ja tipa loģikai
-    # kandidātu nepietiek (piem. neparasta silueta dēļ).
-    old = [(tag, center, float(chosen_h))
-           for tag, center in pick_centers(master, mask)]
-    return old
+    # Ja tipa loģika deva vienu pārliecinošu zonu, to paturam un mēģinām
+    # pievienot otru no vecā akcentu meklētāja — bet tikai tad, ja tā
+    # nav praktiski tajā pašā vietā. Divas dublētas zonas ir sliktāk
+    # par vienu godīgu.
+    out = list(zones)
+    try:
+        old_centers = pick_centers(master, mask)
+    except ValueError:
+        old_centers = []
+    for tag, center in old_centers:
+        if len(out) >= 2:
+            break
+        if all(np.hypot(center[0] - z[1][0], center[1] - z[1][1])
+               >= 0.5 * chosen_h for z in out):
+            out.append((tag, center, float(chosen_h)))
+    return out
 
 
 def fit_window(center, mask, want=(2000, 2500)):
@@ -440,6 +479,33 @@ def slamjam_quad(center_yx, src_h, canvas=CANVAS,
                       [math.sin(th), math.cos(th)]])
     cy, cx = center_yx
     return rel @ rot.T + np.float32([cx, cy])
+
+
+def _warp_coverage(mask, center_yx, src_h, canvas=CANVAS,
+                   tilt_deg=SLAMJAM_TILT_DEG,
+                   rotation_deg=SLAMJAM_ROTATION_DEG,
+                   perspective=SLAMJAM_PERSPECTIVE, ds=8):
+    """Lēta rendera seguma prognoze: perspektīvas kvadrāts uz mazas maskas.
+
+    Tas pats, ko rēķina ``render_slamjam`` kā ``alpha > 0.5`` segumu,
+    bet 1:8 mērogā — pietiek zonu izvēlei, pirms kaut kas tiek
+    renderēts pilnā izmērā.
+    """
+    ow, oh = canvas
+    h, w = mask.shape
+    m_small = cv2.resize(np.where(mask, 255, 0).astype(np.uint8),
+                         (max(1, w // ds), max(1, h // ds)),
+                         interpolation=cv2.INTER_AREA)
+    quad = slamjam_quad(center_yx, src_h, canvas, tilt_deg, rotation_deg,
+                        perspective)
+    dst = np.float32([[0, 0], [ow / ds - 1, 0],
+                      [ow / ds - 1, oh / ds - 1], [0, oh / ds - 1]])
+    mtx = cv2.getPerspectiveTransform(
+        (quad / ds).astype(np.float32), dst)
+    alpha = cv2.warpPerspective(m_small, mtx, (int(ow / ds), int(oh / ds)),
+                                flags=cv2.INTER_LINEAR,
+                                borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+    return float((alpha > 127).mean())
 
 
 def choose_slamjam_src_h(mask, src_h=None, field_frac=SLAMJAM_FIELD_FRAC,
@@ -625,6 +691,8 @@ def main(argv=None):
         elif args.mode == "slamjam":
             centers = pick_slamjam_centers(
                 master, mask, canvas=CANVAS, tilt_deg=args.tilt_deg,
+                rotation_deg=args.rotation_deg,
+                perspective=args.perspective,
                 field_frac=args.field_frac, max_upscale=args.max_upscale,
                 min_source_fraction=args.min_source_frac)
         else:

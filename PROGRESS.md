@@ -3175,3 +3175,39 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   vispirms ar pogām uzdot tos pašus trīs variantus: (1) iebūvēt
   attempt plūsmā, (2) testēt zonu priekšlikumu uz citiem apģērbu
   tipiem, (3) pauze M9 līnijā / atgriezties pie grupām.
+
+### §125 Zonu priekšlikums pārbaudīts uz citiem tipiem; 3 kļūdas atrastas un labotas (2026-10-25)
+
+- Lietotājs izvēlējās testēt uz citiem apģērbu tipiem. Materiāls:
+  Slam Jam kopskati (bikses Junya, jaka Wrangler, flanela Patagonia;
+  maska ar fona slieksni — tikai šim testam, ne ražošanas ceļš;
+  LUT identitāte). Etaloni: Slam Jam īstās detaļas.
+- **Atradās 3 reālas kļūdas** (tests bija vajadzīgs):
+  1. Bikšu zaru nogalināja attāluma sargs `0.5xsrc_h` — kabatu
+     kandidāti (10 logi ar segumu līdz 0.96) ir tuvu jostas centram,
+     visi izslēgti → kritiens uz veco meklētāju → divas gandrīz
+     vienādas jostas zonas 66 px attālumā. Labojums: biksēm
+     `0.15xfw`; kritiens tagad patur labo zonu un pievieno otru
+     tikai ar attālumu (bez dublētiem; `pick_centers` izņēmums
+     apstrādāts).
+  2. Jostas loga mērķis v=0.16 lika logam sniegties virs jostas
+     malas (aizmugures renderis 0.787 < 0.80). Labojums: mērķis
+     `max(0.16, 0.5*fh/bh)` — logs balstās uz apģērba augšmalu.
+  3. `_warp_coverage` bool masku pārvērta par 0/1 bez *255 — visiem
+     kandidātiem segums 0.000, verifikācija neko neizslēdza un kods
+     atgrieza nesošo augstāko. Labojums: *255 + verifikācija iet
+     cauri visam kandidātu sarakstam; regresijas tests pievienots.
+- Rezultāts pēc labojumiem (zonas normālkoordinātas u,v):
+  bikses priekša josta (0.52,0.31) + kabata (0.35,0.39); aizmugure
+  josta (0.52,0.29) + kabata (0.35,0.31 — trāpa īstās _4 aizmugures
+  kabatas reģionu); jaka kakls (0.54,0.26) + apakšmala (0.54,0.71);
+  flanela kakls (0.48,0.26) + apakšmala (0.45,0.71); Uniqlo tops
+  nemainīgs [1573,1627]/[1426,2950]. Visi 3 renderi iziet vārtus
+  (0.938/0.926/0.827, 2.29x). Lapa
+  `tmp_id/t125_zone_test_sheet.jpg`.
+- Asums godīgi: priekšas jostas SIM Tenengrad 154.7 pret īstās 174.9,
+  bet lauki atšķiras (mūsu 2.29x pret īstajiem 4.7–6.6x), tāpēc
+  skaitļi nav tieši salīdzināmi — tas ir satura, ne asuma spriedums.
+- Testi: **122/122 OK** (+1 regresijas). Renderi pēc mērījuma
+  dzēsti (atkārtoti ģenerējami ar tmp_id/test_zones_other_types.py).
+  Maker/checker/ZIP integrācija joprojām nākamais solis.

@@ -68,7 +68,9 @@ robežas).
   tipa apzinīgu automātisko priekšlikumu: augšdaļai kakls/birka +
   aproce vai apakšmala, apakšdaļai jostasvieta + kabata vai
   apakšmala (tips no apģērba bbox malu attiecības; ja kandidātu
-  nepietiek — kritiens atpakaļ uz veco akcentu meklētāju).
+  nepietiek — kritiens atpakaļ uz veco akcentu meklētāju, bez
+  dublētām zonām). Izvēlētais kandidāts pirms pieņemšanas iziet
+  rendera seguma prognozi mazā mērogā; ja neiziet, ņem nākamo.
   Priekšlikums nav piegādes lēmums: zonas un rezultātu rāda
   lietotājam kolāžā apstiprināšanai pirms piegādes.
 - **Ģeometrija (D recepte):** novirze no normāles 34° (kamera ~56°
