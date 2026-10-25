@@ -515,6 +515,21 @@ simulācija jāveic no maksimālās izšķirtspējas oriģināla, ne
 no gatava 2000x2500 kadra (POC avots bija jau web izmērs —
 sliktākais gadījums).
 
+**POC-2 no telefona oriģināla.** Tā pati recepte no Uniqlo
+Henley kopskata oriģināla (3072x4096): avota reģions
+693/568x950 px = 0.60 Mpx (12.0% no izejas; 2.7x vairāk nekā
+POC-1), efektīvais palielinājums 2.89x. Pret īsto telefona
+detaļu 160550 (tā pati zona, pārveidota uz 2000x2500) asums
+centra ROI: Tenengrad 57.7 pret 92.7 (62%), Laplacian
+dispersija 471 pret 7881 (6%); pret POC-1 gan uzlabojums
+1.9x/5.0x. Parastā skatā kadrs izskatās pārliecinošs un
+Slam Jam līdzīgs (full-bleed, Henley ar 3 pogām), bet 100%
+mērogā adījuma cilpas joprojām izsmērētas un birkas teksts
+nav salīdzināms ar īstu detaļu. Ražošanā simulācija jāveic
+no maskēta maksimālās izšķirtspējas avota (MASTER/#F3), citādi
+kadrā paliek papīra fons no oriģināla (redzams POC-2
+apakšmalas simulācijā).
+
 **Nav pierādīts:** absolūtais kameras attālums un fokuss
 (EXIF bez fokusa visiem 24); Kiko _4, Jil Sander _4 un
 Wrangler _4 leņķi skaitliski; vai kopskats un detaļa uzņemti

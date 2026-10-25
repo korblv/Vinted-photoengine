@@ -3071,3 +3071,23 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Ražošanas kods nemainīts. Rūtiņu attēli zonu izvēlei dzēsti;
   simulētie kadri un salīdzinājuma lapas saglabātas lietotāja
   spriedumam. Krātuve: /home/user 111195334 B.
+
+### §121 M9 POC-2: simulācija no telefona oriģināla (2026-10-25)
+
+- Lietotājs ar pogu izvēlējās testu no pilnas izšķirtspējas
+  oriģināla. Avots: Uniqlo Henley kopskats 160538
+  (3072x4096); zonas no kopskata vien: kakls/Henley (1430,1600)
+  un apakšmala/audums (1450,3150). Etalons: īstā telefona
+  detaļa 160550 tai pašai kakla zonai, pārveidota uz 2000x2500.
+  Skripts `tmp_id/poc_simulate_uniqlo.py`; salīdzinājumi
+  `tmp_id/poc_uniqlo_compare.jpg`, `poc_uniqlo_compare_100.jpg`.
+- Mērījumi: avota reģions 0.60 Mpx = 12.0% no izejas (POC-1:
+  0.22 Mpx, 4.4%); efektīvais palielinājums 2.89x (POC-1: 4.8x).
+  Asums centra ROI pret īsto detaļu: Tenengrad 62%, Laplacian
+  dispersija 6% (pret POC-1 uzlabojums 1.9x/5.0x). Vizuāli
+  parastā skatā kadrs ir Slam Jam līdzīgs, 100% mērogā adījuma
+  mikrostruktūra un birkas teksts joprojām zaudē īstajai detaļai.
+- Ieviešanas secinājums: ražošanā simulēt no maskēta
+  maksimālās izšķirtspējas avota (MASTER/#F3), ne no papīra
+  oriģināla. Ražošanas kods nemainīts; rūtiņu attēli dzēsti.
+  Krātuve: /home/user 116845717 B.
