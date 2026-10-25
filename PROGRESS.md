@@ -3396,3 +3396,31 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Īsto kadru verifikācija: 145345 malas 42-70% global 45.6% -> STOP
   (pareizi, kopskats); 145603 malas 62-77% global 43.0% -> STOP;
   145647 refused, daļas 0 -> PASS. LapVar 770/802/221.
+
+### §133 Pašmācību sistēma (P-sērija) un 1. kārta (2026-10-25)
+
+- Lietotāja norāde: "Taisi pašmācības, tev ir jāiemācās viss, lai
+  mums visas bildes izietu visus ceļus." Izveidota `pasmacibas/`:
+  P0_PLANS.md (pilns ceļu inventārs + treniņu procedūra izolētā
+  kopijā /tmp/pdrill ar pārrakstītu SRC_DIR), gen_scenes.py
+  (deterministisks ainu ģenerators: A/A2 kopskats, B mala, C ēnu
+  sašķelts, D haoss, E/E2 silts papīrs, F makro), P_REZULTATI.md.
+- 1. kārtas rezultāti (details P_REZULTATI.md): isnet+slamjam ✓;
+  D_haoss STOP ✓; chroma_seeded iedegās pats uz rotētām ainām ✓;
+  boundary_uncertain STOP iegūts (E v1: zemas kontrasta robeža —
+  papīram jākontrastē ar apģērbu!) ✓; §128 WB mehānisms reproducēts
+  (E2: fons [194,190,180] → WB [0,97;1;1,08] → GATE_K −4,13;
+  identity → −0,98 PASS) ✓; lut_only ražošanas mērogā 2/2 ALL_PASS
+  (verifikācijas arī bez-refused atzars) ✓; original renderis caur
+  --framing original ✓.
+- Neizdevās sintētiski: isnet_pad_retry (ēna par vieglu ISNet —
+  segts ar reālo 161031), plate_texture, auto→original atzars
+  (3 mēģinājumi: kontakts < 0,50; taisnstūra forma → ISNet noraida).
+- **ATRASTS DEFEKTS (P5):** _persist_report akumulācija patur vecos
+  ierakstus tikai pēc PARAUGS faila eksistences — lut_only kadam
+  (tikai MAKRO) jebkurā nākamajā palaišanā ar citu --files KLUSSI
+  izkrīt no atskaites → checker un ZIP. Reproducēts: 6/6 → ZIP
+  bez MAKRO. Piedāvāts labojums + regresa tests — Gaida pogu.
+- Mācības rīku higiēnā: checker ar pozicionālo filtru pārraksta
+  report_v2.json — pirms make_zip vienmēr pilns checker.
+- Komits: pasmacibas/ (P0_PLANS, gen_scenes, P_REZULTATI).
