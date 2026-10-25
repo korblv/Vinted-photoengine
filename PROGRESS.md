@@ -2767,3 +2767,74 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
 - Ražošanas pakete lēmumam: audzēšana v4 + aizvēršana R=10 +
   malas josla 16, Q trigera iekšienē pirms plate, pieņemšana tikai
   ja Q pēc <= trigeris. Krātuve: /home/user 133120337 B.
+
+### §108 2.9 ieviests: līču atgūšana Q trigerī — svītras pazuda, platais līcis palika (2026-10-24)
+
+- Poga impl_pkg. reclaim_inlets (engine/masks.py) = §105 v4 +
+  aizvēršana R=10 (§106) + malas josla 16 ar rindas/kolonnas
+  atbalstu (§107; stūra pāršaušana 256 px sintētikā noķerta testā
+  un sašaurināta). Q trigerī kā pirmais līdzeklis pirms plate;
+  pieņem tikai ja Q pēc <= 1.0%. Config reclaim_* (14), testi
+  102/102 OK (4 jauni TestReclaimInlets), versija 2.9.
+- Attempt 8: 160550 atgūšana pieņemta (+556 006 px, Q 4.253% ->
+  0.042%, metode paliek isnet_pad_retry), checker **3/3 PASS**,
+  GATE_L šim kadram pirmo reizi PASS 0.0 (bija DUBIOUS 0.52).
+- **BET kolāžā apakšā pa labi joprojām balts pleķis** (acs noķēra,
+  skaitļi ne): viena komponente 154 314 px (x2392..2883,
+  y3575..4095, tex 6.23 = audums), maks. attālums līdz FG 131 px.
+  Audzēšanas virzienu sargs (FG 60 px rādiusā) tās iekšieni
+  nesasniedz, un GATE_Q zona (80 px) to neredz — otrais aklais
+  punkts: PLATI zaudējumi. "3/3 PASS" šim kadram atkal nav "gatavs".
+- Atmesti ar mērījumu: dziļā audzēšana (dir 64/dist 160 pleķi
+  aizpilda -> 22.9k, bet kontrole 160538 izaug 172 698 px = ēnas
+  maliņa), piekļaušanās filtrs (līcis 0.209 pret maliņu 0.19-0.29 —
+  neatdala).
+- **Apvienojums izmērīts tīrs:** A8 ∪ plate: zaudētais pret plate 0,
+  Q 0.0%, pievienotais (zils diff attēlā) = tikai pleķa vieta +
+  2 punktiņi; apkakle no pad_retry vesela, apakša no plate vesela
+  (tmp_id/bench/union_comp_160550.jpg). Kandidāts nākamajam solim:
+  trigerī vērtēt arī union(kandidāts, plate), kad plate pieņemta.
+  Krātuve: /home/user 135067523 B.
+
+### §109 2.10: union kandidāts Q trigerī — 160550 tīrs visos mērījumos (2026-10-24)
+
+- Poga impl_union. choose_candidate (workflow_v2.py): strukturāli
+  pieņemto starpā mazākais Q, neizšķirtā union > current > plate.
+  Plate zarā tagad vērtē arī union(kandidāts, plate) — arī tad, ja
+  atgūšana jau pieņemta (Q plata līča dēļ var būt zems maldinoši).
+  Testi 106/106 OK (4 jauni TestChooseCandidate), versija 2.10.
+- Attempt 9: 160550 atgūšana +556 006 px (Q 0.042%), tad union ar
+  plate pieņemts (Q 0.042% -> 0.0%, metode
+  isnet_pad_retry+plate_union, segums 0.7270). Checker **3/3 PASS**
+  (Q 0.101 / 0.0 / 0.065; GATE_L 0.0 uz 160550). Kolāža: apkakle
+  vesela, pleķa un svītru nav — pirmo reizi šis kadrs iztur gan
+  visus vārtus, gan aci. Laiki 11.3/23.3/18.8 s (maks. kopā 23.3 <
+  GATE_T 25 s).
+- Atvērts: 2 birku makro STOP (§95 plate QA diagnostika).
+  Komplekts piegādei gatavs kā 3/5 ar lietotāja Apstiprināt, vai
+  makro solis mērķim 5/5. Krātuve: /home/user 135416393 B.
+  UZMANĪBU: uploads/ ir lietotāja 2 anotētie ekrānšāviņi (IMG_20261025_*)
+  — palaišanām bez --files tie iekļūtu grupā; lietot precīzus --files.
+
+### §110 160601 augšas robeža defokusā: kodumi izmērīti, ROI GrabCut prototips (2026-10-24)
+
+- Lietotājs A9 kolāžā iezīmēja 160601 augšējo kreiso malu
+  (uploads/IMG_20261025_073111.jpg): robota silueta mala un
+  iecirtums pie apkakles. Tikai mērījumi.
+- Reģions ir defokusēts (sekla asuma dziļuma zona): papīra->auduma
+  gradients mediānā 18 px plats. Robežas nobīde no gradienta vidus
+  (101 kolonna): mediāna 3 px, bet 27% kolonnu iekož >10 px,
+  10% >20 px, maks. 94 px (iecirtums). Q metrika defokusā klusē
+  (tekstūra zema), GATE_H mēra alfai profilu, ne novietojumu —
+  defekta klase atšķiras no §99 (daudzums) — šī ir robežas
+  LOKALIZĀCIJA izplūdušā malā. Offline atgūšana te pievienoja
+  tikai 15 050 px un malu neiztaisnoja.
+- ROI GrabCut prototips (§80 precedents; ROI 1400x1500, sēklas no
+  pašreizējās maskas erodēta/dilatēta, ielīmē tikai dilatētā
+  nedrošajā joslā): +39 006 / -690 px, kodumu statistika
+  maks. 94 -> **6 px**, p90 20 -> 0; kontūra seko īstajai malai
+  (tmp_id/bench/a9_160601_grabcut.jpg). GrabCut 6.6 s.
+- Lēmums pēc pogas: (a) vienreizējs ROI GrabCut šim kadram §80
+  stilā (provenance roi_grabcut -> rerender -> checker);
+  (b) vispārīgs robežas pārlokalizēšanas posms (lielāks darbs);
+  (c) pieņemt kā ir; (d) 160601 izslēgt. Krātuve: 149012606 B.
