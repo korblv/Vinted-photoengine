@@ -3449,3 +3449,38 @@ Fons/ēna no parauga **vēl nav mērīti** (`measure_shadow.py` nav palaists).
   ģeometrija (bbox/crop/lut_only krops). Gaida pogu.
 - Neaizmirst: Uniqlo 145345 lēmums vēl nav pieņemts (pārfotografēt /
   piegādāt bez / skatīties failus); 145603 puse nav apstiprināta.
+
+### §135 GATE_K atsauces ģeometrijas labojums + 3. pašmācību kārta (2026-10-25, poga "Labot")
+
+**Defekts (atklāts 2. kārtā, P_REZULTATI §7):** GATE_K atsaucei tika
+sablīvēts VISAIS avots uz 2000×2500; kad avota un audekla proporcijas
+atšķīrās ne tikai ar mērogu, `via` reģionā iekļuva papīrs un b_ref
+nobīdījās par ~+2 (H_salocits: viltus −3,27 FAIL).
+
+**Labojums:** `checker_v2.py` jaunā funkcija `_chroma_reference()` —
+atsauce ar RENDERA ģEOMETRIJU (`reconcile_reference`, tā pati, ko lieto
+GATE_R): bbox kopskatam, `closeup_crop` tuvplānam, uniforma mērogošana +
+centra krops "original" stilam; heirisika `full_shot` atvasināšana ar
+tādiem pašiem guardiem kā iepriekš. Ierakstā parādās
+`ref_method: "render_geometry (reconcile_reference, §135)"`.
+lut_only zars nav aiztikts (tam sava krops ģeometrija).
+
+**Pārbaudes:**
+- vienības testi: +2 `TestChromaReferenceGeometry` → **135/135**;
+- treniņi (pirms refaktora, 8 kadri): 8/8 PASS; H −3,27→−1,34;
+  E2 auto WB joprojām FAIL −2,82 (īstā problēma saglabāta; vecais
+  −4,13 bija pārspīlēts); E2 identity 0,33;
+- reālie (pēc refaktora): 145603 −0,01 PASS (render_geometry),
+  145647 +0,84 PASS (lut_only);
+- izdzīvojušais E2 checker ieraksts /tmp/pdrill: −2,82 ✓.
+
+**3. kārta papildus:** I_dividots (krekls + piedurkņu rullis) → STOP
+needs_review; pad_retry noraidīts (seg. 0,146 ārpus 0,25–0,98, bbox
+0,169 < 0,30), plate noraidīts (0,153 < 0,25) — iemācīti QA minimumi.
+pad_retry/plate sintētiski paliek neizprovocēti (4 mēģinājumi: C, C2,
+G, I_dividots) — godīgi atzīmēts P_REZULTATI §11; reālais segums:
+pad_retry 161031, plate vēsturiski.
+
+Piezīme: /tmp/pdrill no jauna pārstartēts — karte atjaunojama ar
+P0_PLANS §3 komandām; momentuzņēmumi nav atjaunojami bez atkārtotas
+izpildes.

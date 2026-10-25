@@ -128,5 +128,12 @@ python3 checker_v2.py
 - [~] P6 auto→original atzars (2. kārta: H_salocits ✓); closeup zonas joprojām t125
 - [x] P7 checker sabotāža ražošanas mērogā (2. kārta: MAKRO → R FAIL ✓)
 - [x] P8 boundary_uncertain (iegūts P3 E v1: zemas kontrasta robeža)
+- [x] P9 GATE_K atsauces ģeometrija (3. kārta: `_chroma_reference` ar
+      `reconcile_reference`; H −3,27→−1,34, E2 auto joprojām −2,82 FAIL,
+      reālie 145603 −0,01 / 145647 +0,84; 135 testi)
+- [x] 3. kārta papildus: I_dividots → STOP needs_review; QA minimumi
+      (seg. 0,25–0,98, bbox ≥0,30, plate iekšpuse ≥0,5)
 
-Rezultāti: `P_REZULTATI.md`.
+Rezultāti: `P_REZULTATI.md` (§9–§11 = 3. kārta).
+Atlikušais godīgais parāds: pad_retry + plate sintētiskā provocēšana
+(4 mēģinājumi neizdevās — sk. P_REZULTATI §11).

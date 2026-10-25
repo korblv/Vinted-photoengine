@@ -137,3 +137,72 @@ nedaudz sarkanīga papīra fona [161,161,158]) tas dod −3,27 > limits 2,5.
 
 Atlikušais godīgais parāds: pad_retry un plate sintētiskā provocēšana;
 GATE_K atsauces ģeometrijas labojums (§7, gaida pogu).
+
+---
+
+# 3. KĀRTA (2026-10-25)
+
+## 9. GATE_K atsauces labojums (§7 izpilde, pēc pogas "Labot")
+
+`checker_v2.py`: jauna funkcija `_chroma_reference(src_im, mask_p, maker_rec)`
+— GATE_K atsaucei tagad TĀ PAT rendera ģeometrija kā GATE_R
+(`reconcile_reference`): bbox kopskatam, `timing.closeup_crop` lodziņš
+tuvplānam, uniforma mērogošana + centra krops "original" stilam.
+lut_only zars nemainīgs (tam jau bija sava krops ģeometrija).
+Vienības testi: `TestChromaReferenceGeometry` (2) — bbox ģeometrija
+aizpilda novietojumu; "original" gadījumā apģērbs nonāk rindās, kā paredz
+uniformā mērogošana+centra krops (0..250), nevis sablīvējuma (0..625).
+
+### Rezultāti (pirms → pēc)
+
+| kadrējums | vecā atsauce | jaunā atsauce | secinājums |
+|---|---|---|---|
+| H_salocits (sintēt., original) | −3,27 FAIL (viltus) | **−1,34 PASS** | viltus trauksme novērsta |
+| E2 auto WB (sintēt., silts papīrs) | −4,13 (pārspīlēts) | **−2,82 FAIL** | ĪSTĀ problēma saglabāta |
+| E2 identity | −0,98 | 0,33 | atbilstoši |
+| treniņi kopā (8 kadri) | — | **8/8 PASS** | — |
+| reāls 145603 (isnet pilnais ceļš) | — | **−0,01 PASS** (`ref_method: render_geometry`) | reālie netraucēti |
+| reāls 145647 (lut_only) | — | **+0,84 PASS** | lut_only zars nemainīgs |
+
+Testi: **135/135** (+2 `TestChromaReferenceGeometry`).
+
+Piezīme par atkārtojamību: treniņu karte `/tmp/pdrill` dzēšas ar sandbox
+pārstartu; 8 kadru momentuzņēmumi vairs nav atjaunojami bez kārtas
+atkārtotas izpildes (P0_PLANS §3 komandas). Pārbaudīts pēc refaktora ar
+vienības testiem + abiem reālajiem kadriem + izdzīvojušo E2 checker
+ierakstu (−2,82 saglabāts).
+
+## 10. 3. kārtas mēģinājumi
+
+| aina | ceļš | iznākums |
+|---|---|---|
+| I_dividots (krekls + atsevišķs piedurkņu rullis) | isnet | STOP needs_review: AI QA "fragments" seg. 0,1326; pad retry noraidīts (seg. 0,146 ārpus 0,25–0,98, bbox 0,169 < 0,30); plate noraidīts (seg. 0,153 < 0,25) |
+
+Iemācītie QA minimumi (no pad_retry/plate noraidījumiem): segmentācijas
+segumam jābūt 0,25–0,98; bbox daļai ≥ 0,30; plate tekstūras iekšpusei
+≥ 0,5.
+
+## 11. Ceļu segums pēc 3. kārtām (galīgais)
+
+| ceļš | segums |
+|---|---|
+| isnet | ✓ |
+| isnet_pad_retry | **tikai reālais 161031** (godīgi: 4 sintētiski mēģinājumi neizdevās — C, C2, G, I_dividots; ISNet uz sintētikas pārāk robusts) |
+| chroma_seeded | ✓ P2 |
+| plate_texture | vēsturiski reāls; sintētiski nav provocēts (4 mēģinājumi) |
+| lut_only | ✓ P4 + 145647 (abēji atzari) |
+| needs_seed_review STOP | ✓ (arī I_dividots) |
+| boundary_uncertain STOP | ✓ 2 gadījumi |
+| slamjam | ✓ |
+| original (renderis) + AUTO atzars | ✓ H_salocits |
+| WB auto→fail→identity | ✓ (ar jauno atsauci E2 auto −2,82 joprojām FAIL) |
+| rotācijas 90/270 | ✓ |
+| make_zip PARAUGS+MAKRO | ✓ pēc §5 labojuma |
+| checker sabotāžas (R) | ✓ P7 |
+| GATE_K atsauces ģeometrija | ✓ izlabota (§9) |
+
+Godīgais parāds pēc 3 kārtām: pad_retry + plate sintētiskā provocēšana
+(nepieciešama reālai tuvināšanai — mazi/fragmentāri objekti ar QA
+minimumiem seg. ≥0,25, bbox ≥0,30), plate_texture; auto WB atsauces
+izmaiņu ietekme uz vēsturiskajām siltā papīra grupām (jāpārbaud, ja
+tādas atkal ražo).

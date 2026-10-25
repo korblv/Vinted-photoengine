@@ -778,6 +778,29 @@ def check_one_lut_only(stem: str, maker_rec: dict, lut_rows) -> dict:
     return gates
 
 
+def _chroma_reference(src_im: Image.Image, mask_path: Path,
+                      maker_rec: dict) -> np.ndarray:
+    """§135: GATE_K atsauce ar RENDERA ĢEOMETRIJU (reconcile_reference —
+    tā pati, ko lieto GATE_R): bbox kopskatam, crop lodziņš tuvplānam,
+    vienmērīgs mērogs ar centra kropi 'original' stilam. Iepriekšējā
+    būve sablīvēja visu avotu 2000x2500; kad avota un audekla proporcijas
+    neatšķīrās tikai ar mērogu, `via` reģionā iekļuva arī papīrs un b_ref
+    nobīdījās pret patieso auduma b* par līdz ~+2 (H_salocits treniņš)."""
+    crop = (maker_rec.get("timing") or {}).get("closeup_crop")
+    mask_full = np.asarray(
+        Image.open(mask_path).convert("L").resize(src_im.size, Image.NEAREST)) > 128
+    full_shot = maker_rec.get("full_shot")
+    if full_shot is None:
+        cov = float(mask_full.mean())
+        ys, xs = np.nonzero(mask_full)
+        bbox_frac = (((xs.max() - xs.min() + 1) / mask_full.shape[1])
+                     * ((ys.max() - ys.min() + 1) / mask_full.shape[0])) if len(xs) else 0
+        full_shot = bool(cov < 0.50 and bbox_frac > 0.35)
+    return reconcile_reference(
+        np.asarray(src_im), mask_full, bool(full_shot),
+        crop if crop and len(crop) == 4 else None)
+
+
 def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     if maker_rec.get("status", "completed") != "completed":
         return {
@@ -916,13 +939,9 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
             sb = (maker_rec.get("source_size") or [0, 0])
             if sb[0] != src_im.width or sb[1] != src_im.height:
                 src_im = src_im.resize(tuple(sb), Image.LANCZOS)
-            crop = (maker_rec.get("timing") or {}).get("closeup_crop")
-            if crop and len(crop) == 4:
-                box = (crop[0] * sb[0], crop[1] * sb[1], crop[2] * sb[0], crop[3] * sb[1])
-                ref_im = src_im.resize((2000, 2500), Image.LANCZOS, box=box)
-            else:
-                ref_im = src_im.resize((2000, 2500), Image.LANCZOS)
-            ref_rgb = np.asarray(ref_im)
+            # §135 (P_REZULTATI §7): atsauce ar rendera ģeometriju, sk.
+            # _chroma_reference. b* mēra tikai apģērba novietojuma reģionā.
+            ref_rgb = _chroma_reference(src_im, mask_p, maker_rec)
             if ref_rgb.shape[:2] == out_rgb.shape[:2]:
                 from paper_leak import lab_chunked
 
@@ -940,7 +959,8 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
                     "limit": CHROMA_SHIFT_LIMIT,
                     "b_out": round(b_out, 2),
                     "b_ref": round(b_ref, 2),
-                    "note": "auduma dzeltenības (b*) nobīde pret oriģinālu",
+                    "ref_method": "render_geometry (reconcile_reference, §135)",
+                    "note": "auduma dzeltenības (b*) nobīde pret oriģināla to pašu novietojumu",
                 }
     except Exception as exc:
         chroma_check = {"pass": None, "error": f"{type(exc).__name__}: {exc}"}

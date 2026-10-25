@@ -1738,3 +1738,60 @@ class TestPersistReportLutOnlySurvival(unittest.TestCase):
                 images = json.loads(report_path.read_text())["images"]
                 self.assertNotIn("X", images, "bez MAKRO faila ierakstam jāizzūd")
                 self.assertIn("Y", images)
+
+
+class TestChromaReferenceGeometry(unittest.TestCase):
+    """§135: GATE_K atsaucei jāizmanto rendera ģeometrija (bbox/crop/
+    uniformais mērogs), nevis visa avota sablīvējums — citādi `via`
+    reģionā iekļūst papīrs un b_ref nobīdās pret patieso auduma b*."""
+
+    def test_original_framing_samples_garment_region_only(self):
+        # 'original' stils bez crop: uniforma mērogošana + centra krops.
+        # Avots 800x1600; apģērbs = augšējā ceturtdaļa [200,60,60],
+        # papīrs = pārējais [120,120,120]. Novietojums (via) atrodas
+        # kadrā tur, kur pēc ģeometrijas nonāk apģērba reģions.
+        import engine.render  # noqa: F401  (nepieciešams importu secībai)
+        h, w = 1600, 800
+        arr = np.full((h, w, 3), 120, np.uint8)
+        arr[:400] = (200, 60, 60)
+        src = Image.fromarray(arr)
+        with tempfile.TemporaryDirectory() as td:
+            mask_p = Path(td) / "M.png"
+            m = np.zeros((h, w), np.uint8)
+            m[:400] = 255
+            Image.fromarray(m).save(mask_p)
+            rec = {"full_shot": False, "timing": {}}
+            ref = ck._chroma_reference(src, mask_p, rec)
+            self.assertEqual(ref.shape[:2], (2500, 2000))
+            # ģeometrija: uniforma mērogošana max(2000/800, 2500/1600)=2.5
+            # -> 2000x4000, centra krops (rindas 750..3250) -> apģērbs
+            # (avota rindas 0..400 -> 0..1000) atsaucē nonāk rindās
+            # 0..250. VECĀ sablīvējuma būve to liktu rindās 0..625 —
+            # apģērba novietojums atsaucē ir pretī auduma pozīcijai.
+            red = (ref[..., 0] > 150) & (ref[..., 1] < 120)
+            self.assertGreater(float(red.mean()), 0.01, "apģērba reģions nav atrodams")
+            rows = np.nonzero(red.any(axis=1))[0]
+            self.assertLess(int(rows.max()), 350,
+                            f"apģērbs novietots pārāk zemu ({rows.max()}) — sablīvējuma ģeometrija?")
+            self.assertGreater(int(rows.max()), 100,
+                               "apģērba novietojums pārāk augstu — krops nepareizs?")
+
+    def test_full_shot_reference_is_bbox_geometry(self):
+        # kopskats: atsauce = bbox krops, mērogs pec SPEC_FILL, nevis
+        # sablīvējums — apģērba pikseļiem jāaizpilda centrālais novietojums
+        h, w = 1600, 800
+        arr = np.full((h, w, 3), 120, np.uint8)
+        arr[600:1000, 200:600] = (60, 180, 60)     # apģērbs centrā
+        src = Image.fromarray(arr)
+        with tempfile.TemporaryDirectory() as td:
+            mask_p = Path(td) / "M.png"
+            m = np.zeros((h, w), np.uint8)
+            m[600:1000, 200:600] = 255
+            Image.fromarray(m).save(mask_p)
+            rec = {"full_shot": True, "timing": {}}
+            ref = ck._chroma_reference(src, mask_p, rec)
+            self.assertEqual(ref.shape[:2], (2500, 2000))
+            c = ref[900:1600, 500:1500]              # novietojuma centrs
+            green = (c[..., 1] > 130) & (c[..., 0] < 110)
+            self.assertGreater(float(green.mean()), 0.5,
+                               "bbox ģeometrija neaizpilda novietojumu ar apģērbu")
