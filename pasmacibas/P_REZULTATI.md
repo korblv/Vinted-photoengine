@@ -206,3 +206,23 @@ Godīgais parāds pēc 3 kārtām: pad_retry + plate sintētiskā provocēšana
 minimumiem seg. ≥0,25, bbox ≥0,30), plate_texture; auto WB atsauces
 izmaiņu ietekme uz vēsturiskajām siltā papīra grupām (jāpārbaud, ja
 tādas atkal ražo).
+
+## 12. Papildinājums (reālais 145345, 2026-10-25): pad_retry robustuma karte
+
+Reālajā Uniqlo kadrā 145345 (dziļo ēnu kopskats) izstaigāti 7 pad
+mēģinājumi ar `--isnet-auto` worker tieši (bez atskaites ietekmes):
+
+| pad | iznākums |
+|---|---|
+| 0,50 / 0,60 | maska = viss kadrs (seg. 1,0) → noraidīts |
+| 0,70 | QA ✓ BET pārplūde 0,184 > 0,02 (papīrs maskā) → noraidīts |
+| 0,75 / 0,80 / 0,95 / 0,98 | sašķeltas (largest 0,67–0,69) |
+| 0,85 / 0,90 (attempt 2) | sašķeltas (0,76–0,79) + nepārklāts audums 0,06 > 0,05 |
+
+Mācība: ēnains papīrs maldina ISNetu visos kvadrātproxy mērogos —
+pad_retry ceļš šādā kadrā nav izsaucams ar NEVIENU pad vērtību. Bāzes
+(portreta proxy) maska bija struktūrā vesela (structural QA ✓,
+zaudētais audums 0,64% < 1,0%), bet AI fragmentu heirisika to atgrūda
+par 0,005 (bbox_area 0,3451 < 0,35). Izšķīra cilvēka lēmums (poga) +
+checkera vārti kā tiesnesis: manuālā pieņemšana → attempt 3 →
+3/3 PASS (K +0,01, R/C/H/S zaļi). Sk. PROGRESS §136.

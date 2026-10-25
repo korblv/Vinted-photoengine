@@ -3484,3 +3484,31 @@ pad_retry 161031, plate vēsturiski.
 Piezīme: /tmp/pdrill no jauna pārstartēts — karte atjaunojama ar
 P0_PLANS §3 komandām; momentuzņēmumi nav atjaunojami bez atkārtotas
 izpildes.
+
+### §136 Uniqlo grupa #2: 145345 manuālā maskas pieņemšana, attempt 3, PIEGĀDĀTS, grupa dzēsta (2026-10-25)
+
+- Lietotāja atbildes (pogas): 145345 "tomēr mēģināt"; kolāžas secība
+  "aizmugure kreisajā"; piegāde apstiprināta; "Lejupielādēju — dzēst".
+- Diagnoze (bez koda izmaiņām): bāzes ISNet maska struktūrā vesela
+  (structural_qa accept, largest 1,0, caurumi 0, zaudētais audums
+  0,64% < q_trigger 1,0%), vienīgais kavēklis AI fragmentu heirisika
+  bbox_area 0,3451 < 0,35 (mala 0,005). Pad sweeps 7 vērtības
+  (0,50–0,98) — visas noraidītas godīgi (P_REZULTATI §12): ēnainais
+  papīrs maldina ISNetu kvadrātproxy; 0,70 dod pārplūdi 0,184.
+- Poga "Pieņem masku + renderē": maska saglabāta ar ražotnes
+  save_gray_png + provenance sidecar (metode "isnet"); maker ierakstā
+  godīgs `manual_adopt` bloks (iemesls, evidences, datums); `error`
+  noņemts, full_shot=true.
+- Attempt 3 `--rerender-saved --lut-only 145647`: maker 3/3; profils
+  fons [143,5;143,5;143], WB [1;1;1,0047] uzticams (145345 tagad iesaistīts
+  profilā); kolāža 3 bildes.
+- Pilns checkeris (bez filtra): **3/3 PASS**. 145345: K +0,01
+  (render_geometry §135), R fore_p99 13, C/H/S zaļi; 145603 K +0,00;
+  145647 lut_only K +0,76.
+- ZIP `Uniqlo_grupa_2026-10-25.zip` (2 PARAUGS + 1 MAKRO, CRC OK,
+  sha256 manifests); pēc apstiprinājuma grupa dzēsta pēc §126 tvēruma:
+  3 oriģināli, 3 MASTER, 3 PARAUGS/MAKRO, maskas+sidecar, profili,
+  report/delivery/grade JSON, kolāža, ZIP, TMP_SOFT. audits (vecās
+  grupas) paturēti. Krātuve 51,2 → 31,6 MB. uploads atkal 27 faili
+  (24 slamjam + 3 md). Grupas stāvoklis: nulle; gaida nākamo grupu
+  (inventārs + §91 + setup pēc augšupielādes).
