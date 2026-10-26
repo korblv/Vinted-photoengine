@@ -218,12 +218,12 @@ pārkārtojums, nevis transformācija.
 ## 7. Pašreizējais stāvoklis (2026-10-24)
 
 > **Atjauninājums 2026-10-26:** pēc §135 (GATE_K rendera ģeometrija),
-> §136 (Uniqlo #2 piegādāts un dzēsts), §137 (jauna 2 bilžu grupa:
-> rim defekts diagnosticēts, erozija 8 ar pogu, WB→identitāte,
-> checkeris 2/2 PASS, **gaida kolāžas apstiprinājumu** — atsākt ar
-> "Turpini loopu") un §138 (ēnu/masku pētījums: 8.5 etalons, 10.2
-> licenču brīdinājumi; 4 priekšlikumi gaida pogas). PROGRESS.md
-> §135–§138 ir pilns avots; grupas stāvokli vienmēr skat. PROGRESS
+> §136 (Uniqlo #2 piegādāts un dzēsts), §137–§140 (2 bilžu grupa:
+> rim defekts ārstēts ar eroziju 8, WB→identitāte, checkeris 2/2 PASS;
+> lietotājs piegādi NEapstiprināja — **grupa izdzēsta 2026-10-26,
+> darba telpa tīra, gaida nākamo augšupielādi**) un §138–§139
+> (ēnu/masku pētījums: 8.5 etalons, 10.2 licenču brīdinājumi; 4
+> priekšlikumi gaida pogas). Grupas stāvokli vienmēr skat. PROGRESS
 > pēdējā ierakstā.
 
 - **Aktīva produktu grupa: nav.** Pēdējā piegādātā un slēgtā grupa —

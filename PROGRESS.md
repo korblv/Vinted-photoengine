@@ -3606,3 +3606,22 @@ izpildes.
 - Secinājums par §138 priekšlikumu (1) precizizēšanu: defringe nedrīkst
   būt malu krāsošana ar fona krāsu (§10.2 aizliegts) — tikai iekšpuses
   auduma krāsu stiepšana uz āru (Photoshop Defringe semantika).
+
+### §140 §137 grupa izdzēsta pēc lietotāja norādes (2026-10-26)
+
+- Lietotājs: "137 grupu dzēs ārā, būs citas bildes." Piegāde netika
+  apstiprināta (pēc erozijas 8 kolāža palika bez atbildes → "turpināsim
+  vēlāk" → tagad dzēšana). ZIP netika veidots.
+- Dzēsts pēc §126 tvēruma: 2 oriģināli (MVIMG_20261025_145823/145938),
+  2 MASTER, 2 PARAUGS, maskas+ALPHA+sidecar (t.sk. manual_erode
+  provenance), 2 profili, report/delivery/grade JSON, kolāža,
+  TMP_SOFT mīkstās maskas, skrāpša lapas /home/user/malu_zoom.jpg un
+  enas_varianti.jpg (zināšanas paliek dokumentos: §138 pētījums,
+  HANDOFF 8.5/10.2).
+- audits (vecās grupas) paturēti. Krātuve 31,5 MB. uploads atkal 27
+  faili (24 slamjam + 3 md). Grupas stāvoklis: nulle.
+- Nākamajai grupai sagatavē (PROGRESS §138 secinājumi + §139):
+  fotografēt ar 2×45° izkliedētu gaismu / no 1,8–2,5 m (assums);
+  silts papīrs → dzinis pats pārslēdzas uz identitātes WB; ja atkal
+  gaišā piepumas josla — diagnozes recepte PROGRESS §137 (rim L
+  gradients pret kodolu; erozija tikai ar mērījumu + pogu).
