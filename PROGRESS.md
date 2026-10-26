@@ -3553,3 +3553,38 @@ izpildes.
   traucē → dziļāka erozija (e12/e16 skaitļi jau izmērīti; zoom lapa
   /home/user/malu_zoom.jpg). Piezīme: ja nākamajā sesijā vide mirusi —
   setup_v2.py; /tmp/workflow_v2_soft mīkstās maskas dzēšas.
+
+### §138 Pētījums: ēnas un masku malas profesionālajā praksē (2026-10-26)
+
+- Lietotāja norāde: izstaigāt studiju + izpētīt internetā profesionālo
+  informāciju par ēnām un maskām (pašreizējais klupšanas akmens).
+- Dokuments: `pasmacibas/PETIJUMS_EENAS_UN_MASKAS.md` (avoti, skaitļi,
+  audits, priekšlikumi). Galvenie secinājumi:
+  - **Ēna:** mūsu divkomponentu modelis (kontaktAO + metēnā, kontakt-
+    cietināšana, fiksēts virziens, fona pelēkuma aiztumšošana) atbilst
+    profesionālajai arhitektūrai. Novirze: IZMĒRĪTĀ maks. aiztumšošana
+    renderī 38% (L 151/243; 1% zona ~24%) — virs apģērbam ieteiktās
+    8–20% joslas (pikes 8–20, snappyit 5–15, fixphotolab 20–40).
+    V1 (peak 0,22) ieietu joslā. — Poga vajadzīga.
+  - **Mala:** mūsu gaišā piepumas josla ir kanoniskais "background-
+    contaminated foreground color"; premultiply to nelabo (krāsa ir
+    malas pikseļos — dev.to mērījums apstiprina). Profesionālā rīku
+    kārta: defringe 1–2px (lielai frinžai neder), maskas choke (mūsu
+    erozija = tas), Color Decontaminate, robustais = trimaps+matting.
+    **Mums trūkst defringe solis maskas IEKŠPUSĒ** (extend_foreground_
+    colors stiepj krāsas tikai ārā). — Poga vajadzīga.
+  - **LICENCES ATKLĀSME:** ViTMatte (composition-1k) svaru faili ir
+    Adobe-trenažēti, NON-COMMERCIAL (MatteDesk) — "Pilotē ViTMatte"
+    tikai QA eksperimentiem; ražošanā (pārdošanas bildes) komerciāli
+    drošs ir BiRefNet (MIT; ~444MB HR-matting; CPU sekundes/attēlam;
+    avots īpaši izceļ: "ēna zem objekta tiek pareizi atgrūsta, nevis
+    ieblurēta alfā" — tieši mūsu ēnainā papīra problēma).
+  - **Fotografēšana:** flat-lay standarts 2×45° mīkstā gaisma, f/8–11
+    (mums f/1,5 fiksēts → fotografēt tālāk 1,8–2,5 m, DOF aug ar
+    attālumu); Squareshot divu kadru ēnas tehnika; fotografēt uz gaiši
+    pelēka, ne tīri balta (malu info!). Atjaunināt nākamās grupas
+    padomus.
+- Nākamie soļi (visi ar pogām): (1) defringe solis; (2) ēnas peak
+  0,32→0,22; (3) BiRefNet pilots uz ēnainu kadrējumu; (4) foto padomu
+  atjauninājums. Grupas piegāde (§137) joprojām gaida kolāžas
+  apstiprinājumu.
