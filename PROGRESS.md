@@ -3588,3 +3588,21 @@ izpildes.
   0,32→0,22; (3) BiRefNet pilots uz ēnainu kadrējumu; (4) foto padomu
   atjauninājums. Grupas piegāde (§137) joprojām gaida kolāžas
   apstiprinājumu.
+
+### §139 Pētījuma zināšanas integrētas dzinēja pastāvīgajā atmiņā (2026-10-26)
+
+- Lietotāja norāde: lai nākamās sarunas to atcerētos, pētījums jāieliek
+  dzinī kopā ar studijas zināšanām. Izpildīts:
+  - `HANDOFF/00_SAKU_SHEIT.md`: jaunā **§8.5** (profesionālais ēnas
+    etalons: 8–20% josla, mūsu izmērītie 38%, PEAK 0,22 gaida pogu);
+    **§10.2** papildināts (ViTMatte ražošanas aizliegums licenču dēļ;
+    BiRefNet MIT kā drošais pilots; erozijas precedensa precizējums —
+    tikai ar mērījumu+pogu, ne profilaktiski; defringe drīkst stiept
+    tikai iekšpuses krāsas, ne fona); **§7** atjauninājuma bloks
+    (stāvoklis līdz §138 + gaida kolāžas apstiprinājumu).
+  - `LOOP_KOMANDAS.md`: "Pilotē ViTMatte" rindai pievienots licences
+    brīdinājums (non-commercial svaru dēļ).
+  - Pats pētījums: `pasmacibas/PETIJUMS_EENAS_UN_MASKAS.md` (§138).
+- Secinājums par §138 priekšlikumu (1) precizizēšanu: defringe nedrīkst
+  būt malu krāsošana ar fona krāsu (§10.2 aizliegts) — tikai iekšpuses
+  auduma krāsu stiepšana uz āru (Photoshop Defringe semantika).

@@ -217,6 +217,15 @@ pārkārtojums, nevis transformācija.
 
 ## 7. Pašreizējais stāvoklis (2026-10-24)
 
+> **Atjauninājums 2026-10-26:** pēc §135 (GATE_K rendera ģeometrija),
+> §136 (Uniqlo #2 piegādāts un dzēsts), §137 (jauna 2 bilžu grupa:
+> rim defekts diagnosticēts, erozija 8 ar pogu, WB→identitāte,
+> checkeris 2/2 PASS, **gaida kolāžas apstiprinājumu** — atsākt ar
+> "Turpini loopu") un §138 (ēnu/masku pētījums: 8.5 etalons, 10.2
+> licenču brīdinājumi; 4 priekšlikumi gaida pogas). PROGRESS.md
+> §135–§138 ir pilns avots; grupas stāvokli vienmēr skat. PROGRESS
+> pēdējā ierakstā.
+
 - **Aktīva produktu grupa: nav.** Pēdējā piegādātā un slēgtā grupa —
   Vans bikses (4 kadri, Attempt 3, checker 4/4 PASS, ZIP lejupielādēts,
   faili izdzēsti; visas gala hash vērtības `PROGRESS.md` §48–§53).
@@ -302,6 +311,22 @@ maini konstantes.
   ar `gray < bg−12`, tāpēc tumšu ēnu ieskaita apģērbā (paraugiem deva
   Δ 3–4, kas nav kontakta mērījums).
 
+### 8.5 Profesionālais etalons (pētījums 2026-10-26, sk. pasmacibas/PETIJUMS_EENAS_UN_MASKAS.md)
+
+Avotu joslas produktu ēnām: metēnas ēnai uz gaiša fona **8–20%**
+aiztumšošanas (pikes.ai; fixphotolab 20–40%; apģērbam ghost-mannequin
+gidā 5–15%); kontaktēna tumšākā+asākā (blur 2–6px uz 2000px); nekad
+tīri melns; viens virziens visā katalogā; ēna mīkstinās tālāk no
+objekta; flat-lay apģērbam daudzi katalogi lieto tikai kontaktēnu.
+
+**Mūsu izmērītās vērtības (§137 grupa):** fona tumšākais punkts
+L 151/243 = **38% aiztumšošanas**, 1% tumšākā zona ~24% — virs
+apģērba joslas. Modeļa arhitektūra (divkomponentu, kontaktcietināšana,
+fiksēts 43°, fona pelēkuma aiztumšošana) atbilst praksei; vienīgā
+novirze ir stiprums. Piedāvāts labojums: PEAK 0,32 → 0,22 (V1 no
+§137 variantu lapas; efektīvi ~16–26%) — **gaida pogu**, konstantes
+bez tās nemainīt.
+
 ---
 
 ## 9. Kas ir izmērīts un strādā
@@ -333,11 +358,27 @@ maini konstantes.
 
 ### 10.2 Malas un maskas
 - **Maskas sašaurināšana "uz drošo"** — nav atļauta; lietotājs to noraidīja.
-- **Malu krāsošana ar fona krāsu** (recolour) — aizliegta.
+  Izņēmums (§137 precedens): erozija kā **izmērīta** diagnozes ārstēšana
+  (gaišās piepumas joslas platums skaitļos + 1:1 zoom lapa + poga) ir
+  legāla — bet nekad ne profilaktiski.
+- **Malu krāsošana ar fona krāsu** (recolour) — aizliegta. Defringe
+  (§138 priekšlikums) drīkst stiept tikai **iekšpuses auduma** krāsas
+  uz āru, nekad fona krāsu uz iekšu.
 - **Maskas slīpēšana / pievilkšana / izpludināšana** kā labojums — aizliegta.
 - **Caurumu aizpildīšana pēcapstrādē** — nedrīkst aizpildīt fona komponenti,
   kurā ir drošā fona (`GC_BGD`) sēkla: tā var būt apzināta sprauga starp auduma
   slāņiem. Aizpildīšana atjauno galdu kā melnu bloku.
+- **ViTMatte ražošanā — AIZLIEGTS licenču dēļ** (atklāts 2026-10-26):
+  `vitmatte-base-composition-1k` svaru faili ir Adobe-trenažēti,
+  NON-COMMERCIAL. Pārdošanas bildēm drīkst lietot tikai komerciāli
+  drošus modeļus (ISNet ✓; BiRefNet MIT ✓ kā nākamais pilots).
+  "Pilotē ViTMatte" komanda — tikai QA eksperiments, ne izvade.
+- **Piepumas josla (§137 mācība):** mīksta fokusa + ēnu avotos maska
+  (plate/pad) iekļauj 10–16px gaišu piepumu; tekstūras decontam to
+  neatzīst (jaukta tekstūra). Diagnoze: rim 0–3px L pret kodolu.
+  Līdzekļi secībā: erozija (choke) ar pogu; trūkstošais solis —
+  defringe ar iekšpuses krāsām (gaida pogu); robustais ceļš —
+  trimaps+matting (BiRefNet MIT, ne ViTMatte).
 
 ### 10.3 Ēna
 - Vienkāršs izpludināts nobīdīts siluets — pārāk šaurs, uzlīmes efekts.

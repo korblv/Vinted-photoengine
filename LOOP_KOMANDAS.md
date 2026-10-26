@@ -40,7 +40,7 @@ Jauns komplekts + jauns paraugs
 | `Izlabo: <kas nav labi>` | Veikšu jaunu iterāciju tikai par šo problēmu, pēc tam atkārtošu auditu un kolāžu. |
 | `Apturi darbu` | Apstāšos un ierakstīšu precīzu pašreizējo stāvokli `PROGRESS.md`. |
 | `Notīri krātuvi` | Izmērīšu krātuvi un dzēsīšu vecos pagaidu/testa failus; aktīvo grupu bez lejupielādes apstiprinājuma nedzēsīšu. |
-| `Pilotē ViTMatte` | Tikai kā kontrolētu eksperimentu uz vienas bildes; ražošanā pieņemšu vienīgi tad, ja tas būs labāks par pašreizējo malas apstrādi un izies H vārtus. |
+| `Pilotē ViTMatte` | Tikai kā kontrolētu eksperimentu uz vienas bildes; ražošanā pieņemšu vienīgi tad, ja tas būs labāks par pašreizējo malas apstrādi un izies H vārtus. **⚠️ Licences (2026-10-26): svaru faili Adobe-trenažēti, non-commercial — izvadēm, ko pārdod, NEDRĪKST; komerciāli drošais pilots ir BiRefNet (MIT).** |
 
 ## 3. Beigu posms — tikai ar pogām
 
