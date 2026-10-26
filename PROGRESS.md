@@ -3625,3 +3625,47 @@ izpildes.
   silts papīrs → dzinis pats pārslēdzas uz identitātes WB; ja atkal
   gaišā piepumas josla — diagnozes recepte PROGRESS §137 (rim L
   gradients pret kodolu; erozija tikai ar mērījumu + pogu).
+
+### §145 Uzdevums "iziet visus vārtus" (145704): plate ALL-PASS ar defektiem, ISNet 11/12 — STOP, gaida lietotāja skatu (2026-10-26)
+
+- Uzdevums: lai IMG_20261025_145704 izietu visus vārtus. Vide bija mirusi
+  → setup OK.
+- **Attempt 1 (plate_texture):** ISNet QA noraidīja (fill 0,309 < 0,6;
+  seg 0,157), pad retry noraidīts (seg 0,999 + pārplūde 0,28), plate
+  PIEŅEMTS (seg 0,72, iekšmala 0,68, fons iekšā 0,44%). Kompozīcija
+  "original (auto: atvērts siluets -> original)" — pirmais REĀLAIS
+  auto→original gadījums ražošanā. Profils fons [168,168,169], WB
+  uzticams. **Checkeris 1/1 ALL PASS** (K +0,99; L advisory PASS 0
+  noplūdes, confidence marginal).
+- **Lietotājs noraidīja ar SS + sarkanajiem marķieriem.** Marķieri
+  sameklēti programmatiski (krēms: tumšsarkanā dominante; SS 652×851,
+  rendera logs x[16-636] y[60-836]): M1 labais augšējais stūris
+  (PARAUGS x[1748-2000] y[167-283]) un M2 kreisā puse (x[368-704]
+  y[277-315]). Diagnoze: plate maska = "viss zem y~30%" (viena
+  komponente, 71,7% kadra) — satvēra virsmu + tās ēnas; marķētās
+  vietas = tumšie ēnu plankumi [95-151] uz gaišas virsmas.
+- **Ainas atklāsme:** apģērbs ir GAIŠS pelēkais [~190] uz GAIŠI pelēkas,
+  TEKSTURĒTAS virsmas [~195] ar tumšām ēnām — §138 pētījuma brīdinājums
+  piepildījās (plate premisa "fons gluds" tur neiztur; papīra zonde
+  implausible [163,162,163]; GATE_L pielāgotie sliekšņi tumšās ēnas
+  neredzēja — SISTĒMAS atklājums: vārti ir pašsakrītoši pret masku, ne
+  pret "kas ir apģērbs").
+- **ISNet bāzes maska:** blīva viena komponente (largest 1,0, caurumi
+  0, lost_fabric 0,0%), noraidīta TIKAI ar fill heirisiku. Forma
+  (platuma profils): plats horizontāls bloks y25–40% (79-82% platums)
+  + šaurs stabs x46–58% y45–78% (10%) — neparasta, bet robeža seko
+  īstām avota malām (GATE_S 0 aizdomīgo).
+- Poga: pieņemt ISNet masku (provenance "isnet", manual_adopt ieraksts,
+  full_shot=true). **Attempt 2 (slamjam):** profils [173,173,176] WB
+  [1;1;0,977]; **checkeris 0/1 — krīt TIKAI GATE_C** (silhouette_fill
+  0,313 < 0,55 grīda; pārējie 11 vārti zaļi: H 100%, S 0, Q, R, K...).
+- **STOP pēc lietotāja "turpināsim vēlāk":** gaida atbildi — vai
+  attempt 2 bilde izskatās pareizi:
+  - ja JĀ → GATE_C grīdas pierādījuma izņēmums (0 caurumi + 0%
+    zaudēta auduma + tīra robeža = nav "izēstas" maskas) — ražošnes
+    izmaiņa AR pogu + vienības tests;
+  - ja NĒ (fragments) → godīgais ceļš: pārfotografēt uz kontrastējoša
+    fona (apģērbs uz identiskas krāsas virsmas ir akls gadījums).
+- Atsākšana: kolāža output/V2_KOLAZA.jpg (attempt 2); TMP_SOFT ISNet
+  mīkstā maska /tmp/workflow_v2_soft/IMG_20261025_145704_5d1b723d48_
+  isnet_soft.png (ja /tmp dzēsts — atjaunojama ar --isnet-worker).
