@@ -3669,3 +3669,28 @@ izpildes.
 - Atsākšana: kolāža output/V2_KOLAZA.jpg (attempt 2); TMP_SOFT ISNet
   mīkstā maska /tmp/workflow_v2_soft/IMG_20261025_145704_5d1b723d48_
   isnet_soft.png (ja /tmp dzēsts — atjaunojama ar --isnet-worker).
+
+### §142 Repo sagatavots GitHub pārnesumam (2026-10-26)
+
+- Lietotāja uzdevums: sagatavot visu GitHub, lai jaunā sesijā jaunais
+  aģents varētu saprast un turpināt.
+- Pievienots `sesijas_atskanoshana/145704/` (oriģinālis, MASK+sidecar,
+  abas atskaites, kolāža, PARAUGS — 5,0 MB) un
+  `sesijas_atskanoshana/ATJAUNOT_SESIJU.md` (atkārtojama atjaunošanas
+  instrukcija: faili → vide → gaidāmais GATE_C lēmums). output/ paliek
+  gitignored; tikai atsākšanai kritiskie faili ir repo.
+- Pievienots `README.md` (repo sakne) — projekta karte, ieejas punkti,
+  ātrā palaišana, brīdinājums.
+- HANDOFF: §2 tagad sākas ar 0. soli "ja sesija sākās ar GitHub repo";
+  §7 atjaunināts uz 145704 stāvokli + §141–§142. (Arī labota §2.2
+  novecojusī "64 testi unittest" → "135 testi pytest" — relikts.)
+- LOOP_KOMANDAS: jauna 8. sadaļa "Jauna sesija, kas sākas ar GitHub
+  repo" (6 soļi, atjaunot.py aizliegums, push par pienākumu).
+- Atklāts un dokumentēts risks: uploads/*.md nesēji (01_DZINEJS,
+  02_ATMINA) ir §47 laika kopijas — to palaišana pārrakstītu kodu
+  ~95 sesijus atpakaļ. Brīdinājums README + ATJAUNOT + LOOP_KOMANDAS.
+- uploads/ foto (24 paraugi + oriģināli) repo NEiet (lietotāja dati;
+  kalibrācijas rezultāti dokumentēs; ja vajag — lietotājs augšupielādē).
+- Nākamais: lietotājs izveido privātu GitHub repo un pusho (vai piesaista
+  jaunai Arena sesijai); bundlis `loop_bildes_git.bundle` kā rezerves
+  kopija darba telpā.

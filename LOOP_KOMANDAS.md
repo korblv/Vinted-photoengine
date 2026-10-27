@@ -155,3 +155,19 @@ python3 test_workflow_v2.py
 - Ja saruna vai darbs ir pārtraukts: **`Turpini loopu`**
 
 Visus pārējos apstiprinājumus turpmāk veiksim ar pogām.
+
+## 8. Jauna sesija, kas sākas ar GitHub repo
+
+Jaunā Arena Agent Mode sesijā ar piesaistītu repo darba telpā NAV
+`/home/user/uploads` un `output/` (tie dzīvoja vecajā smilškastē).
+
+1. Izlasi `HANDOFF/00_SAKU_SHEIT.md` (pilnībā).
+2. Atjauno aktīvās grupas failus un vidi:
+   `sesijas_atskanoshana/ATJAUNOT_SESIJU.md` (soļi 1–2).
+3. Pārbaudi dzini: `python3 -m pytest test_workflow_v2.py -q` (135).
+4. Turpini gaidāmo lēmumu (soļi 3–4 tajā pašā failā) vai jaunu grupu
+   pēc 1. sadaļas.
+5. **Nekad** nepalaid `atjaunot.py` un neatesto `01_DZINEJS.md` /
+   `02_ATMINA.md` nesējus (novecojušas §47 kopijas).
+6. Darba beigās izmaiņas jānonāk GitHub (commit + push / PR pēc
+   sesijas plūsmas) — repo ir vienīgā noturīgā atmiņa.

@@ -34,6 +34,13 @@ ir `slamjam_mfpen_trousers*.jpg` (Slam Jam veikala foto).
 
 ## 2. Ko darīt pirmajās 60 sekundēs jaunā sarunā
 
+**0. Ja sesija sākās ar piesaistītu GitHub repo (darba telpā NAV
+   `/home/user/uploads` un `output/`):** izpildi
+   `sesijas_atskanoshana/ATJAUNOT_SESIJU.md` (1. grupas 145704 failu
+   atjaunošana, 2. `setup_v2.py`, 3. gaidāmais lēmums), tad turpini
+   zemāk. Repo ir pilns avots — `atjaunot.py` un nesēji NEKAD
+   nepalaižami (14. sadaļa).
+
 1. Pajautā lietotājam, ko viņš grib: **jauns komplekts**, **turpināt iepriekšējo**,
    vai **labot kādu konkrētu bildi**.
 2. Kods un dokumenti dzīvo darba telpas git repozitorijā (`loop_bildes/`) —
@@ -41,7 +48,7 @@ ir `slamjam_mfpen_trousers*.jpg` (Slam Jam veikala foto).
    v2.1 kopija no laika pirms produkcijas refaktora**: tās nedrīkst
    atjaunot pāri pašreizējam kodam (sk. 14. sadaļu). Pirms darba pārbaudi
    `git -C /home/user/loop_bildes log --oneline | head` un
-   `python3 -m unittest test_workflow_v2` (64 testi, ~2 s).
+   `python3 -m pytest test_workflow_v2.py -q` (135 testi, ~2 s).
 3. **Neuzsāc jaunu grupu**, pirms neesi uzdevis starta jautājumu ar pogām (3.1).
 4. Pirms jebkādas apstrādes pārbaudi vidi: `python3 setup_v2.py --check`.
 
@@ -217,19 +224,23 @@ pārkārtojums, nevis transformācija.
 
 ## 7. Pašreizējais stāvoklis (2026-10-24)
 
-> **Atjauninājums 2026-10-26:** pēc §135 (GATE_K rendera ģeometrija),
-> §136 (Uniqlo #2 piegādāts un dzēsts), §137–§140 (2 bilžu grupa:
-> rim defekts ārstēts ar eroziju 8, WB→identitāte, checkeris 2/2 PASS;
-> lietotājs piegādi NEapstiprināja — **grupa izdzēsta 2026-10-26,
-> darba telpa tīra, gaida nākamo augšupielādi**) un §138–§139
-> (ēnu/masku pētījums: 8.5 etalons, 10.2 licenču brīdinājumi; 4
-> priekšlikumi gaida pogas). Grupas stāvokli vienmēr skat. PROGRESS
-> pēdējā ierakstā.
+> **Atjauninājums 2026-10-26 (vēls):** pēc §135 (GATE_K rendera ģeometrija),
+> §136 (Uniqlo #2 piegādāts un dzēsts), §137–§140 (2 bilžu grupa izdzēsta
+> bez piegādes), §138–§139 (ēnu/masku pētījums: 8.5 etalons, 10.2 licenču
+> brīdinājumi; 4 priekšlikumi gaida pogas) un **§141–§142 (grupa 145704:
+> plate ALL-PASS ar SS marķētiem virsmas ēnu defektiem → ISNet maska
+> pieņemta ar pogu → attempt 2 krīt TIKAI GATE_C fill grīdā; gaida
+> lietotāja skatu — stāvoklis arī `sesijas_atskanoshana/`; repo
+> sagatavots GitHub pārnesumam)**. Grupas stāvokli vienmēr skat.
+> PROGRESS pēdējā ierakstā.
 
-- **Aktīva produktu grupa: nav.** Pēdējā piegādātā un slēgtā grupa —
-  Vans bikses (4 kadri, Attempt 3, checker 4/4 PASS, ZIP lejupielādēts,
-  faili izdzēsti; visas gala hash vērtības `PROGRESS.md` §48–§53).
-  Darba telpa gatava vienai jaunai grupai pēc 3.1 protokola.
+- **Aktīva produktu grupa: 145704 (gaida lēmumu).** Uzdevums "lai bilde
+  izietu visus vārtus": attempt 1 (plate) 12/12 zaļi BET ar redzamiem
+  virsmas ēnu defektiem (lietotāja SS marķieri); attempt 2 (ISNet maska,
+  slamjam) 11/12 — tikai GATE_C silhouette_fill 0,313 < 0,55. Nākamais:
+  lietotāja verdikts par attempt 2 izskatu → grīdas izņēmums ar pogu
+  VAI pārfotografēšana (detalijas PROGRESS §141 un
+  `sesijas_atskanoshana/ATJAUNOT_SESIJU.md`).
 - **Produkcijas refaktors pabeigts (§54–§65):** git versijas; 64 testi;
   modeļa sha256 piespraude; masku provenance (rerender vairs nepārgriež
   masku, `--no-decontam` kā drošības līdzeklis vairs nav vajadzīgs);
