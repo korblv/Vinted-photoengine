@@ -217,9 +217,12 @@ def save_gray_png(arr: np.ndarray, path: Path, level: int = 3) -> None:
     )
 
 
-def workspace_bytes(root: str = "/home/user/loop_bildes") -> int:
+_REPO_DIR = Path(__file__).resolve().parent.parent
+
+
+def workspace_bytes(root: str | Path = _REPO_DIR) -> int:
     total = 0
-    for base, _, names in os.walk(root):
+    for base, _, names in os.walk(str(root)):
         for name in names:
             try:
                 total += os.path.getsize(os.path.join(base, name))
@@ -275,8 +278,8 @@ def preflight(files: list[str]) -> dict:
         "problems": problems,
         "sources": sources,
         "source_total_bytes": total,
-        "workspace_bytes": workspace_bytes("/home/user"),
-        "loop_bildes_bytes": workspace_bytes("/home/user/loop_bildes"),
+        "workspace_bytes": workspace_bytes(_REPO_DIR.parent),
+        "loop_bildes_bytes": workspace_bytes(_REPO_DIR),
         "var_tmp_free_bytes": int(disk.free),
-        "setup_command": "python3 /home/user/loop_bildes/setup_v2.py",
+        "setup_command": f"python3 {_REPO_DIR / 'setup_v2.py'}",
     }

@@ -29,7 +29,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
-sys.path.insert(0, "/home/user/loop_bildes")
+_REPO_ROOT = str(Path(__file__).resolve().parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 from loop import (  # noqa: E402
     CLOSEUP_CROPS,
     CLOSEUP_SEEDS,
@@ -1090,7 +1092,7 @@ def main() -> int:
         collage_s = time.perf_counter() - t
 
     report = _persist_report(records, args.attempt, "done", profile_s, collage_path, collage_s)
-    print(f"KRĀTUVE: loop_bildes = {workspace_bytes('/home/user/loop_bildes') / 1048576:.2f} MiB")
+    print(f"KRĀTUVE: loop_bildes = {workspace_bytes(_REPO_ROOT) / 1048576:.2f} MiB")
     print(
         "V2.1 MAKER DONE: "
         f"{report['summary']['completed']}/{len(records)} pabeigtas; "

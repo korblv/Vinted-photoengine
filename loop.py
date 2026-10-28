@@ -142,7 +142,7 @@ def measure_shadow_angle(L: np.ndarray, mask: np.ndarray) -> tuple[float, float]
 # Ceļi un kadra ģeometrija
 # ---------------------------------------------------------------------------
 _HERE = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = "/home/user/uploads"
+SRC_DIR = os.path.join(os.path.dirname(_HERE), "uploads")
 OUT = os.path.join(_HERE, "output")
 CANVAS = (2000, 2500)            # (platums, augstums) — spec: 4:5
 GARMENT_FILL_W = 0.74            # īpatsvars no audekla platuma (pilnajā kadrā)

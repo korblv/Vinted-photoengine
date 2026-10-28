@@ -186,7 +186,7 @@ def run_isnet(src: Path, dst: Path) -> dict:
     env = os.environ.copy()
     env["U2NET_HOME"] = env.get("U2NET_HOME", "/var/tmp/rembg_home")
     env["OMP_NUM_THREADS"] = env.get("OMP_NUM_THREADS", "2")
-    pp = ["/home/user/loop_bildes"]
+    pp = [str(Path(__file__).resolve().parent.parent)]
     if os.path.isdir("/var/tmp/pylibs"):
         pp.insert(0, "/var/tmp/pylibs")
     if env.get("PYTHONPATH"):
@@ -228,7 +228,7 @@ def run_isnet_auto(src: Path, plain_dst: Path, pad_dst: Path, pad: float,
     env = os.environ.copy()
     env["U2NET_HOME"] = env.get("U2NET_HOME", "/var/tmp/rembg_home")
     env["OMP_NUM_THREADS"] = env.get("OMP_NUM_THREADS", "2")
-    pp = ["/home/user/loop_bildes"]
+    pp = [str(Path(__file__).resolve().parent.parent)]
     if os.path.isdir("/var/tmp/pylibs"):
         pp.insert(0, "/var/tmp/pylibs")
     if env.get("PYTHONPATH"):
