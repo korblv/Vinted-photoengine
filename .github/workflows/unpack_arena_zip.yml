@@ -1,0 +1,45 @@
+name: Auto-unpack arena-vinted-dzinejs.zip (phone upload)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "arena-vinted-dzinejs.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack arena-vinted-dzinejs.zip into working tree
+        run: |
+          if [ ! -f arena-vinted-dzinejs.zip ]; then
+            echo "arena-vinted-dzinejs.zip nav atrasts — izlaiž."
+            exit 0
+          fi
+          mkdir -p /tmp/arena_unpack
+          unzip -q arena-vinted-dzinejs.zip -d /tmp/arena_unpack
+          rm -f arena-vinted-dzinejs.zip
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='arena-vinted-dzinejs.zip' \
+            --exclude='loop_bildes_git.bundle' \
+            /tmp/arena_unpack/ ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nav izmaiņu pēc izpakošanas."
+          else
+            git commit -m "chore: auto-unpack arena-vinted-dzinejs.zip uploaded from phone"
+            git push origin HEAD:main
+          fi
