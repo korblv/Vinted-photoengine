@@ -3820,4 +3820,19 @@ izpildes.
     CRC OK) un bezmodeļa `rebuild_master.py` (`6/6 PASS`). `/tmp/pdrill`
     pilnībā izdzēsts.
 
+### §145 Grupa `145704` slēgta un visas lietotāja bildes pilnībā izdzēstas (2026-10-28)
+
+- Lietotājs apstiprināja, ka `GALA_145704.zip` ir lejupielādēts, un uzdeva
+  slēgt grupu un izdzēst visas savas bildes (arī pabeigtās).
+- Izpildīts `python3 close_group.py --yes 145704` un pilna attīrīšana:
+  izdzēsti visi `output/` (`PARAUGS`, `MASTER`, `MASK`, `ALPHA`, `PARAUGS_MASK`,
+  `PROFILE`, `V2_KOLAZA.jpg`, `GALA_145704.zip`, `report_v2*.json`,
+  `delivery_v2.json`, `grade_profile_v2.json`), visi `/home/user/uploads/`
+  faili (t.sk. 2 pārlūka ekrānšāviņi) un `sesijas_atskanoshana/145704/`
+  (iztīrot bināros attēlu blobus arī no git vēstures pirms publiskā GitHub push,
+  lai publiskajā repozitorijā nebūtu nevienas lietotāja fotogrāfijas).
+- `pytest test_workflow_v2.py`: `150 passed`; attēlu failu skaits darba telpā un
+  git objektu datubāzē = `0`.
+
+
 

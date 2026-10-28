@@ -67,11 +67,18 @@ def targets(stems: list[str]) -> list[Path]:
     out: list[Path] = []
     dirs = [OUT / "paraugs", OUT / "master", OUT / "masks",
             OUT / "profiles", OUT / "audits", UPLOADS]
+    ses_root = ROOT / "sesijas_atskanoshana"
     for s in stems:
         pat = f"*{s}*" if len(s) >= 6 else f"{s}*"
         for d in dirs:
             if d.is_dir():
                 out += sorted(d.glob(pat))
+        if ses_root.is_dir():
+            for sub in sorted(ses_root.glob(pat)):
+                if sub.is_dir():
+                    out += sorted(f for f in sub.rglob("*") if f.is_file())
+                elif sub.is_file():
+                    out.append(sub)
     out += sorted(OUT.glob("*.zip"))
     out += [c for c in COLLAGES if c.is_file()]
     matched, known = matched_report_stems(stems)
