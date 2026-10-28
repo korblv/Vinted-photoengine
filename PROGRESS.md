@@ -3626,7 +3626,7 @@ izpildes.
   gaišā piepumas josla — diagnozes recepte PROGRESS §137 (rim L
   gradients pret kodolu; erozija tikai ar mērījumu + pogu).
 
-### §145 Uzdevums "iziet visus vārtus" (145704): plate ALL-PASS ar defektiem, ISNet 11/12 — STOP, gaida lietotāja skatu (2026-10-26)
+### §141 Uzdevums "iziet visus vārtus" (145704): plate ALL-PASS ar defektiem, ISNet 11/12 — STOP, gaida lietotāja skatu (2026-10-26)
 
 - Uzdevums: lai IMG_20261025_145704 izietu visus vārtus. Vide bija mirusi
   → setup OK.
