@@ -443,14 +443,65 @@ def lost_fabric_gate(rgb: np.ndarray, alpha: np.ndarray) -> dict:
              | set(bg_lab[:, 0].tolist()) | set(bg_lab[:, -1].tolist()))
     bords.discard(0)
     outer = np.isin(bg_lab, list(bords)) if bords else np.zeros_like(fg)
-    tex_bg = float(np.median(tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    h, w = g.shape
+    s_edge = max(4, int(round(min(h, w) * 0.03)))
+    edge_meds = [
+        float(np.median(t_sl[o_sl]))
+        for t_sl, o_sl in ((tex[:s_edge, :], outer[:s_edge, :]),
+                           (tex[-s_edge:, :], outer[-s_edge:, :]),
+                           (tex[:, :s_edge], outer[:, :s_edge]),
+                           (tex[:, -s_edge:], outer[:, -s_edge:]))
+        if int(o_sl.sum()) >= 50
+    ]
+    tex_bg_outer = float(np.median(tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    tex_bg = min([tex_bg_outer] + edge_meds) if edge_meds else tex_bg_outer
     core = ndimage.binary_erosion(fg, iterations=3)
     tex_fg = float(np.median(tex[core])) if core.any() \
         else float(np.median(tex[fg]))
     thr = max(GATE_Q_TEX_BG_RATIO * tex_bg, tex_bg + GATE_Q_TEX_BG_ABS,
               GATE_Q_TEX_FG_RATIO * tex_fg)
-    cand = closed & (~fg) & (ndimage.distance_transform_edt(~fg) > 1)
-    susp = cand & (tex >= thr)
+    dist_out = ndimage.distance_transform_edt(~fg)
+    cand = closed & (~fg) & (dist_out > 1)
+    susp_bays = cand & (tex >= thr)
+
+    # 2D auduma loksne, kas turpinās tieši aiz maskas robežas (neieslēgta
+    # līcī, piem., nogriezta apakšdaļa vai apkakles-tikai fragments 145704):
+    # augstfrekvences atlikums izslēdz ēnu slīpumu, erozija izslēdz 1D malas,
+    # hroma pasargā citas krāsas blakus virsmu (piem., koka grīdu).
+    hp = g - ndimage.gaussian_filter(g, 1.5)
+    hm1 = ndimage.uniform_filter(hp, 5, mode="nearest")
+    hm2 = ndimage.uniform_filter(hp * hp, 5, mode="nearest")
+    hp_tex = np.sqrt(np.maximum(hm2 - hm1 * hm1, 0.0))
+    hp_env = ndimage.median_filter(hp_tex, size=3)
+    hp_edge_meds = [
+        float(np.median(t_sl[o_sl]))
+        for t_sl, o_sl in ((hp_tex[:s_edge, :], outer[:s_edge, :]),
+                           (hp_tex[-s_edge:, :], outer[-s_edge:, :]),
+                           (hp_tex[:, :s_edge], outer[:, :s_edge]),
+                           (hp_tex[:, -s_edge:], outer[:, -s_edge:]))
+        if int(o_sl.sum()) >= 50
+    ]
+    hp_bg_outer = float(np.median(hp_tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    hp_bg = min([hp_bg_outer] + hp_edge_meds) if hp_edge_meds else hp_bg_outer
+    hp_fg = float(np.median(hp_tex[core])) if core.any() \
+        else float(np.median(hp_tex[fg]))
+    hp_thr = max(GATE_Q_TEX_BG_RATIO * hp_bg, hp_bg + GATE_Q_TEX_BG_ABS,
+                 GATE_Q_TEX_FG_RATIO * hp_fg)
+    rgb_ds = cv2.resize(rgb, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32)
+    rgb_sm = cv2.GaussianBlur(rgb_ds, (0, 0), 2.5)
+    chr_vec = rgb_sm - rgb_sm.mean(axis=2, keepdims=True)
+    ref_sel = core if core.any() else fg
+    chr_med = np.median(chr_vec[ref_sel], axis=0)
+    chr_diff = np.linalg.norm(chr_vec - chr_med, axis=2)
+    chr_lim = max(12.0, float(np.percentile(chr_diff[ref_sel], 95)) * 1.5)
+    sheet_raw = outer & (dist_out >= 3) & (hp_env >= hp_thr) & (chr_diff <= chr_lim)
+    sheet_core = ndimage.binary_erosion(sheet_raw, iterations=4)
+    cc_s, cn_s = ndimage.label(sheet_core)
+    adj_ids = set(np.unique(cc_s[sheet_core & (dist_out <= 8)])) - {0} if cn_s else set()
+    susp_sheet = (np.isin(cc_s, list(adj_ids)) & (dist_out <= GATE_Q_CLOSE_R_DS)
+                  if adj_ids else np.zeros_like(fg))
+
+    susp = susp_bays | susp_sheet
     pct = 100.0 * float(susp.sum()) / float(fg.sum())
     return {
         "pass": bool(pct <= GATE_Q_LIMIT_PCT),
@@ -460,8 +511,8 @@ def lost_fabric_gate(rgb: np.ndarray, alpha: np.ndarray) -> dict:
         "tex_bg": round(tex_bg, 2),
         "tex_fg": round(tex_fg, 2),
         "tex_threshold": round(thr, 2),
-        "note": ("auduma tekstūras fons šauros silueta kanālos/līčos; "
-                 "lieli logi (izgriezums) pēc konstrukcijas neietilpst"),
+        "note": ("auduma tekstūras fons šauros silueta kanālos/līčos un "
+                 "2D loksnēs tieši aiz robežas; lieli gludi logi neietilpst"),
     }
 
 

@@ -1795,3 +1795,153 @@ class TestChromaReferenceGeometry(unittest.TestCase):
             green = (c[..., 1] > 130) & (c[..., 0] < 110)
             self.assertGreater(float(green.mean()), 0.5,
                                "bbox ģeometrija neaizpilda novietojumu ar apģērbu")
+
+
+class TestPlateCastShadowRayTrim(unittest.TestCase):
+    """§143: 3 malu bleed tuvplānā stāva gluda metēnā ēna uz papīra virs
+    pleca (L* 68 -> 30) nedrīkst tikt sajaukta ar auduma tekstūru E25 dēļ,
+    savukārt silta iekšējā apkakles kroka ēnā (augsta hroma) jāpaliek maskā."""
+
+    def test_exterior_cast_shadow_trimmed_and_bg_med_finite(self):
+        rng = np.random.default_rng(7)
+        H, W = 1200, 900
+        rgb = np.full((H, W, 3), 170.0, np.float32)
+        rgb += rng.normal(0, 1.2, (H, W, 1)).astype(np.float32)
+        yy, xx = np.mgrid[0:H, 0:W]
+        waffle = (212.0 + 28.0 * np.sin(yy * 2 * np.pi / 12)
+                  + 28.0 * np.sin(xx * 2 * np.pi / 12))
+        # 3 malu bleed krekls no y=360 līdz apakšai:
+        for ch in range(3):
+            rgb[360:, :, ch] = waffle[360:, :]
+        # Gluda, stāva metēnā ēna uz papīra pie labā pleca (y=290..360, x=720..900):
+        t = (yy[290:360, 720:900] - 290.0) / 70.0
+        sh_gray = 170.0 - 105.0 * (t ** 1.3)
+        for ch in range(3):
+            rgb[290:360, 720:900, ch] = sh_gray
+        # Silta iekšējā apkakles ēna zem baltās apkakles maliņas (y=385..445, x=220..320):
+        rgb[385:445, 220:320, 0] = 98.0
+        rgb[385:445, 220:320, 1] = 84.0
+        rgb[385:445, 220:320, 2] = 62.0
+
+        img = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8))
+        sm, _L, info = ps.garment_mask_half(img)
+        self.assertIsNotNone(info["bg_med"])
+        self.assertTrue(np.isfinite(info["bg_med"]), info)
+        # Ārējā ēna virs pleca (pusizmērā y=150..172, x=380..445) ir nogriezta:
+        self.assertLess(float(sm[150:172, 380:445].mean()), 0.05)
+        # Siltā iekšējā apkakles zona (pusizmērā y=195..220, x=115..155) ir saglabāta:
+        self.assertGreater(float(sm[195:220, 115:155].mean()), 0.95)
+
+    def test_small_textured_bleed_border_pocket_kept(self):
+        # Maza piedurknes vīles kabata pie bleed malas ar L* ap papīru, bet E >> pE:
+        rng = np.random.default_rng(11)
+        H, W = 600, 450
+        L = np.full((H, W), 65.5, np.float32) + rng.normal(0, 1.0, (H, W)).astype(np.float32)
+        yy, xx = np.mgrid[0:H, 0:W]
+        L[180:, :] = 78.0 + 14.0 * np.sin(yy[180:, :] * 2 * np.pi / 8)
+        m = np.zeros((H, W), np.uint8)
+        m[180:, :] = 1
+        # Kabata pie kreisās malas (27x15 px): vidēji L*≈60 (ap papīru), bet ar rievu E≈5.2 >> pE≈1.0
+        L[420:447, 0:15] = 60.0 + 6.5 * np.sin(yy[420:447, 0:15] * 2 * np.pi / 6)
+        m[420:447, 0:15] = 0
+        kept = ps._keep_garment(m, L)
+        self.assertEqual(int(kept[420:447, 0:15].min()), 1)
+        self.assertEqual(int(kept[:160, :].max()), 0)
+
+
+class TestPaperColourSingleEdgeBleed(unittest.TestCase):
+    """§143: 3 malu bleed tuvplānā gluds papīrs redzams tikai augšmalā, bet
+    pārējās 3 malās iziet kontrastains vafeļaudums — papīra zondei jāatrod
+    gludā augšmala, savukārt pilnkadra 4 malu makro jāpaliek implausible."""
+
+    def test_three_edge_bleed_finds_top_smooth_paper(self):
+        from paper_leak import measure_paper_colour
+        H, W = 1200, 600
+        yy, xx = np.mgrid[0:H, 0:W]
+        waffle = np.clip(205 + 48 * (((xx // 5) + (yy // 5)) % 2 * 2 - 1),
+                         0, 255).astype(np.uint8)
+        rgb = np.repeat(waffle[..., None], 3, axis=2)
+        rgb[:300, :] = np.array([171, 170, 171], np.uint8)
+        res = measure_paper_colour(Image.fromarray(rgb), tex_limit=1.0)
+        self.assertTrue(res["plausible"], res)
+        self.assertTrue(res["chosen_mode"].startswith("edge_top_"), res)
+        for got, exp in zip(res["rgb"], [171, 170, 171]):
+            self.assertAlmostEqual(got, exp, delta=3)
+
+    def test_four_edge_macro_remains_implausible(self):
+        from paper_leak import measure_paper_colour
+        H, W = 800, 600
+        yy, xx = np.mgrid[0:H, 0:W]
+        waffle = np.clip(200 + 40 * (((xx // 5) + (yy // 5)) % 2 * 2 - 1),
+                         0, 255).astype(np.uint8)
+        rgb = np.repeat(waffle[..., None], 3, axis=2)
+        res = measure_paper_colour(Image.fromarray(rgb), tex_limit=1.0)
+        self.assertFalse(res["plausible"], res)
+
+
+class TestGateQSelfPoisoningAndSheet(unittest.TestCase):
+    """§143: kad fragmenta maska (145704 ISNet apkakles replika) atstāj lielāko
+    daļu teksturētā krekla ārpusē kā 2D loksni, GATE_Q un maker spogulis
+    nedrīkst pašapstiprināties ar saindētu tex_bg; gluda ēna un citas krāsas
+    grīda pie malas nedrīkst izraisīt viltus trauksmi."""
+
+    def _bleed_scene(self):
+        H, W = 1000, 800
+        rgb = np.tile(np.array([170, 170, 171], np.uint8), (H, W, 1))
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 6) + (yy // 6)) % 2) * 44 - 22
+        fabric = np.clip(np.array([212, 210, 206], np.int16) + tex[..., None],
+                         0, 255).astype(np.uint8)
+        rgb[260:, :] = fabric[260:, :]
+        return rgb
+
+    def test_collar_only_fragment_on_bleed_shirt_fails_gate_q(self):
+        rgb = self._bleed_scene()
+        alpha = np.zeros(rgb.shape[:2], np.uint8)
+        # Tikai apkakles+pogu T fragments (~14% kadra), viss korpuss ārpusē:
+        alpha[260:380, 120:680] = 255
+        alpha[380:760, 360:440] = 255
+        res = ck.lost_fabric_gate(rgb, alpha)
+        m = lost_fabric_metric((alpha > 127).astype(np.uint8), Image.fromarray(rgb))
+        self.assertLess(res["tex_bg"], 2.0, res)
+        self.assertFalse(res["pass"], res)
+        self.assertGreater(res["lost_fabric_pct"], ck.GATE_Q_LIMIT_PCT)
+        self.assertGreater(m["lost_fabric_pct"], wf.CFG["mask"]["q_trigger_pct"])
+
+    def test_sharp_cast_shadow_outside_garment_passes(self):
+        H, W = 1000, 800
+        rgb = np.full((H, W, 3), 210, np.uint8)
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 6) + (yy // 6)) % 2) * 36 - 18
+        rgb[80:920, 100:700] = np.clip(
+            180 + tex[80:920, 100:700, None], 0, 255).astype(np.uint8)
+        prof = 90 + 120 * (1.0 / (1.0 + np.exp(-(np.arange(60) - 24) / 3.0)))
+        rgb[80:920, 700:760] = prof[None, :, None].astype(np.uint8)
+        alpha = np.zeros((H, W), np.uint8)
+        alpha[80:920, 100:700] = 255
+        res = ck.lost_fabric_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+        self.assertEqual(res["lost_fabric_pct"], 0.0)
+
+    def test_colored_wood_floor_strip_near_hem_passes(self):
+        H, W = 1000, 800
+        rgb = np.tile(np.array([170, 168, 160], np.uint8), (H, W, 1))
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 6) + (yy // 6)) % 2) * 44 - 22
+        rgb[80:920, 100:700] = np.clip(
+            np.array([210, 206, 198], np.int16) + tex[80:920, 100:700, None],
+            0, 255).astype(np.uint8)
+        wood = np.clip(
+            np.array([165, 120, 80], np.int16)
+            + ((((xx // 5) + (yy // 9)) % 2) * 28 - 14)[..., None],
+            0, 255).astype(np.uint8)
+        rgb[925:1000, :] = wood[925:1000, :]
+        alpha = np.zeros((H, W), np.uint8)
+        alpha[80:920, 100:700] = 255
+        res = ck.lost_fabric_gate(rgb, alpha)
+        self.assertTrue(res["pass"], res)
+        self.assertEqual(res["lost_fabric_pct"], 0.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

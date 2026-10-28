@@ -129,8 +129,54 @@ def measure_paper_colour(img: Image.Image, tex_limit: float = 1.0) -> dict:
     # un ierakstīt atskaitē, nevis klusi samainīt visiem.
     plausible = bool(pick["tex_median"] <= tex_limit)
     conf_base = conf          # pirms plausibilitātes pārrakstīšanas
+    # Ja 2–3 kadra malās iziet teksturēts apģērbs (bleed tuvplāns, piem., 145704),
+    # kopīgais Otsu sadalījums sajauc fona papīru ar auduma ēnainajām rievām un
+    # mākslīgi paceļ `tex_median` virs `tex_limit`. Tādā gadījumā pārbauda katru
+    # no 4 kadra malām atsevišķi: ja vismaz viena pilnvērtīga mala (>=10% gredzena)
+    # satur gludu fonu (<= tex_limit), izvēlas gludāko šādu malu. Pilnkadra makro
+    # (audums visās 4 malās) neviena mala to neiztur un `plausible` paliek False.
     if not plausible:
-        conf = "no paper-like backdrop"
+        edge_masks = (
+            ("top", np.r_[np.ones((ring, w), bool), np.zeros((h - ring, w), bool)]),
+            ("bottom", np.r_[np.zeros((h - ring, w), bool), np.ones((ring, w), bool)]),
+            ("left", np.c_[np.ones((h, ring), bool), np.zeros((h, w - ring), bool)]),
+            ("right", np.c_[np.zeros((h, w - ring), bool), np.ones((h, ring), bool)]),
+        )
+        edge_cands = []
+        tot_ring = float(max(1, int(sel.sum())))
+        for ename, emask in edge_masks:
+            ey, ex = np.nonzero(emask)
+            if ey.size < 200 or (ey.size / tot_ring) < 0.08:
+                continue
+            epx = a[ey, ex]
+            eL = rgb_to_lab(epx)[:, 0]
+            et = _otsu(eL)
+            for sub, gm in (("all", np.ones(ey.size, bool)),
+                            ("dark", eL <= et), ("bright", eL > et)):
+                n_gm = int(gm.sum())
+                if n_gm < 200 or (n_gm / tot_ring) < 0.08:
+                    continue
+                sy = np.clip(ey[gm] // 4, 0, tex_s.shape[0] - 1)
+                sx = np.clip(ex[gm] // 4, 0, tex_s.shape[1] - 1)
+                t_med = float(np.median(tex_s[sy, sx]))
+                rgb_med = np.median(epx[gm], axis=0)
+                edge_cands.append({
+                    "mode": f"edge_{ename}_{sub}",
+                    "ring_frac": round(n_gm / tot_ring, 4),
+                    "rgb": [int(round(v)) for v in rgb_med],
+                    "lab": [round(float(v), 2) for v in rgb_to_lab(rgb_med[None, :])[0]],
+                    "tex_median": round(t_med, 3),
+                })
+        qual = [ec for ec in edge_cands if ec["tex_median"] <= tex_limit]
+        if qual:
+            best_edge = min(qual, key=lambda ec: ec["tex_median"])
+            cands.extend(edge_cands)
+            pick = best_edge
+            plausible = True
+            conf_base = "single-edge backdrop (bleed frame)"
+            conf = conf_base
+        else:
+            conf = "no paper-like backdrop"
     return {
         "rgb": pick["rgb"],
         "lab": pick["lab"],

@@ -222,25 +222,22 @@ pārkārtojums, nevis transformācija.
 
 ---
 
-## 7. Pašreizējais stāvoklis (2026-10-24)
+## 7. Pašreizējais stāvoklis (2026-10-28)
 
-> **Atjauninājums 2026-10-26 (vēls):** pēc §135 (GATE_K rendera ģeometrija),
-> §136 (Uniqlo #2 piegādāts un dzēsts), §137–§140 (2 bilžu grupa izdzēsta
-> bez piegādes), §138–§139 (ēnu/masku pētījums: 8.5 etalons, 10.2 licenču
-> brīdinājumi; 4 priekšlikumi gaida pogas) un **§141–§142 (grupa 145704:
-> plate ALL-PASS ar SS marķētiem virsmas ēnu defektiem → ISNet maska
-> pieņemta ar pogu → attempt 2 krīt TIKAI GATE_C fill grīdā; gaida
-> lietotāja skatu — stāvoklis arī `sesijas_atskanoshana/`; repo
-> sagatavots GitHub pārnesumam)**. Grupas stāvokli vienmēr skat.
-> PROGRESS pēdējā ierakstā.
+> **Atjauninājums 2026-10-28 (§143):** salabots `plate_segment._trim_shadow`
+> (augstfrekvences kontūras normāļu staru griezums M1/M2 metēnajām ēnām +
+> 3 malu bleed nostiprinājumi), `paper_leak.measure_paper_colour` (vienas
+> gludās malas fallback 1–3 malu bleed kadriem) un `GATE_Q` / maker spogulis
+> (nesaindēts `tex_bg` + 2D ārējās auduma loksnes tests pret sadrumstalotām
+> maskām). Vienību testi: **142 passed** (`pytest test_workflow_v2.py`).
+> Grupa `145704` Attempt 3 (`plate_texture`, `original`, `14.60 s`) iziet
+> **12/12 `ALL_PASS`** bez neviena sliekšņa vājināšanas un gaida lietotāja
+> `Apstiprināt / Noraidīt` pirms `.zip`.
 
-- **Aktīva produktu grupa: 145704 (gaida lēmumu).** Uzdevums "lai bilde
-  izietu visus vārtus": attempt 1 (plate) 12/12 zaļi BET ar redzamiem
-  virsmas ēnu defektiem (lietotāja SS marķieri); attempt 2 (ISNet maska,
-  slamjam) 11/12 — tikai GATE_C silhouette_fill 0,313 < 0,55. Nākamais:
-  lietotāja verdikts par attempt 2 izskatu → grīdas izņēmums ar pogu
-  VAI pārfotografēšana (detalijas PROGRESS §141 un
-  `sesijas_atskanoshana/ATJAUNOT_SESIJU.md`).
+- **Aktīva produktu grupa: 145704 (gaida piegādes apstiprinājumu).**
+  Attempt 3 (`plate_texture`, `original` 3 malu bleed): `coverage=0.7156`,
+  `silhouette_fill=0.9601`, `GATE_Q=0.020%`, `GATE_S=0`, `GATE_K shift_b=1.0`,
+  `14.60 s`, `ALL_PASS=true`; M1/M2 plecu ēnas likvidētas (skat. PROGRESS §143).
 - **Produkcijas refaktors pabeigts (§54–§65):** git versijas; 64 testi;
   modeļa sha256 piespraude; masku provenance (rerender vairs nepārgriež
   masku, `--no-decontam` kā drošības līdzeklis vairs nav vajadzīgs);

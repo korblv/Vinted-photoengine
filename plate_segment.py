@@ -90,16 +90,23 @@ def _keep_garment(m: np.ndarray, L: np.ndarray | None = None,
     border = set(cc[0, :]) | set(cc[-1, :]) | set(cc[:, 0]) | set(cc[:, -1])
     bg_ids = set()
     if L is not None:
-        pL, _ = _paper_level(L, m)
+        pL, pE = _paper_level(L, m)
         lo, hi = pL + L_tol[0], pL + L_tol[1]
+        E_loc = _local_std(L, 25) if np.isfinite(pE) else None
+        e_lim = max(2.2 * pE, pE + 2.0) if np.isfinite(pE) else float("inf")
+        small_pocket_lim = int(0.005 * L.size)
     for i in border - {0}:
         if L is None:
             bg_ids.add(i)
             continue
         comp = cc == i
-        if comp.sum() < 50:
+        area = int(comp.sum())
+        if area < 50:
             bg_ids.add(i)
             continue
+        if E_loc is not None and area < small_pocket_lim:
+            if float(np.median(E_loc[comp])) > e_lim:
+                continue
         med = float(np.median(L[comp]))
         if lo <= med <= hi:
             bg_ids.add(i)
@@ -180,11 +187,15 @@ def _detect(L: np.ndarray, win: int) -> tuple[np.ndarray, dict]:
 
 
 def _bg_sample(m: np.ndarray) -> np.ndarray:
-    """Neliels tīra fona paraugs: 8 % kvadrāts pie labās malas, zem vidus."""
+    """Neliels tīra fona paraugs: 8 % kvadrāts pie labās malas, zem vidus.
+    Ja 3 malu bleed tuvplānā šis kvadrāts iekrīt apģērbā, ņem visu tālo
+    fonu (lai nerastos tukša griezuma NaN)."""
     h, w = m.shape
+    far = binary_dilation(m > 0, iterations=3) == 0
     s = np.zeros((h, w), bool)
     s[int(h * 0.80):int(h * 0.92), int(w * 0.90):int(w * 0.98)] = True
-    return s & (binary_dilation(m > 0, iterations=3) == 0)
+    sel = s & far
+    return sel if sel.any() else far
 
 
 EDGE_CALIB_PX = 0   # aklā dilatācija atcelta; to aizstāj `_refine_edge` (QA §26)
@@ -261,37 +272,161 @@ def _refine_edge(m: np.ndarray, L: np.ndarray, win: int = 13,
     return new
 
 
-def _trim_shadow(m: np.ndarray, L: np.ndarray, band_px: int = 80) -> np.ndarray:
-    """Noņem metēno ēnu, kas pielipusi pie kreklā robežas.
+def _trim_shadow(m: np.ndarray, L: np.ndarray, band_px: int = 80,
+                 lab: np.ndarray | None = None) -> np.ndarray:
+    """Noņem metēno ēnu, kas pielipusi pie krekla ārējās robežas.
 
-    Ēnas definīcija mērījumos (nevis gaumē): **bez tekstūras UN tumšāka par
-    papīru**. Audums nekad nav abi: tam vienmēr ir vafeļu reljefs (E25 ≈ 12),
-    savukārt ēna ir gluda (E25 ≈ 2) un par 6-15 L* tumšāka par papīru.
+    Kāpēc augstfrekvences tekstūra + stari gar kontūras normāli (2026-10-28):
+    nefiltrēts `_local_std(L, 25)` uz stāvas ēnas slīpuma (piem., M1/M2 uz
+    `145704`, kur L* krīt 68.7 -> 30.2) izmēra apgaismojuma rampu kā E25=9.1
+    (> Otsu 7.02 un > 0.45*fabric_E) un atstāj gludu metēno ēnu maskā.
+    Augstfrekvences atlikums `L - gaussian(L, 3)` pilnībā nodzēš lēzeno
+    ēnas slīpumu (ēnai E_hp≈1.4 kā papīram 1.37, vafeļaudumam ≈9.5).
 
-    Kāpēc ne gradienta vai līmeņa precizējums: abi mēģinājumi tika pārbaudīti
-    un **apgrauza kontūru** (auduma E loga malā nokrītas, tāpēc kritērijs
-    nogriež īstu audumu). Šis tests audumu neskart: tas ir teksturēts.
+    Griež gar kontūras iekšējo normāli (nevis pa pikselim), apstājoties,
+    tiklīdz sasniegta:
+      1) auduma mikro-tekstūra (`E_hp >= 0.42 * fabric_Ehp`),
+      2) par papīru gaišāks apģērbs (`L > pL + 3.0`),
+      3) kāpums ārā no ēnas kontakta ieplakas uz apģērba malu (`L > l_min + 4.5`),
+      4) apģērba hroma (`dC > 6.0` pret papīru, pasargājot siltas iekšējās
+         apkakles krokas ēnā, kur starpatstarošana dod dC≈12).
+    Kontūras punktos, kur jau uz robežas ir ass apģērba pakāpiens
+    (`|L(+3) - L(-3)| > 14`), stars nemaz nesākas (depth=0). Brīvo loku
+    galapunkti pie kadra malām tiek piesaistīti malai, lai 3 malu bleed
+    stūros nepaliktu ēnas trīsstūris.
     """
-    Ef = _local_std(L, 25)
+    from scipy.ndimage import gaussian_filter1d, median_filter
+
+    hh, hw = L.shape
     core = cv2.erode(m.astype(np.uint8), np.ones((25, 25), np.uint8)) > 0
     if not core.any():
         return m
-    fabric_E = float(np.median(Ef[core]))
-    paper_L, paper_E = _paper_level(L, m)
-    m8 = m.astype(np.uint8)
-    # Josla ±40 px pusizmērā (= 80 px pilnā): nomērītā ēnas josla ir 25-35 px
-    # plata pilnajā izmērā, tāpēc šaurāka josla nogriež tikai daļu ēnas un
-    # atstāj redzamu pelēku plecu (tieši tas bija redzams 2026-10-23 SS).
-
-    band = (cv2.dilate(m8, np.ones((band_px, band_px), np.uint8)) > 0) & \
-           ~(cv2.erode(m8, np.ones((band_px, band_px), np.uint8)) > 0)
-    untextured = Ef < 0.45 * fabric_E
-    darker = L < (paper_L - 6.0)
-    shadow = band & untextured & darker
-    if not shadow.any():
+    s0 = max(4, int(0.012 * min(hh, hw)))
+    ring = np.zeros((hh, hw), bool)
+    ring[:s0, :] = ring[-s0:, :] = True
+    ring[:, :s0] = ring[:, -s0:] = True
+    ring &= (m == 0)
+    if ring.sum() < 200:
         return m
-    out = (m & ~shadow).astype(np.uint8)
-    # notur lielāko komponenti, lai ēnas nogriešana neizraisa šķelšanos
+    E25 = _local_std(L, 25)
+    sr = ring & (E25 <= np.percentile(E25[ring], 40))
+    if sr.sum() < 100:
+        sr = ring
+    pL = float(np.median(L[sr]))
+    if lab is not None:
+        A, B = lab[..., 1], lab[..., 2]
+        pA, pB = float(np.median(A[sr])), float(np.median(B[sr]))
+        dC = np.hypot(A - pA, B - pB)
+    else:
+        dC = None
+
+    hp = L - gaussian_filter(L, 3.0)
+    E_hp = _local_std(hp, 9)
+    fabric_Ehp = float(np.median(E_hp[core]))
+    if fabric_Ehp < 1.5:
+        return m
+    tex_thr = 0.42 * fabric_Ehp
+    Ls = gaussian_filter(L, 1.0)
+    max_d = max(12, int(round(band_px * 0.6875)))  # noklusēti 55 pusizm. px
+
+    cnts, _ = cv2.findContours(m.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not cnts:
+        return m
+    c = max(cnts, key=cv2.contourArea)[:, 0, :].astype(np.float64)
+    n_pts = len(c)
+    if n_pts < 64:
+        return m
+
+    k = 12
+    dd = np.roll(c, -k, axis=0) - np.roll(c, k, axis=0)
+    tng = dd / np.maximum(np.linalg.norm(dd, axis=1, keepdims=True), 1e-6)
+    nrm = np.stack([-tng[:, 1], tng[:, 0]], 1)
+    pr = np.clip(np.round(c + 4.0 * nrm).astype(int), [0, 0], [hw - 1, hh - 1])
+    nrm[m[pr[:, 1], pr[:, 0]] == 0] *= -1.0
+
+    on_border = ((c[:, 0] <= 2) | (c[:, 0] >= hw - 3)
+                 | (c[:, 1] <= 2) | (c[:, 1] >= hh - 3))
+    depths = np.zeros(n_pts, np.float32)
+    for i in range(n_pts):
+        if on_border[i]:
+            continue
+        x0, y0 = c[i]
+        nx, ny = nrm[i]
+        xo = int(np.clip(round(x0 - 3 * nx), 0, hw - 1))
+        yo = int(np.clip(round(y0 - 3 * ny), 0, hh - 1))
+        xi = int(np.clip(round(x0 + 3 * nx), 0, hw - 1))
+        yi = int(np.clip(round(y0 + 3 * ny), 0, hh - 1))
+        if abs(float(Ls[yi, xi]) - float(Ls[yo, xo])) > 14.0:
+            continue
+        l_min = float(Ls[int(round(y0)), int(round(x0))])
+        d_stop = 0
+        for d in range(1, max_d + 1):
+            xx = int(round(x0 + nx * d))
+            yy = int(round(y0 + ny * d))
+            if not (0 <= xx < hw and 0 <= yy < hh) or m[yy, xx] == 0:
+                break
+            lv = float(Ls[yy, xx])
+            if lv < l_min:
+                l_min = lv
+            if (E_hp[yy, xx] >= tex_thr
+                    or lv > pL + 3.0
+                    or lv > l_min + 4.5
+                    or (dC is not None and dC[yy, xx] > 6.0)):
+                break
+            d_stop = d
+        depths[i] = float(d_stop)
+
+    if int((depths > 1.0).sum()) == 0:
+        return m
+
+    if not on_border.any():
+        depths = median_filter(depths, size=19, mode="wrap")
+        depths = gaussian_filter1d(depths, 7.0, mode="wrap")
+        pts = c + nrm * depths[:, None]
+    else:
+        b0 = int(np.argmax(on_border))
+        c_r = np.roll(c, -b0, axis=0)
+        n_r = np.roll(nrm, -b0, axis=0)
+        d_r = np.roll(depths, -b0, axis=0)
+        ob_r = np.roll(on_border, -b0, axis=0)
+        pts_r = c_r.copy()
+        free = ~ob_r
+        starts = np.where(free & ~np.r_[False, free[:-1]])[0]
+        ends = np.where(free & ~np.r_[free[1:], False])[0]
+        for s_idx, e_idx in zip(starts, ends):
+            if e_idx - s_idx + 1 < 8:
+                continue
+            msz = min(19, e_idx - s_idx + 1)
+            seg_d = median_filter(d_r[s_idx:e_idx + 1], size=msz, mode="nearest")
+            seg_d = gaussian_filter1d(seg_d, 7.0, mode="nearest")
+            pts_r[s_idx:e_idx + 1] = (c_r[s_idx:e_idx + 1]
+                                      + n_r[s_idx:e_idx + 1] * seg_d[:, None])
+            for end_i, step in ((s_idx, -1), (e_idx, +1)):
+                b_i = (end_i + step) % n_pts
+                bx, by = c_r[b_i]
+                px, py = pts_r[end_i]
+                if bx <= 2:
+                    px = 0.0
+                elif bx >= hw - 3:
+                    px = float(hw - 1)
+                if by <= 2:
+                    py = 0.0
+                elif by >= hh - 3:
+                    py = float(hh - 1)
+                pts_r[end_i] = [px, py]
+                collapse = int(round(seg_d[0 if end_i == s_idx else -1])) + 6
+                for k_step in range(1, collapse + 1):
+                    bi = (end_i + step * k_step) % n_pts
+                    if not ob_r[bi]:
+                        break
+                    pts_r[bi] = [px, py]
+        pts = np.roll(pts_r, b0, axis=0)
+
+    pts[:, 0] = np.clip(pts[:, 0], 0, hw - 1)
+    pts[:, 1] = np.clip(pts[:, 1], 0, hh - 1)
+    out = np.zeros((hh, hw), np.uint8)
+    cv2.fillPoly(out, [np.round(pts * 16).astype(np.int32)], 1,
+                 lineType=cv2.LINE_AA, shift=4)
     n, cc, st, _ = cv2.connectedComponentsWithStats(out, 8)
     if n > 1:
         out = (cc == 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
@@ -355,11 +490,14 @@ def garment_mask_half(img: Image.Image, scale: int = 2, win: int = 25,
     W, H = img.size
     hw, hh = W // scale, H // scale
     small = img.convert("RGB").resize((hw, hh), Image.LANCZOS)
-    L = lab_chunked(np.asarray(small))[..., 0].astype(np.float32)
+    lab = lab_chunked(np.asarray(small)).astype(np.float32)
+    L = lab[..., 0]
     m, info = _detect(L, win)
     sm = _smooth_mask(m, win=smooth_win)
     info["offset_before_calib"] = boundary_offset(sm, L)
-    sm = _trim_shadow(sm, L)
+    sm_pre_trim = sm.copy()
+    sm = _trim_shadow(sm, L, lab=lab)
+    trimmed_shadow = (sm_pre_trim > 0) & (sm == 0)
     # Metēno ēnu no auduma atdalīt nevar (tā ir mīksta kroka pāreja), tāpēc tā
     # tiek nogriezta kā fons: maska sašaurināta par SHADOW_TRIM_PX. Mērīts:
     # 98 % kontūras īstais audums sākas <= 4 px (pusizm.) no malas, tāpēc
@@ -369,7 +507,7 @@ def garment_mask_half(img: Image.Image, scale: int = 2, win: int = 25,
         sm = cv2.erode(sm, np.ones((3, 3), np.uint8), iterations=int(SHADOW_TRIM_PX))
     if EDGE_CALIB_PX > 0:
         sm = cv2.dilate(sm, np.ones((3, 3), np.uint8), iterations=int(EDGE_CALIB_PX))
-    sm = _keep_garment(sm, L)
+    sm = (_keep_garment(sm, L).astype(bool) & ~trimmed_shadow).astype(np.uint8)
     info["offset_after_calib"] = boundary_offset(sm, L)
     info["edge_calib_px"] = int(EDGE_CALIB_PX)
     info["coverage_half"] = round(float(sm.mean()), 4)

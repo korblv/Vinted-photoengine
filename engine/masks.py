@@ -1027,8 +1027,8 @@ def lost_fabric_metric(binary: np.ndarray, orig: Image.Image) -> dict:
 
     t0 = time.perf_counter()
     C = CFG["mask"]
-    gray = cv2.cvtColor(np.asarray(orig.convert("RGB")),
-                        cv2.COLOR_RGB2GRAY).astype(np.float32)
+    rgb_arr = np.asarray(orig.convert("RGB"))
+    gray = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2GRAY).astype(np.float32)
     sc = float(C["q_scale"])
     g = cv2.resize(gray, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
     m1 = ndimage.uniform_filter(g, 5, mode="nearest")
@@ -1041,24 +1041,72 @@ def lost_fabric_metric(binary: np.ndarray, orig: Image.Image) -> dict:
     if int(fg.sum()) < 100:
         out["seconds"] = round(time.perf_counter() - t0, 3)
         return out
+    r_close = int(C["q_close_r_ds"])
     ker = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE,
-        (2 * int(C["q_close_r_ds"]) + 1, 2 * int(C["q_close_r_ds"]) + 1))
+        cv2.MORPH_ELLIPSE, (2 * r_close + 1, 2 * r_close + 1))
     closed = cv2.morphologyEx(fg.astype(np.uint8), cv2.MORPH_CLOSE, ker) > 0
     bg_lab, _ = ndimage.label(~fg)
     bords = (set(bg_lab[0].tolist()) | set(bg_lab[-1].tolist())
              | set(bg_lab[:, 0].tolist()) | set(bg_lab[:, -1].tolist()))
     bords.discard(0)
     outer = np.isin(bg_lab, list(bords)) if bords else np.zeros_like(fg)
-    tex_bg = float(np.median(tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    h, w = g.shape
+    s_edge = max(4, int(round(min(h, w) * 0.03)))
+    edge_meds = [
+        float(np.median(t_sl[o_sl]))
+        for t_sl, o_sl in ((tex[:s_edge, :], outer[:s_edge, :]),
+                           (tex[-s_edge:, :], outer[-s_edge:, :]),
+                           (tex[:, :s_edge], outer[:, :s_edge]),
+                           (tex[:, -s_edge:], outer[:, -s_edge:]))
+        if int(o_sl.sum()) >= 50
+    ]
+    tex_bg_outer = float(np.median(tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    tex_bg = min([tex_bg_outer] + edge_meds) if edge_meds else tex_bg_outer
     core = ndimage.binary_erosion(fg, iterations=3)
     tex_fg = float(np.median(tex[core])) if core.any() \
         else float(np.median(tex[fg]))
     thr = max(float(C["q_tex_bg_ratio"]) * tex_bg,
               tex_bg + float(C["q_tex_bg_abs"]),
               float(C["q_tex_fg_ratio"]) * tex_fg)
-    cand = closed & (~fg) & (ndimage.distance_transform_edt(~fg) > 1)
-    susp = cand & (tex >= thr)
+    dist_out = ndimage.distance_transform_edt(~fg)
+    cand = closed & (~fg) & (dist_out > 1)
+    susp_bays = cand & (tex >= thr)
+
+    hp = g - ndimage.gaussian_filter(g, 1.5)
+    hm1 = ndimage.uniform_filter(hp, 5, mode="nearest")
+    hm2 = ndimage.uniform_filter(hp * hp, 5, mode="nearest")
+    hp_tex = np.sqrt(np.maximum(hm2 - hm1 * hm1, 0.0))
+    hp_env = ndimage.median_filter(hp_tex, size=3)
+    hp_edge_meds = [
+        float(np.median(t_sl[o_sl]))
+        for t_sl, o_sl in ((hp_tex[:s_edge, :], outer[:s_edge, :]),
+                           (hp_tex[-s_edge:, :], outer[-s_edge:, :]),
+                           (hp_tex[:, :s_edge], outer[:, :s_edge]),
+                           (hp_tex[:, -s_edge:], outer[:, -s_edge:]))
+        if int(o_sl.sum()) >= 50
+    ]
+    hp_bg_outer = float(np.median(hp_tex[outer])) if int(outer.sum()) >= 50 else 0.0
+    hp_bg = min([hp_bg_outer] + hp_edge_meds) if hp_edge_meds else hp_bg_outer
+    hp_fg = float(np.median(hp_tex[core])) if core.any() \
+        else float(np.median(hp_tex[fg]))
+    hp_thr = max(float(C["q_tex_bg_ratio"]) * hp_bg,
+                 hp_bg + float(C["q_tex_bg_abs"]),
+                 float(C["q_tex_fg_ratio"]) * hp_fg)
+    rgb_ds = cv2.resize(rgb_arr, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32)
+    rgb_sm = cv2.GaussianBlur(rgb_ds, (0, 0), 2.5)
+    chr_vec = rgb_sm - rgb_sm.mean(axis=2, keepdims=True)
+    ref_sel = core if core.any() else fg
+    chr_med = np.median(chr_vec[ref_sel], axis=0)
+    chr_diff = np.linalg.norm(chr_vec - chr_med, axis=2)
+    chr_lim = max(12.0, float(np.percentile(chr_diff[ref_sel], 95)) * 1.5)
+    sheet_raw = outer & (dist_out >= 3) & (hp_env >= hp_thr) & (chr_diff <= chr_lim)
+    sheet_core = ndimage.binary_erosion(sheet_raw, iterations=4)
+    cc_s, cn_s = ndimage.label(sheet_core)
+    adj_ids = set(np.unique(cc_s[sheet_core & (dist_out <= 8)])) - {0} if cn_s else set()
+    susp_sheet = (np.isin(cc_s, list(adj_ids)) & (dist_out <= r_close)
+                  if adj_ids else np.zeros_like(fg))
+
+    susp = susp_bays | susp_sheet
     out.update(lost_fabric_pct=round(100.0 * float(susp.sum())
                                       / float(fg.sum()), 3),
                tex_bg=round(tex_bg, 2), tex_fg=round(tex_fg, 2),

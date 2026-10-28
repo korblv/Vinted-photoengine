@@ -3694,3 +3694,65 @@ izpildes.
 - Nākamais: lietotājs izveido privātu GitHub repo un pusho (vai piesaista
   jaunai Arena sesijai); bundlis `loop_bildes_git.bundle` kā rezerves
   kopija darba telpā.
+
+### §143 Dzinēja + vārtu cēloņu remonts un 145704 Attempt 3 ALL PASS (2026-10-28)
+
+- Jauna sesija no `korblv/Vinted-photoengine` (`arena-vinted-dzinejs.zip`,
+  bāzes komits `a2f00ae`). Lietotāja uzdevums: pārbaudīt koda bāzi, atrast,
+  ko iepriekšējais aģents salaida dēlī ar `145704`, un salabot dzinēju +
+  vārtus (apstiprināts ar pogu `fix_engine_and_gates`).
+- **Audita diagnoze (§141 trīs kļūdainie pieņēmumi atspēkoti ar mērījumiem):**
+  1. **Iepriekšējā aģenta Attempt 2 bija rupjš defekts, nevis kandidāts:**
+     `ISNet` uz `145704` iekrita §10.1 zināmajā tuvplāna kļūmē — paturēja
+     tikai apkakli un pogu līsti (`coverage=0.1525`, `silhouette_fill=0.3129`),
+     nogriežot abas plecu vīles un visu krekla korpusu. `GATE_C` (`0.55` grīda)
+     nostrādāja pareizi; tās vājināšana būtu pārkāpusi dzelzs noteikumus.
+  2. **`plate_segment.py` kļūmes cēlonis uz M1/M2 un 3 malu bleed:**
+     - Nefiltrēts `_local_std(L, 25)` uz stāvas, gludas metēnās ēnas rampas
+       (`L*` krīt `68.7 → 30.2` 35 px joslā virs labā un kreisā pleca)
+       izmērīja lineāro slīpumu kā `E25 = 9.08 > Otsu 7.02` un arī `_trim_shadow`
+       to paturēja (`9.08 > 0.45 * fabric_E`), pievienojot melnās ēnas kabatas
+       kreklam. Augstfrekvences atlikums `hp = L - gaussian(L, 3)` pilnībā
+       atdala gludo ēnas slīpumu (`E_hp9 = 1.41 ≈ papīrs 1.37`) no vafeļauduma
+       mikrotekstūras (`E_hp9 = 9.52`).
+     - `_bg_sample` 8 % apakšējais labais kvadrāts 3 malu bleed kadrā pilnībā
+       iekrita kreklā (`bg_med = NaN`); pievienots fallback uz visu tālo fonu.
+     - `_keep_garment` mazās bleed robežas vīļu kabatās (`< 0.5 %` kadra, piem.,
+       kreisās malas piedurknes vīle `y=3350`, `area=402` pusizm. px) vairs
+       neatmet audumu kā papīru, ja kabatas `E > max(2.2*pE, pE + 2.0)`.
+  3. **Pašapstiprinošie vārti (`paper_leak.py` un `GATE_Q`):**
+     - `measure_paper_colour` apvienoja visas 4 kadra malas pirms Otsu; 3 malu
+       bleed kadrā vafeļauduma tumšās rievas saindēja tumšo modi (`tex_median =
+       1.043 > 1.0 → plausible = False`), lai gan augšējā mala ir tīrs gluds
+       papīrs (`tex_median = 0.57`, `[161, 159, 160]`). Pievienots vienas malas
+       gludā fona fallback (neieslēdzas uz parastiem kadriem un saglabā 4 malu
+       makro `plausible = False`).
+     - `GATE_Q` (`checker_v2.lost_fabric_gate`) un `engine/masks.py`
+       (`lost_fabric_metric`) rēķināja `tex_bg = median(tex[outer])`: kad maska
+       saturēja tikai 15 % fragmentu, 56 % neiekļautā krekla saindēja `tex_bg =
+       21.53` (`thr = 53.83`) un `cand = closed & ~fg` neredzēja neieslēgtu 2D
+       auduma loksni (`lost_fabric_pct = 0.0 %`). Tagad `tex_bg` ņem minimumu
+       pār malu joslām, un 2D augstfrekvences loksnes pārbaude ar hromas un
+       `erosion(4)` aizsardzību pret asām ēnām/citas krāsas grīdu noķer
+       `145704` Attempt 2 fragmentu ar `lost_fabric_pct = 5.713 % > 1.0 %` (`FAIL`).
+- **Remonts un testi:**
+  - `plate_segment.py`: `_trim_shadow` pārbūvēts uz 1D kontūras iekšējās normāles
+    staru gājienu (`E_hp < 0.42 * fabric_Ehp`, `L <= pL + 3.0`, kāpuma stop
+    `L <= l_min + 4.5`, hromas sargs `dC <= 6.0` siltajai iekšējai apkaklei,
+    asa pakāpiena sargs `|L(+3)-L(-3)| <= 14`, brīvo loku izlīdzināšana un
+    kadra malu stūru piesaiste) + `garment_mask_half` aizsardzība pret nogrieztās
+    ēnas atpakaļielikšanu.
+  - Vienību testi: `135 → 142 passed` (`TestPlateCastShadowRayTrim`,
+    `TestPaperColourSingleEdgeBleed`, `TestGateQSelfPoisoningAndSheet`;
+    `config.toml` un čekera vārtu sliekšņi nav aiztikti; čekera neatkarība
+    saglabāta).
+- **`IMG_20261025_145704` Attempt 3 rezultāts:**
+  - `plate_texture` (`original` kompozīcija), kopā `14.60 s` (`maska 10.37 s +
+    render 4.00 s`), `coverage = 0.7156`, `silhouette_fill = 0.9601`, `0` caurumu.
+  - **Čekeris: `1/1 ALL_PASS`** (`A2 max_diff=0`, `B 100 %`, `C 0.9601`, `D`,
+    `F 3-malu bleed mantots`, `H 100 % / 0 bad`, `K shift_b=1.0`, `L PASS 0 px`,
+    `P 0 px`, `Q 0.020 %`, `R fore_p99=10 / bg_p99=0`, `S 0/55 aizdomīgo logu`,
+    `T 14.60 s < 25 s`). 1:1 vizuālā pārbaude apstiprina: M1 un M2 ēnu kabatas
+    pilnībā likvidētas, apkakle un kreisā bleed mala tīras. Gaida lietotāja
+    apstiprinājumu pirms `.zip`.
+
