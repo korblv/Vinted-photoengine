@@ -3753,6 +3753,10 @@ izpildes.
     `F 3-malu bleed mantots`, `H 100 % / 0 bad`, `K shift_b=1.0`, `L PASS 0 px`,
     `P 0 px`, `Q 0.020 %`, `R fore_p99=10 / bg_p99=0`, `S 0/55 aizdomīgo logu`,
     `T 14.60 s < 25 s`). 1:1 vizuālā pārbaude apstiprina: M1 un M2 ēnu kabatas
-    pilnībā likvidētas, apkakle un kreisā bleed mala tīras. Gaida lietotāja
-    apstiprinājumu pirms `.zip`.
+    pilnībā likvidētas, apkakle un kreisā bleed mala tīras.
+- **Piegāde apstiprināta ar pogu `Apstiprināt`:** izveidots
+  `output/GALA_145704.zip` (`2 210 349 B`, sha256(16) `f543d813f9c465d1`;
+  `PARAUGS` `2 220 149 B`, sha256(16) `5c978a7b84eae638`) un atjaunināts
+  GitHub eksporta arhīvs `/home/user/arena-vinted-dzinejs.zip` (ar svaigu
+  `loop_bildes_git.bundle`). Gaida pogu `Lejupielādēju — dzēst grupu`.
 
