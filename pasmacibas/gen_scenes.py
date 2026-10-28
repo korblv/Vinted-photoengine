@@ -169,9 +169,166 @@ def scene_extra(out):
     _save(scene, Path(out) / "PDR_C2_zemkontrasts.jpg")
 
 
+def scene_round4(out, gt_dir=None):
+    """3. un 4. kārtas ainas (P_REZULTATI §8–§14):
+    - E2_siltpapirs: silts kraftpapīrs (b* ~+14, chroma <= 0.15 robeža / pelēks krekls)
+    - H_salocits: salocīts krekls pāri abām vertikālajām malām (2 bleed + 2 margin)
+    - I_dividots: divi atsevišķi objekti (krekls + bikses) -> GATE_C STOP tests
+    - J_henley_bleed: zema kontrasta vafeļadījuma henley pāri 3 malām uz gludas
+      pelēkas plāksnes (145704 klase: plate_texture + open silhouette para_scale + GATE_Q/F)
+    - K_exif6_portrets: asimetrisks divkrāsu apģērbs ar EXIF Orientation=6 (sensora 4096x1888)
+    - L_makro_pilnkadrs: tīrs auduma makro visā kadrā (--lut-only pozītīvais tests)
+    """
+    gt_p = Path(gt_dir) if gt_dir else None
+    if gt_p:
+        gt_p.mkdir(parents=True, exist_ok=True)
+
+    def _save_gt(mask_bool, name):
+        if gt_p is not None:
+            Image.fromarray((mask_bool.astype(np.uint8) * 255)).save(gt_p / f"PDR_{name}_GT.png")
+
+    # E2: silts papīrs ar pelēku kreklu
+    scene_kopskats(out, "E2_siltpapirs", seed=616, floor=False,
+                   paper_rgb=(216, 206, 188), garment=(196, 196, 198))
+
+    import gc
+    # H: salocīts horizontāls krekls pāri pilnam platumam (58% kontakta -> original: 2 bleed + 2 margin)
+    rng = np.random.default_rng(909)
+    sc_h = _paper(W, H, rng, rgb=(172, 172, 172))
+    yy, xx = np.mgrid[0:H, 0:W]
+    top_wave = int(H * 0.23) + (14 * np.sin(xx[0] * 0.004)).astype(int)
+    bot_wave = int(H * 0.77) + (14 * np.cos(xx[0] * 0.0035)).astype(int)
+    m_h = (yy >= top_wave[None, :]) & (yy <= bot_wave[None, :])
+    fab_h = _fabric(H, W, rng, base=(96, 108, 128), sigma=13, folds=6)
+    sc_h = np.where(m_h[..., None], fab_h, sc_h)
+    sc_h = _drop_shadow(sc_h, m_h, rng, strength=0.28)
+    _save(sc_h, Path(out) / "PDR_H_salocits.jpg")
+    _save_gt(m_h, "H_salocits")
+    del sc_h, fab_h, m_h; gc.collect()
+
+    # H2: slēgts siluets līdz pat sensora malai (44% < 50% kontakta -> slamjam + GATE_R ēnas malas tests)
+    rng = np.random.default_rng(910)
+    sc_h2 = _paper(W, H, rng, rgb=(172, 172, 172))
+    top_w2 = int(H * 0.28) + (14 * np.sin(xx[0] * 0.004)).astype(int)
+    bot_w2 = int(H * 0.72) + (14 * np.cos(xx[0] * 0.0035)).astype(int)
+    m_h2 = (yy >= top_w2[None, :]) & (yy <= bot_w2[None, :])
+    fab_h2 = _fabric(H, W, rng, base=(92, 104, 124), sigma=13, folds=6)
+    sc_h2 = np.where(m_h2[..., None], fab_h2, sc_h2)
+    sc_h2 = _drop_shadow(sc_h2, m_h2, rng, strength=0.28)
+    _save(sc_h2, Path(out) / "PDR_H2_slamjam_mala.jpg")
+    _save_gt(m_h2, "H2_slamjam_mala")
+    del sc_h2, fab_h2, m_h2; gc.collect()
+
+    # I: divdaļīgs komplekts (divas nesavienotas daļas -> largest_component < 0.95 -> STOP)
+    rng = np.random.default_rng(919)
+    sc_i = _paper(W, H, rng, rgb=(168, 168, 166))
+    m_i1 = _shirt_mask(W, H, cy_frac=0.28, scale=0.68)
+    m_i2 = _shirt_mask(W, H, cy_frac=0.73, scale=0.62)
+    m_i = m_i1 | m_i2
+    del m_i1, m_i2
+    fab_i = _fabric(H, W, rng, base=(86, 92, 104), sigma=12, folds=5)
+    sc_i = np.where(m_i[..., None], fab_i, sc_i)
+    sc_i = _drop_shadow(sc_i, m_i, rng, strength=0.30)
+    _save(sc_i, Path(out) / "PDR_I_dividots.jpg")
+    _save_gt(m_i, "I_dividots")
+    del sc_i, fab_i, m_i; gc.collect()
+
+    # J: 145704 klases gaišs vafeļadījuma henley pāri 3 kadra malām (isnet_pad_retry + original)
+    rng = np.random.default_rng(145704)
+    sc_j = _paper(W, H, rng, rgb=(168, 168, 169), vign=0.03)
+    m_j_im = Image.new("L", (W, H), 0)
+    dj = ImageDraw.Draw(m_j_im)
+    dj.polygon([
+        (0, int(H * 0.30)),
+        (int(W * 0.30), int(H * 0.245)),
+        (int(W * 0.50), int(H * 0.235)),
+        (int(W * 0.70), int(H * 0.245)),
+        (W, int(H * 0.31)),
+        (W, H),
+        (0, H),
+    ], fill=255)
+    m_j = np.asarray(m_j_im) > 127
+    del m_j_im
+    waffle = ((((xx // 6) + (yy // 6)) % 2) * 34 - 17).astype(np.float32)
+    rib = (8.0 * np.sin(xx * 0.42) + 6.0 * np.cos(yy * 0.37)).astype(np.float32)
+    fab_j = _fabric(H, W, rng, base=(204, 202, 198), sigma=7, folds=6) + waffle[..., None] + rib[..., None]
+    placket = (np.abs(xx - W // 2) < 42) & (yy > int(H * 0.24)) & (yy < int(H * 0.48))
+    fab_j[placket] -= 24.0
+    del placket
+    fab_j = np.clip(fab_j, 0, 255)
+    sc_j = np.where(m_j[..., None], fab_j, sc_j)
+    del fab_j
+    sc_j = _drop_shadow(sc_j, m_j, rng, strength=0.22, dx=16, dy=-18)
+    _save(sc_j, Path(out) / "PDR_J_henley_bleed.jpg")
+    _save_gt(m_j, "J_henley_bleed")
+    del sc_j; gc.collect()
+
+    # M: izo-luminances vafeļadījums + tumša pogu plakete uz gludas plāksnes -> plate_texture ceļš!
+    del waffle, rib
+    rng = np.random.default_rng(145706)
+    sc_m = np.full((H, W, 3), 172.0, np.float32) + rng.normal(0, 1.1, (H, W, 3)).astype(np.float32)
+    m_m_im = Image.new("L", (W, H), 0)
+    dm = ImageDraw.Draw(m_m_im)
+    dm.polygon([
+        (0, int(H * 0.30)), (int(W * 0.32), int(H * 0.245)),
+        (int(W * 0.50), int(H * 0.235)), (int(W * 0.68), int(H * 0.245)),
+        (W, int(H * 0.31)), (W, H), (0, H),
+    ], fill=255)
+    m_m = np.asarray(m_m_im) > 127
+    del m_m_im
+    fine = ((((xx // 7) + (yy // 7)) % 2) * 22.0 - 11.0).astype(np.float32)
+    fab_m = np.empty((H, W, 3), np.float32)
+    for c, bv in enumerate((173.0, 173.0, 172.0)):
+        fab_m[..., c] = bv + fine + rng.normal(0, 2.0, (H, W)).astype(np.float32)
+    del fine
+    placket_m = (np.abs(xx - W // 2) < 38) & (yy > int(H * 0.24)) & (yy < int(H * 0.50))
+    collar_m = ((np.hypot((xx - W // 2) / 260.0, (yy - H * 0.25) / 110.0) < 1.08) &
+                (np.hypot((xx - W // 2) / 260.0, (yy - H * 0.25) / 110.0) > 0.85) & (yy >= H * 0.235))
+    fab_m[placket_m | collar_m] = 58.0
+    del placket_m, collar_m
+    sc_m = np.where(m_m[..., None], np.clip(fab_m, 0, 255), sc_m)
+    del fab_m
+    _save(sc_m, Path(out) / "PDR_M_plate_only.jpg")
+    _save_gt(m_m, "M_plate_only")
+    del sc_m, m_m, m_j; gc.collect()
+
+    # K: asimetrisks divkrāsu apģērbs ar EXIF Orientation=6 (sensora orientācijā 4096x1888)
+    rng = np.random.default_rng(6060)
+    sc_k = _paper(W, H, rng, rgb=(172, 172, 172))
+    m_k = _shirt_mask(W, H, scale=1.02)
+    fab_k_left = _fabric(H, W, rng, base=(98, 110, 128), sigma=11, folds=5)
+    fab_k_right = _fabric(H, W, rng, base=(134, 124, 104), sigma=11, folds=5)
+    fab_k = np.where((xx < int(W * 0.65))[..., None], fab_k_left, fab_k_right)
+    del fab_k_left, fab_k_right
+    sc_k = np.where(m_k[..., None], fab_k, sc_k)
+    del fab_k
+    sc_k = _drop_shadow(sc_k, m_k, rng, strength=0.25)
+    raw_im = Image.fromarray(np.clip(sc_k + 0.5, 0, 255).astype(np.uint8)).transpose(Image.ROTATE_90)
+    del sc_k
+    exif = Image.Exif()
+    exif[274] = 6
+    kp = Path(out) / "PDR_K_exif6_portrets.jpg"
+    raw_im.save(kp, quality=95, exif=exif.tobytes())
+    print(f"  {kp.name}: raw {raw_im.size[0]}x{raw_im.size[1]} (EXIF=6 -> {W}x{H})")
+    _save_gt(m_k, "K_exif6_portrets")
+    del raw_im, m_k; gc.collect()
+
+    # L: bagātīgas tekstūras tumšāks auduma makro (--lut-only pozitīvais tests)
+    rng = np.random.default_rng(7171)
+    weave = ((((xx // 5) + (yy // 7)) % 2) * 28 - 14).astype(np.float32)
+    del xx, yy
+    fab_l = np.clip(_fabric(H, W, rng, base=(88, 96, 114), sigma=15, folds=8) + weave[..., None], 0, 255)
+    del weave
+    _save(fab_l, Path(out) / "PDR_L_makro_pilnkadrs.jpg")
+    del fab_l; gc.collect()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
+    ap.add_argument("--extra", action="store_true", help="iekļaut 2. kārtas ainas")
+    ap.add_argument("--round4", action="store_true", help="iekļaut 3./4. kārtas ainas (E2, H, I, J, K, L)")
+    ap.add_argument("--gt-dir", default="", help="kur saglabāt GT maskas (pēc izvēles)")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -184,6 +341,10 @@ def main():
                    paper_rgb=(232, 214, 186))                         # gaidāms: GATE K auto FAIL
     scene_haoss(out)                                                 # gaidāms: STOP
     scene_makro(out)                                                 # gaidāms: lut_only refused
+    if a.extra or a.round4:
+        scene_extra(out)
+    if a.round4:
+        scene_round4(out, gt_dir=a.gt_dir or None)
     print("Gatavs.")
 
 

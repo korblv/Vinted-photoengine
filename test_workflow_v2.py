@@ -1943,5 +1943,302 @@ class TestGateQSelfPoisoningAndSheet(unittest.TestCase):
         self.assertEqual(res["lost_fabric_pct"], 0.0)
 
 
+class TestRound4AuditRepairs(unittest.TestCase):
+    """§144: pilnā koda audita un 4. kārtas pašmācību regresijas testi."""
+
+    def _make_exif6_fixture(self, root: Path, stem: str = "EXIF6_TEST"):
+        from PIL import ImageOps
+        out = root / "output"
+        up = root / "uploads"
+        for sub in ("master", "paraugs", "masks", "profiles"):
+            (out / sub).mkdir(parents=True, exist_ok=True)
+        up.mkdir(parents=True, exist_ok=True)
+
+        # Portreta orientācijā (pēc EXIF=6): H=1000, W=800, asimetriska hroma.
+        H, W = 1000, 800
+        rgb = np.full((H, W, 3), 210, np.uint8)
+        yy, xx = np.indices((H, W))
+        tex = (((xx // 5) + (yy // 5)) % 2) * 34 - 17
+        rgb[100:900, 120:400] = np.clip(
+            np.array([95, 125, 195], np.int16) + tex[100:900, 120:400, None],
+            0, 255).astype(np.uint8)
+        rgb[100:900, 400:680] = np.clip(
+            np.array([195, 165, 85], np.int16) + tex[100:900, 400:680, None],
+            0, 255).astype(np.uint8)
+
+        # Neapgrieztā sensora orientācija (800x1000) ar EXIF Orientation=6:
+        raw_im = Image.fromarray(rgb).transpose(Image.ROTATE_90)
+        exif = Image.Exif()
+        exif[274] = 6
+        src_p = up / f"{stem}.jpg"
+        raw_im.save(src_p, quality=98, exif=exif.tobytes())
+
+        # Nolasām atpakaļ pēc JPEG kodēšanas, lai A2 LUT sakristu līdz <=1 LSB:
+        src_after = np.asarray(ImageOps.exif_transpose(Image.open(src_p)).convert("RGB"))
+        binary = np.zeros((H, W), np.uint8)
+        binary[100:900, 120:680] = 1
+        Image.fromarray(binary * 255).save(out / "masks" / f"{stem}_MASK.png")
+
+        ident_lut = [list(range(256)) for _ in range(3)]
+        prof = {"lut_rgb": ident_lut, "output_sharpen": {}}
+        prof_p = out / "profiles" / f"{stem}_PROFILE.json"
+        prof_p.write_text(json.dumps(prof), encoding="utf-8")
+        (out / "grade_profile_v2.json").write_text(json.dumps(prof), encoding="utf-8")
+
+        alpha = loop.refine_alpha(binary)
+        Image.fromarray(alpha).save(out / "masks" / f"{stem}_ALPHA.png")
+        graded = loop.extend_foreground_colors(src_after.copy(), binary, alpha, max_dist=8)
+        psc = loop.para_scale(binary, full_shot_override=True, crop_box=None)
+        bg = loop.studio_shadow_bg(binary.shape, binary, canvas_scale=psc)
+        a = (alpha.astype(np.float32) / 255.0)[..., None]
+        master = np.clip(graded.astype(np.float32) * a
+                         + bg[..., None].astype(np.float32) * (1.0 - a) + 0.5,
+                         0, 255).astype(np.uint8)
+        Image.fromarray(master).save(out / "master" / f"{stem}_MASTER_1to1.png")
+
+        cutout = Image.fromarray(graded).convert("RGBA")
+        cutout.putalpha(Image.fromarray(alpha))
+        par, pm, full_shot = loop.render_paraugs(cutout, binary, full_shot_override=True)
+        par.save(out / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg", quality=95)
+        pm.save(out / "masks" / f"{stem}_PARAUGS_MASK.png")
+
+        rec = {
+            "stem": stem,
+            "source": str(src_p),
+            "source_name": src_p.name,
+            "source_size": [W, H],
+            "rotation_cw": 0,
+            "status": "completed",
+            "mask_method": "isnet",
+            "mask_path": str(out / "masks" / f"{stem}_MASK.png"),
+            "profile_path": str(prof_p),
+            "full_shot": bool(full_shot),
+            "closeup_crop": None,
+            "timing": {"total_s": 5.0},
+        }
+        return out, up, stem, rec, ident_lut, master
+
+    def test_checker_exif6_orientation_across_all_gates(self):
+        with tempfile.TemporaryDirectory() as td:
+            out, up, stem, rec, lut, _ = self._make_exif6_fixture(Path(td))
+            old_out, old_src = ck.OUT, ck.SRC_DIR
+            try:
+                ck.OUT, ck.SRC_DIR = out, up
+                gates = ck.check_one(stem, rec, lut)
+            finally:
+                ck.OUT, ck.SRC_DIR = old_out, old_src
+            self.assertTrue(gates["ALL_PASS"], gates)
+            self.assertTrue(gates["GATE_K_chroma_honesty"]["pass"], gates["GATE_K_chroma_honesty"])
+            self.assertLess(abs(gates["GATE_K_chroma_honesty"]["shift_b"]), 0.5)
+            self.assertTrue(gates["GATE_P_paper_at_border"]["pass"], gates["GATE_P_paper_at_border"])
+            self.assertTrue(gates["GATE_Q_lost_fabric"]["pass"], gates["GATE_Q_lost_fabric"])
+            self.assertTrue(gates["GATE_S_boundary_evidence"]["pass"], gates["GATE_S_boundary_evidence"])
+
+    def test_gate_f_rejects_invented_cut_from_source_mask(self):
+        with tempfile.TemporaryDirectory() as td:
+            out, up, stem, rec, lut, _ = self._make_exif6_fixture(Path(td), "INV_CUT")
+            rec["full_shot"] = False
+            pm = np.zeros((2500, 2000), np.uint8)
+            pm[400:2500, 240:1760] = 255
+            Image.fromarray(pm).save(out / "masks" / f"{stem}_PARAUGS_MASK.png")
+            old_out, old_src = ck.OUT, ck.SRC_DIR
+            try:
+                ck.OUT, ck.SRC_DIR = out, up
+                gates = ck.check_one(stem, rec, lut)
+            finally:
+                ck.OUT, ck.SRC_DIR = old_out, old_src
+            gf = gates["GATE_F_fullframe_closeup"]
+            self.assertFalse(gf["pass"], gf)
+            self.assertEqual(gf["edge_detail"]["bottom"]["kind"], "cut")
+            self.assertFalse(gf["edge_detail"]["bottom"]["inherited"])
+            self.assertEqual(gf["edge_detail"]["bottom"]["source_contact"], 0.0)
+
+    def test_wrong_paraugs_size_reports_gate_d_without_unbound_m(self):
+        with tempfile.TemporaryDirectory() as td:
+            out, up, stem, rec, lut, _ = self._make_exif6_fixture(Path(td), "BAD_DIM")
+            bad = Image.new("RGB", (1999, 2500), (243, 243, 243))
+            bad.save(out / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg", quality=95)
+            old_out, old_src = ck.OUT, ck.SRC_DIR
+            try:
+                ck.OUT, ck.SRC_DIR = out, up
+                gates = ck.check_one(stem, rec, lut)
+            finally:
+                ck.OUT, ck.SRC_DIR = old_out, old_src
+            self.assertNotIn("error", gates)
+            self.assertFalse(gates["GATE_D_format"]["pass"])
+            self.assertEqual(gates["GATE_D_format"]["size"], [1999, 2500])
+
+    def test_para_scale_matches_render_paraugs_on_open_and_cropped_silhouettes(self):
+        b_open = np.zeros((4096, 1888), np.uint8)
+        b_open[1638:, :] = 1
+        expected_cover = max(2000 / 1888, 2500 / 4096)
+        self.assertAlmostEqual(
+            loop.para_scale(b_open, full_shot_override=False, crop_box=None),
+            expected_cover, places=6,
+        )
+        crop = (0.10, 0.15, 0.90, 0.85)
+        cw = int(round(0.90 * 1888)) - int(round(0.10 * 1888))
+        ch = int(round(0.85 * 4096)) - int(round(0.15 * 4096))
+        self.assertAlmostEqual(
+            loop.para_scale(b_open, full_shot_override=False, crop_box=crop),
+            max(2000 / cw, 2500 / ch), places=6,
+        )
+        b_closed = np.zeros((3000, 2400), np.uint8)
+        b_closed[300:2700, 300:2100] = 1
+        self.assertAlmostEqual(
+            loop.para_scale(b_closed, full_shot_override=True, crop_box=None),
+            min((loop.GARMENT_FILL_W * 2000) / 1800,
+                (loop.GARMENT_FILL_H * 2500) / 2400),
+            places=6,
+        )
+
+    def test_render_one_master_s_excludes_decontam_time(self):
+        import time as _time
+        import engine.render as er
+        with tempfile.TemporaryDirectory() as td:
+            out, up, stem, rec, lut, _ = self._make_exif6_fixture(Path(td), "TIMING")
+            rec["source_sha256"] = wf.sha256_file(Path(rec["source"]))
+
+            def _slow_decontam(graded, binary, max_px=3, tex_ratio=0.65):
+                _time.sleep(0.06)
+                return binary, {"applied": False, "removed_px": 0}
+
+            old_out, old_dec = er.OUT, er.decontaminate_rim
+            try:
+                er.OUT = out
+                er.decontaminate_rim = _slow_decontam
+                res = er.render_one(
+                    rec, {"lut_rgb": lut, "output_sharpen": {}}, png_level=1
+                )
+            finally:
+                er.OUT, er.decontaminate_rim = old_out, old_dec
+            self.assertGreaterEqual(res["decontaminate_s"], 0.05, res)
+            self.assertLessEqual(
+                res["decontaminate_s"] + res["master_s"], res["render_s"] + 0.02, res
+            )
+
+    def test_validate_rotations_and_partial_checker_accumulation(self):
+        import sys as _sys
+        files = ["IMG_20261025_145704.jpg", "PXL_20261022_124406358.PORTRAIT.ORIGINAL.jpg"]
+        self.assertEqual(wf.validate_rotations_against_files({"145704": 90}, files), [])
+        self.assertEqual(
+            wf.validate_rotations_against_files(
+                {"PXL_20261022_124406358.PORTRAIT.ORIGINAL": 270}, files
+            ),
+            [],
+        )
+        self.assertEqual(
+            wf.validate_rotations_against_files({"145705": 90}, files), ["145705"]
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            out1, up1, s1, rec1, lut, _ = self._make_exif6_fixture(root, "STEM_A")
+            _, _, s2, rec2, _, _ = self._make_exif6_fixture(root, "STEM_B")
+            (out1 / "report_v2_maker.json").write_text(
+                json.dumps({"workflow_version": "2.1", "attempt": 1,
+                            "images": {s1: rec1, s2: rec2}}),
+                encoding="utf-8",
+            )
+            old_out, old_src, old_rep, old_argv = ck.OUT, ck.SRC_DIR, ck.REPORT_PATH, _sys.argv
+            try:
+                ck.OUT, ck.SRC_DIR = out1, up1
+                ck.REPORT_PATH = out1 / "report_v2.json"
+                _sys.argv = ["checker_v2.py"]
+                self.assertEqual(ck.main(), 0)
+                _sys.argv = ["checker_v2.py", s2]
+                self.assertEqual(ck.main(), 0)
+                rep = json.loads((out1 / "report_v2.json").read_text(encoding="utf-8"))
+            finally:
+                ck.OUT, ck.SRC_DIR, ck.REPORT_PATH, _sys.argv = old_out, old_src, old_rep, old_argv
+            self.assertIn(s1, rep)
+            self.assertIn(s2, rep)
+            self.assertEqual(rep["_meta"]["checked"], [s1, s2])
+
+    def test_rebuild_master_exif_lut_only_and_close_group_suffix(self):
+        import rebuild_master as rm
+        import close_group as cg
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            out, up, stem, rec, lut, orig_master = self._make_exif6_fixture(
+                root, "IMG_20261025_999111"
+            )
+            lut_stem = "IMG_20261025_888222"
+            lut_src = up / f"{lut_stem}.png"
+            arr = np.full((600, 500, 3), 150, np.uint8)
+            Image.fromarray(arr).save(lut_src)
+            lut_rec = {
+                "stem": lut_stem, "source": str(lut_src), "source_name": lut_src.name,
+                "rotation_cw": 0, "status": "completed", "lut_only": True,
+                "mask_method": "lut_only",
+            }
+            (out / "report_v2_maker.json").write_text(
+                json.dumps({"images": {stem: rec, lut_stem: lut_rec}}),
+                encoding="utf-8",
+            )
+            old_rm_out, old_rm_up = rm.OUT, rm.UP
+            try:
+                rm.OUT, rm.UP = out, up
+                rebuilt = rm.build(stem)
+                rebuilt_lut = rm.build(lut_stem)
+            finally:
+                rm.OUT, rm.UP = old_rm_out, old_rm_up
+            self.assertEqual(int(np.max(np.abs(rebuilt.astype(int) - orig_master.astype(int)))), 0)
+            self.assertEqual(rebuilt_lut.shape, (500, 500, 3))
+
+            old_cg_out, old_cg_up = cg.OUT, cg.UPLOADS
+            try:
+                cg.OUT, cg.UPLOADS = out, up
+                tgs = [p.name for p in cg.targets(["999111"])]
+            finally:
+                cg.OUT, cg.UPLOADS = old_cg_out, old_cg_up
+            self.assertIn(f"{stem}.jpg", tgs)
+            self.assertIn(f"{stem}_MASTER_1to1.png", tgs)
+            self.assertNotIn(f"{lut_stem}.png", tgs)
+            self.assertNotIn("report_v2_maker.json", tgs)
+
+    def test_gate_r_slamjam_near_sensor_border_passes_without_false_shadow_fail(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            out, up, stem, rec, lut, _ = self._make_exif6_fixture(root, "BORDER_SLAM")
+            # Pārveidojam masku tā, lai slēgts siluets (<50% malas kontakta)
+            # pieskaras labajai sensora malai x=799, kur MASTER_1to1 ēna fiziski
+            # neietilpst, bet PARAUGS 2000x2500 uzzīmē studijas ēnu pa labi:
+            H, W = 1000, 800
+            from PIL import ImageOps
+            src_arr = np.asarray(ImageOps.exif_transpose(Image.open(rec["source"])).convert("RGB"))
+            binary = np.zeros((H, W), np.uint8)
+            binary[300:700, 120:800] = 1   # labais kontakts = 40% < 50% -> slamjam
+            Image.fromarray(binary * 255).save(out / "masks" / f"{stem}_MASK.png")
+            alpha = loop.refine_alpha(binary)
+            Image.fromarray(alpha).save(out / "masks" / f"{stem}_ALPHA.png")
+            graded = loop.extend_foreground_colors(src_arr.copy(), binary, alpha, max_dist=8)
+            psc = loop.para_scale(binary, full_shot_override=True, crop_box=None)
+            bg = loop.studio_shadow_bg(binary.shape, binary, canvas_scale=psc)
+            a = (alpha.astype(np.float32) / 255.0)[..., None]
+            master = np.clip(graded.astype(np.float32) * a
+                             + bg[..., None].astype(np.float32) * (1.0 - a) + 0.5,
+                             0, 255).astype(np.uint8)
+            Image.fromarray(master).save(out / "master" / f"{stem}_MASTER_1to1.png")
+            cutout = Image.fromarray(graded).convert("RGBA")
+            cutout.putalpha(Image.fromarray(alpha))
+            par, pm, _ = loop.render_paraugs(cutout, binary, full_shot_override=True)
+            par.save(out / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg", quality=95)
+            pm.save(out / "masks" / f"{stem}_PARAUGS_MASK.png")
+
+            old_out = ck.OUT
+            try:
+                ck.OUT = out
+                gr = ck.gate_r_reconciliation(
+                    stem, rec,
+                    out / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg",
+                    out / "masks" / f"{stem}_PARAUGS_MASK.png",
+                )
+            finally:
+                ck.OUT = old_out
+            self.assertTrue(gr["pass"], gr)
+            self.assertLessEqual(gr["bg_p99"], ck.GATE_R_BG_P99_MAX)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -51,7 +51,7 @@ operatora darbagalds. Strādājam soli pa solim, pa vienam uzlabojumam.
       krustota ar rembg 2.0.85 avota MD5 konstanti).
 - [x] `00_SAKU_SHEIT.md` sinhronizācija (PROGRESS §66): §8 ēna, §6/§7
       struktūra un stāvoklis, §2/§14 pakotņu statuss.
-- [ ] `atjaunot.py` dublikāts saknē un `HANDOFF/` — atstāt vienu.
+- [x] `atjaunot.py` dublikāts saknē un `HANDOFF/` — atstāt vienu (`git mv atjaunot.py archive/atjaunot.py`, PROGRESS §144).
 - [ ] Lēmums par `uploads/01_DZINEJS.md` / `02_ATMINA.md`: ar git tie vairs
       nav vajadzīgi; līdz lietotāja lēmumam paliek kā sasalusi v2.1 kopija.
 

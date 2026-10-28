@@ -84,6 +84,20 @@ def rotation_for(path: str | Path) -> int:
     return ROTATIONS_CW.get(stem[-6:], 0)
 
 
+def validate_rotations_against_files(rot_map: dict[str, int], files: list[str]) -> list[str]:
+    """Atrod `--rotate` atslēgas, kas neatbilst nevienam no izvēlētajiem failiem
+    (pilns `stem` vai pēdējie 6 simboli, kā `rotation_for`).
+
+    Novērš kluso drukas kļūdu režīmu (PROGRESS §67): neesošs kods vairs
+    nepaliek nepamanīts ar 0° rotāciju.
+    """
+    stems = [Path(f).stem for f in files]
+    return [
+        k for k in (rot_map or {})
+        if not any(k == s or k == s[-6:] for s in stems)
+    ]
+
+
 def apply_quarter_turn(img: Image.Image, degrees_cw: int) -> Image.Image:
     deg = normalize_rotation(degrees_cw)
     op = _QUARTER_TURNS_CW[deg]
@@ -251,6 +265,9 @@ def preflight(files: list[str]) -> dict:
     problems = environment_problems()
     if not files:
         problems.append("nav izvēlētu avota bilžu")
+    bad_rot = validate_rotations_against_files(ROTATIONS_CW, files)
+    if bad_rot:
+        problems.append(f"--rotate atslēga neatbilst nevienam failam: {bad_rot}")
     disk = shutil.disk_usage("/var/tmp")
     return {
         "ready": not problems and all(s["exists"] and "error" not in s for s in sources),

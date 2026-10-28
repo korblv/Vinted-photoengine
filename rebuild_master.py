@@ -3,32 +3,17 @@
 
 KĀPĒC ŠIS SKRIPTS EKSISTĒ
 ------------------------
-Masteri ir lieli (43 MB kopā) un ir tikai STARPPRODUKTS. To atjaunošanai
-parasti vajadzētu pilnu `setup_v2.py` + `workflow_v2.py` palaišanu, kas prasa
-rembg/onnxruntime un 178 MB ISNet modeļa lejupielādi — t.i. tīklu. Tas nav
-pieņemami, ja vienkārši grib atkārtot renderi.
+Masteri ir lieli un ir starpprodukts starp avotu un gala 2000x2500 kadru.
+To atjaunošanai bez šī skripta vajadzētu pilnu `setup_v2.py` + `workflow_v2.py`
+palaišanu ar rembg/onnxruntime un 178 MB ISNet modeli.
 
-Izrādās, masteris ir pilnībā atvasināms no TRIJIEM maziem failiem, kas visi
-paliek krātuvē:
-  1. oriģināls  `uploads/<stem>.jpg`
-  2. LUT        `output/profiles/<stem>_PROFILE.json`
-  3. alfa maska `output/masks/<stem>_MASK.png`
-
-PĀRBAUDE PIRMS DZĒŠANAS
------------------------
-Pirms masteru dzēšanas skripts tika palaists pret visiem četriem un
-salīdzināts ar saglabātajiem failiem. Rezultāts pa daļām:
-
-  * AUDUMS (maskas iekšpuse): **bitu precīzi**, 0 pikseļu ar starpību > 2
-    visiem četriem.
-  * ĒNA / fons: diviem henley maks. 1 LSB, diviem pārējiem līdz 8 LSB
-    (sintētiskā ēna tiek ģenerēta no jauna, tāpēc var nobīdīties par mata
-    tiesu). 8/255 = 3 % spilgtuma — nemanāmi.
-
-T.i. atjaunotais masteris ir lietojams tieši tāpat kā oriģinālais.
+Masteris ir pilnībā deterministiski atvasināms no failiem, kas jau ir krātuvē:
+  1. oriģināls  `uploads/<stem>.<ext>` (vai ceļš no `report_v2_maker.json`)
+  2. LUT        `output/profiles/<stem>_PROFILE.json` (vai `grade_profile_v2.json`)
+  3. maska      `output/masks/<stem>_MASK.png` (izņemot `lut_only` pilnkadru)
 
 Lietošana:
-    python3 rebuild_master.py                 # atjauno visus, kas nav
+    python3 rebuild_master.py                 # atjauno visus trūkstošos
     python3 rebuild_master.py --verify <stem> # salīdzina ar esošo failu
 """
 import argparse
@@ -41,47 +26,99 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import loop
+from engine.infra import open_rgb_recorded
+from engine.render import lut_only_crops
 from workflow_v2 import apply_lut, rotation_for
-
-# Rotācija nav vienmēr EXIF: divas bildes tika apgrieztas renderēšanas laikā
-# ar skaidri dotu `rotation_cw` (270°), tāpēc `rotation_for()` tām atgriež 0 un
-# maskas forma nesakrīt. Precīzās vērtības glabājas maker reportā.
-def rotation_for_stem(stem: str, src: Path) -> int:
-    try:
-        data = json.loads((OUT / "report_v2_maker.json").read_text(encoding="utf-8"))
-        rec = (data.get("images") or {}).get(stem) or {}
-        if rec.get("rotation_cw") is not None:
-            return int(rec["rotation_cw"]) % 360
-    except (OSError, ValueError):
-        pass
-    return rotation_for(src)
 
 OUT = Path(__file__).resolve().parent / "output"
 UP = Path(__file__).resolve().parent.parent / "uploads"
+_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff",
+         ".JPG", ".JPEG", ".PNG", ".WEBP", ".TIF", ".TIFF")
+
+
+def _maker_rec(stem: str) -> dict:
+    try:
+        data = json.loads((OUT / "report_v2_maker.json").read_text(encoding="utf-8"))
+        return dict((data.get("images") or {}).get(stem) or {})
+    except (OSError, ValueError):
+        return {}
+
+
+def rotation_for_stem(stem: str, src: Path) -> int:
+    rec = _maker_rec(stem)
+    if rec.get("rotation_cw") is not None:
+        return int(rec["rotation_cw"]) % 360
+    return rotation_for(src)
+
+
+def _resolve_source(stem: str, rec: dict) -> Path:
+    rec_src = rec.get("source")
+    if rec_src and Path(rec_src).is_file():
+        return Path(rec_src)
+    if rec.get("source_name"):
+        cand = UP / str(rec["source_name"])
+        if cand.is_file():
+            return cand
+    for ext in _EXTS:
+        cand = UP / f"{stem}{ext}"
+        if cand.is_file():
+            return cand
+    raise FileNotFoundError(UP / f"{stem}.jpg")
+
+
+def _load_profile(stem: str, rec: dict) -> dict:
+    for cand in (
+        Path(rec["profile_path"]) if rec.get("profile_path") else None,
+        OUT / "profiles" / f"{stem}_PROFILE.json",
+        OUT / "grade_profile_v2.json",
+    ):
+        if cand is not None and cand.is_file():
+            return json.loads(cand.read_text(encoding="utf-8"))
+    raise FileNotFoundError(OUT / "profiles" / f"{stem}_PROFILE.json")
 
 
 def stem_exists(stem: str) -> bool:
-    return ((OUT / "profiles" / f"{stem}_PROFILE.json").is_file()
-            and (OUT / "masks" / f"{stem}_MASK.png").is_file())
+    rec = _maker_rec(stem)
+    has_prof = ((OUT / "profiles" / f"{stem}_PROFILE.json").is_file()
+                or (OUT / "grade_profile_v2.json").is_file())
+    if not has_prof:
+        return False
+    if rec.get("lut_only"):
+        try:
+            _resolve_source(stem, rec)
+            return True
+        except FileNotFoundError:
+            return False
+    return (OUT / "masks" / f"{stem}_MASK.png").is_file()
 
 
 def all_stems() -> list[str]:
-    return sorted(p.name.replace("_PROFILE.json", "")
-                  for p in (OUT / "profiles").glob("*_PROFILE.json"))
+    found = {p.name.replace("_PROFILE.json", "")
+             for p in (OUT / "profiles").glob("*_PROFILE.json")}
+    try:
+        data = json.loads((OUT / "report_v2_maker.json").read_text(encoding="utf-8"))
+        for stem, rec in (data.get("images") or {}).items():
+            if rec.get("status") == "completed":
+                found.add(stem)
+    except (OSError, ValueError):
+        pass
+    return sorted(found)
 
 
 def build(stem: str) -> np.ndarray:
-    """Reproducē `workflow_v2.render_one` mastera daļu soli pa solim."""
-    src = UP / f"{stem}.jpg"
-    if not src.is_file():
-        raise FileNotFoundError(src)
+    """Reproducē `engine.render.render_one` vai `render_lut_only` mastera daļu."""
+    rec = _maker_rec(stem)
+    src = _resolve_source(stem, rec)
     rot = rotation_for_stem(stem, src)
-    im = Image.open(src).convert("RGB")
-    if rot:
-        im = im.rotate(-rot, expand=True)
-    orig = np.asarray(im)
-    profile = json.loads((OUT / "profiles" / f"{stem}_PROFILE.json")
-                         .read_text(encoding="utf-8"))
+    orig = np.asarray(open_rgb_recorded(src, rot))
+    profile = _load_profile(stem, rec)
+    graded = apply_lut(orig, profile["lut_rgb"])
+
+    if rec.get("lut_only"):
+        h, w = graded.shape[:2]
+        m = lut_only_crops(h, w)["master"]
+        return graded[m["y0"]:m["y0"] + m["size"], m["x0"]:m["x0"] + m["size"]].copy()
+
     binary = (np.asarray(Image.open(OUT / "masks" / f"{stem}_MASK.png")
                          .convert("L")) > 128).astype(np.uint8)
     if binary.shape != orig.shape[:2]:
@@ -89,21 +126,26 @@ def build(stem: str) -> np.ndarray:
             f"{stem}: maskas izmērs {binary.shape} != attēla {orig.shape[:2]} "
             f"(rot={rot}; pārbaudi report_v2_maker.json)")
 
-    graded = apply_lut(orig, profile["lut_rgb"])
-
     # MASK.png krātuvē jau ir PĒC decontaminate_rim, tāpēc to atkārtoti
     # nepiemērojam — funkcija nav idempotenta.
     alpha = loop.refine_alpha(binary)
     graded = loop.extend_foreground_colors(graded, binary, alpha, max_dist=8)
 
-    # Jaunais studijas ēnas modelis (virziens ir modeļa konstante; avota
-    # leņķa mērījums atjaunošanai vairs nav vajadzīgs).
-    ps = max(loop.para_scale(binary), 1e-6)
+    full_shot = rec.get("full_shot")
+    crop_box = (rec.get("closeup_crop")
+                or (rec.get("timing") or {}).get("closeup_crop"))
+    ps = max(loop.para_scale(binary, full_shot_override=full_shot, crop_box=crop_box), 1e-6)
     bg = loop.studio_shadow_bg(binary.shape, binary, canvas_scale=ps)
-    a = (alpha.astype(np.float32) / 255.0)[..., None]
-    return np.clip(graded.astype(np.float32) * a
-                   + bg[..., None].astype(np.float32) * (1.0 - a) + 0.5,
-                   0, 255).astype(np.uint8)
+
+    h, w = binary.shape
+    master = np.empty((h, w, 3), np.uint8)
+    for y in range(0, h, 256):
+        y2 = min(h, y + 256)
+        a = (alpha[y:y2].astype(np.float32) / 255.0)[..., None]
+        blended = (graded[y:y2].astype(np.float32) * a
+                   + bg[y:y2, :, None].astype(np.float32) * (1.0 - a))
+        master[y:y2] = np.clip(blended + 0.5, 0, 255).astype(np.uint8)
+    return master
 
 
 def main() -> int:

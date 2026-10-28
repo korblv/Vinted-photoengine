@@ -193,12 +193,17 @@ def _apply_lut(rgb: np.ndarray, lut_rows) -> np.ndarray:
     return out
 
 
-def open_rgb(path: str | Path, rotation_cw: int = 0) -> np.ndarray:
+def _open_source_pil(path: str | Path, rotation_cw: int = 0) -> Image.Image:
+    """Atver avotu ar EXIF orientāciju un bezzaudējumu 90° soļu pagriezienu."""
     with Image.open(path) as im:
         img = ImageOps.exif_transpose(im).convert("RGB")
+    return _quarter_turn_cw(img, int(rotation_cw or 0))
+
+
+def open_rgb(path: str | Path, rotation_cw: int = 0) -> np.ndarray:
     # Ja maker avotu bezzaudējumi pagrieza vertikālā orientācijā, checker
     # salīdzinājumam piemēro to pašu pagriezienu (citādi A2 būtu veltīgs).
-    return np.asarray(_quarter_turn_cw(img, int(rotation_cw or 0)))
+    return np.asarray(_open_source_pil(path, rotation_cw))
 
 
 def atomic_write_json(path: Path, obj) -> None:
@@ -342,6 +347,36 @@ def gate_r_reconciliation(stem: str, maker_rec: dict, paraugs_path: Path,
         return {"pass": False, "error": "novietotā maska citā izmērā"}
     fore = cv2.erode(placed.astype(np.uint8), np.ones((9, 9), np.uint8), 1).astype(bool)
     back_all = cv2.erode((~placed).astype(np.uint8), np.ones((9, 9), np.uint8), 1).astype(bool)
+    # Ja `full_shot` režīmā apģērba bbox atrodas tuvāk par 70 audekla px no
+    # avota kadra malas (`x1 + pad_px > mw` vai `y1 + pad_px > mh`), MASTER
+    # fiziski beidzas pie sensora robežas, tāpēc ārpus ielīmētā `ring`
+    # taisnstūra `ref` paliek #F3F3F3 audekls, kamēr `paraugs` uzzīmē īsto
+    # studijas ēnu (<=70 px no `placed`). Šī apgrieztā ēnas josla nav
+    # plakans fons no MASTER.
+    unrecorded_shadow = np.zeros(ref.shape[:2], dtype=bool)
+    if full_shot and mask.any():
+        _W, _H = RECONCILE_CANVAS
+        _mh, _mw = mask.shape
+        _ys, _xs = np.nonzero(mask)
+        _x0, _y0 = int(_xs.min()), int(_ys.min())
+        _x1, _y1 = int(_xs.max()) + 1, int(_ys.max()) + 1
+        _sc = min((SPEC_FILL_W * _W) / max(1, _x1 - _x0),
+                  (SPEC_FILL_H * _H) / max(1, _y1 - _y0))
+        _nw = max(1, round((_x1 - _x0) * _sc))
+        _nh = max(1, round((_y1 - _y0) * _sc))
+        _ox, _oy = (_W - _nw) // 2, (_H - _nh) // 2
+        _pad = int(math.ceil(70.0 / max(_sc, 1e-6)))
+        _cx0, _cy0 = max(0, _x0 - _pad), max(0, _y0 - _pad)
+        _cx1, _cy1 = min(_mw, _x1 + _pad), min(_mh, _y1 + _pad)
+        _rw = max(1, round((_cx1 - _cx0) * _sc))
+        _rh = max(1, round((_cy1 - _cy0) * _sc))
+        _rx = _ox - int(round((_x0 - _cx0) * _sc))
+        _ry = _oy - int(round((_y0 - _cy0) * _sc))
+        _in_ring = np.zeros(ref.shape[:2], dtype=bool)
+        _in_ring[max(0, _ry):min(_H, _ry + _rh), max(0, _rx):min(_W, _rx + _rw)] = True
+        _dist = cv2.distanceTransform((~placed).astype(np.uint8), cv2.DIST_L2, 5)
+        unrecorded_shadow = (~_in_ring) & (_dist <= 70.0)
+        del _in_ring, _dist
     del placed
     # Fona pārbaudi mēra TIKAI uz plakanā fona (references pikseļi = #F3F3F3).
     # Iemesls: ēnu paraugs pārrēķina NO JAUNA audekla mērogā
@@ -351,7 +386,8 @@ def gate_r_reconciliation(stem: str, maker_rec: dict, paraugs_path: Path,
     # uz šīs bildes plakanajā fonā p99=1.0, ēnas gradientā p99=6.0.
     # Mērot visu fona laukumu, gāte sodītu savu rekonstrukcijas artefaktu,
     # nevis izvades defektu. Ēnas zona paliek kā INFORMATĪVS lielums.
-    flat_bg = (np.abs(ref.astype(np.int16) - BG).max(axis=2) <= 1)
+    flat_bg = (np.abs(ref.astype(np.int16) - BG).max(axis=2) <= 1) & (~unrecorded_shadow)
+    del unrecorded_shadow
     back = back_all & flat_bg
     del flat_bg
     if not fore.any():
@@ -980,15 +1016,12 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
         via = np.asarray(Image.open(Path(OUT) / "masks" / f"{stem}_PARAUGS_MASK.png").convert("L")) > 128
         out_rgb = np.asarray(Image.open(paraugs_p).convert("RGB"))
         if via.any() and out_rgb.shape[:2] == via.shape:
-            src_im = Image.open(source).convert("RGB")
-            rot = int(maker_rec.get("rotation_cw") or 0)
-            if rot:
-                src_im = src_im.rotate(-rot, expand=True)
+            src_im = _open_source_pil(source, maker_rec.get("rotation_cw") or 0)
             # `source_size` maker glabā PĒC rotācijas, tāpēc asis vairs nav
             # jāmaina. Iepriekšējā versija tās mainīja vēlreiz un ieguva
             # "box can't exceed original image size" — gate klusi izslēdzās.
             sb = (maker_rec.get("source_size") or [0, 0])
-            if sb[0] != src_im.width or sb[1] != src_im.height:
+            if sb[0] and sb[1] and (sb[0] != src_im.width or sb[1] != src_im.height):
                 src_im = src_im.resize(tuple(sb), Image.LANCZOS)
             # §135 (P_REZULTATI §7): atsauce ar rendera ģeometriju, sk.
             # _chroma_reference. b* mēra tikai apģērba novietojuma reģionā.
@@ -1028,10 +1061,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
         try:
             import time as _time
             _t0 = _time.perf_counter()
-            src_im = Image.open(source).convert("RGB")
-            rot = int(maker_rec.get("rotation_cw") or 0)
-            if rot:
-                src_im = src_im.rotate(-rot, expand=True)
+            src_im = _open_source_pil(source, maker_rec.get("rotation_cw") or 0)
             a_small = Image.fromarray(alpha)
             w, h = src_im.size
             longest = max(w, h)
@@ -1065,14 +1095,10 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     # Kļūda šeit NEDRĪKST klusām pārvērsties par izlaistu pārbaudi
     # (kā brīdinājuma L), tāpēc izņēmums = vārti krīt.
     try:
-        _src = Image.open(source).convert("RGB")
-        _rot = int(maker_rec.get("rotation_cw") or 0)
-        if _rot:
-            _src = _src.rotate(-_rot, expand=True)
-        _src_rgb = np.asarray(_src)
+        _src_rgb = open_rgb(source, maker_rec.get("rotation_cw") or 0)
         gate_q = lost_fabric_gate(_src_rgb, alpha)
         gate_s = boundary_evidence_gate(_src_rgb, alpha)
-        del _src, _src_rgb
+        del _src_rgb
     except Exception as exc:  # noqa: BLE001
         gate_q = {"pass": False, "error": f"{type(exc).__name__}: {exc}"}
         gate_s = {"pass": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -1089,6 +1115,7 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     corner_alpha = None
     corner_rgb = None
     corners_valid = False
+    M = None
     if paraugs_rgb is not None:
         k = 8
         A = paraugs_rgb
@@ -1124,37 +1151,39 @@ def check_one(stem: str, maker_rec: dict, lut_rows) -> dict:
     #   margin — mala ir tīrs fons ar >= MARGIN_MIN atstarpi
     #   cut    — krekls pieskaras malai pa GARU, TAISNU nogriezni (defekts)
     MARGIN_MIN = 0.05
-    # Bija STRAIGHT_RUN / STRAIGHT_TOL (garākā taisnā kontakta robeža). Tie
-    # nekad netika lietoti: izgudrotu griezienu jau nosaka `inherited` —
-    # ja avotā tur bija fons, kontakts ir "cut" NEATKARĪGI no tā garuma.
-    # Ilguma slieksnis bija vājāks signāls par izcelsmi, tāpēc izņemts.
-
-    # Oriģinālās maskas malas: ja tur krekls IR, tad kontakts gatavajā kadrā
-    # ir MANTOṪS (dabiska pāreja pāri malai). Ja avotā tur bija fons, bet
-    # gatavajā kadrā ir krekls, tas ir IZGUDROTS grieziens.
-    _sc = 255.0 if M.max() > 1 else 1.0      # maska var būt 0-255 vai 0/1
-    # SVARĪGI (labojums 2026-10-23): avota kontaktu jāmēra ar TĀDU PAŠU joslas
-    # platumu kā gala kadrā. Iepriekš avots tika mērīts pa vienu kolonnu/rindu
-    # (M[:, 0]), bet gala kadrs pa 8 px joslu uz 3x samazinātas maskas (= 24 px
-    # no 2000 px = 1.2 % platuma). Mīksta maskas mala pie x=0 deva 0.2555 vienā
-    # kolonnā, kamēr tajā pašā malā 1.2 % joslā ir 0.6302 -> avots tika kļūdaini
-    # atzīmēts kā "fons" un dabiska pāreja pāri malai kļuva par viltus "cut".
-    # Tagad abas puses lieto vienas un tās pašas frakcijas.
+    # Oriģinālās AVOTA maskas (`mask` no `_MASK.png`) malas: ja tur krekls IR,
+    # tad kontakts gatavajā kadrā ir MANTOTS (dabiska pāreja pāri malai vai
+    # eksplicīti ieplānots `closeup_crop` logs apģērba iekšienē). Ja avota
+    # logā tur bija fons, bet gatavajā `PARAUGS_MASK` ir krekls, tas ir
+    # IZGUDROTS grieziens ("cut").
+    _crop_f = (maker_rec.get("closeup_crop")
+               or (maker_rec.get("timing") or {}).get("closeup_crop"))
+    if _crop_f and len(_crop_f) == 4:
+        _fx0, _fy0, _fx1, _fy1 = _crop_f
+        _mh, _mw = mask.shape
+        _sx0 = max(0, min(int(round(_fx0 * _mw)), _mw - 1))
+        _sy0 = max(0, min(int(round(_fy0 * _mh)), _mh - 1))
+        _sx1 = max(_sx0 + 1, min(int(round(_fx1 * _mw)), _mw))
+        _sy1 = max(_sy0 + 1, min(int(round(_fy1 * _mh)), _mh))
+        _src_m = mask[_sy0:_sy1, _sx0:_sx1]
+    else:
+        _src_m = mask
+    _sc = 255.0 if _src_m.max() > 1 else 1.0
     STRIP_FX = 24.0 / RECONCILE_CANVAS[0]               # 1.2 % platuma (left/right)
     STRIP_FY = 24.0 / RECONCILE_CANVAS[1]               # 0.96 % augstuma (top/bottom)
 
     def _src_strip(name):
-        h, w = M.shape
+        h, w = _src_m.shape
         kx = max(1, int(round(STRIP_FX * w)))
         ky = max(1, int(round(STRIP_FY * h)))
         if name == "top":
-            v = M[:ky, :].mean()
+            v = _src_m[:ky, :].mean()
         elif name == "bottom":
-            v = M[-ky:, :].mean()
+            v = _src_m[-ky:, :].mean()
         elif name == "left":
-            v = M[:, :kx].mean()
+            v = _src_m[:, :kx].mean()
         else:
-            v = M[:, -kx:].mean()
+            v = _src_m[:, -kx:].mean()
         return round(float(v) / _sc, 4)
 
     src_edge = {n: _src_strip(n) for n in ("top", "bottom", "left", "right")}
@@ -1309,6 +1338,18 @@ def main() -> int:
     else:
         stems = [s for s in all_stems if images[s].get("status", "completed") == "completed"]
 
+    report_p = REPORT_PATH if Path(OUT) == (_HERE / "output") else (Path(OUT) / "report_v2.json")
+    prev_entries: dict = {}
+    if (args.stems or args.only) and report_p.is_file():
+        try:
+            old_rep = json.loads(report_p.read_text(encoding="utf-8"))
+            for k_old, v_old in old_rep.items():
+                if not k_old.startswith("_") and k_old in images and k_old not in stems:
+                    prev_entries[k_old] = v_old
+        except Exception:
+            prev_entries = {}
+
+    checked_all = sorted(set(stems) | set(prev_entries))
     ignored = {
         stem: {
             "status": rec.get("status"),
@@ -1316,15 +1357,16 @@ def main() -> int:
             "seed_proposal": rec.get("seed_proposal"),
         }
         for stem, rec in images.items()
-        if rec.get("status", "completed") != "completed" and stem not in stems
+        if rec.get("status", "completed") != "completed" and stem not in checked_all
     }
     report = {
         "_meta": {
             "workflow_version": maker.get("workflow_version"),
             "attempt": maker.get("attempt"),
-            "checked": stems,
+            "checked": checked_all,
             "ignored_incomplete": ignored,
-        }
+        },
+        **prev_entries,
     }
 
     for stem in stems:
@@ -1344,7 +1386,7 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001 - checker ziņo, nevis avarē bez atskaites
             gates = {"ALL_PASS": False, "error": f"{type(exc).__name__}: {exc}"}
         report[stem] = gates
-        atomic_write_json(REPORT_PATH, report)
+        atomic_write_json(report_p, report)
 
     image_results = [v for k, v in report.items() if not k.startswith("_")]
     npass = int(sum(1 for v in image_results if v.get("ALL_PASS")))

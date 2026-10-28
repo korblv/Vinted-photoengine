@@ -38,23 +38,22 @@ def render_one(rec: dict, profile: dict, png_level: int) -> dict:
     if binary.shape != (orig.height, orig.width):
         raise ValueError(f"Maskas izmērs {binary.shape} nesakrīt ar {stem} {orig.size}")
 
-    t = time.perf_counter()
+    t_grade = time.perf_counter()
     graded = apply_lut(np.asarray(orig), profile["lut_rgb"])
-    grade_s = time.perf_counter() - t
+    grade_s = time.perf_counter() - t_grade
 
     # Ēnas virziens tiek MĒRĪTS šai bildei (sk. loop.measure_shadow_angle).
     # Fiksēta konstante uz džinsiem deva 65° kļūdu -> labajām malām ēnas
     # nebija, un džinsa tumšā mala lasījās kā melna līnija.
-    t = time.perf_counter()
+    t_sh = time.perf_counter()
     _L = (np.asarray(orig).astype(np.float32) @ np.array([0.299, 0.587, 0.114], np.float32))
     shadow_angle, shadow_strength = measure_shadow_angle(_L, binary.astype(bool))
     del _L
-    shadow_measure_s = time.perf_counter() - t
+    shadow_measure_s = time.perf_counter() - t_sh
 
-    t = time.perf_counter()
     # Noņem fona kontamināciju maskas IEKŠPUSĒ (papīra ēna, ko segmentācija
     # aprija) — sk. QA §34. Tas ir pirms alfa ģenerēšanas, jo maina pašu mati.
-    t = time.perf_counter()
+    t_dec = time.perf_counter()
     mask_sha_in = sha256_file(Path(rec["mask_path"]))
     if stem in NO_DECONTAM:
         decontam_info = {"applied": False, "skipped": True,
@@ -67,7 +66,7 @@ def render_one(rec: dict, profile: dict, png_level: int) -> dict:
         binary, decontam_info = decontaminate_rim(
             graded, binary,
             max_px=DECONTAM_PARAMS["max_px"], tex_ratio=DECONTAM_PARAMS["tex_ratio"])
-    decontam_s = time.perf_counter() - t
+    decontam_s = time.perf_counter() - t_dec
     if decontam_info.get("applied"):
         # Maska FAILĀ ir tā, kas faktiski izmantota renderēšanā. Bez šī
         # čekeris rekonstruēja references kadru pēc NEAPGRIEZTĀS maskas un
@@ -80,6 +79,33 @@ def render_one(rec: dict, profile: dict, png_level: int) -> dict:
             {"stage": "decontam", "params": dict(DECONTAM_PARAMS),
              "input_mask_sha256": mask_sha_in,
              "removed_px": decontam_info.get("removed_px")})
+
+    # Kadrējuma lēmums pirms MASTER, lai `para_scale` sakristu ar `render_paraugs`
+    # līdz bitam arī atvērtiem siluetiem (framing=original/bleed vai closeup_crop).
+    full_shot_pref = rec.get("full_shot")
+    if full_shot_pref is None:
+        stats = _mask_stats(binary)
+        full_shot_pref = bool(stats["coverage"] < 0.50 and stats["bbox_area_fraction"] > 0.35)
+    crop_box = None if full_shot_pref else CLOSEUP_CROPS.get(stem[-6:])
+    crop_info = None
+    if rec.get("no_auto_crop"):
+        # framing=bleed: kadrs paliek tāds, kā nofotografēts. Automātiskā
+        # tuvplāna apgriešana (plan_closeup_crop) šeit būtu kaitīga: tā tuvina
+        # un nogriež tieši to fonu, kura dēļ kadrs tiek atstāts.
+        crop_info = {"auto": False, "reason": "framing=bleed"}
+    elif not full_shot_pref and crop_box is None:
+        # Automātiska full-bleed kompozīcija: ja maska ir laba, bet nesasniedz
+        # 3 malas, to atrisina apgriešana, nevis cita maska.
+        t_crop = time.perf_counter()
+        crop_box, n_edges = plan_closeup_crop(binary)
+        crop_info = {"auto": True, "edges_after": n_edges,
+                     "seconds": round(time.perf_counter() - t_crop, 2)}
+        if crop_box is None:
+            raise ValueError(
+                f"{stem}: nevar izveidot full-bleed kompozīciju ar 3 malām "
+                f"(maska nesasniedz malas un apgriešana nelīdz)")
+
+    t_master = time.perf_counter()
     alpha_u8 = refine_alpha(binary)
     graded = extend_foreground_colors(graded, binary, alpha_u8, max_dist=8)
     # Master ir STARPPRODUKTS, kas tiek samazināts uz 2000x2500 audeklu. Tāpēc
@@ -88,7 +114,7 @@ def render_one(rec: dict, profile: dict, png_level: int) -> dict:
     # bet `render_paraugs` uzliek 25 px — un GATE_R references rekonstrukcija saskata
     # atšķirību tur, kur izvadē ir viegla ēna, bet referencei tā jau beigusies.
     # Sk. QA §38.
-    _psc = para_scale(binary)
+    _psc = para_scale(binary, full_shot_override=bool(full_shot_pref), crop_box=crop_box)
     # Jaunais studijas ēnas modelis (sk. loop.studio_shadow_bg): virziens un
     # penumbra ir modeļa konstantes audekla pikseļos; MASTER mērogā tas tiek
     # pārrēķināts ar canvas_scale=_psc, lai MASTER un PARAUGS ēna būtu viens
@@ -110,35 +136,13 @@ def render_one(rec: dict, profile: dict, png_level: int) -> dict:
     )
     del master
     save_gray_png(alpha_u8, Path(OUT) / "masks" / f"{stem}_ALPHA.png", png_level)
-    master_s = time.perf_counter() - t
+    master_s = time.perf_counter() - t_master
 
-    t = time.perf_counter()
+    t_par = time.perf_counter()
     cutout = Image.fromarray(graded).convert("RGBA")
     del graded
     cutout.putalpha(Image.fromarray(alpha_u8))
     del alpha_u8
-    full_shot_pref = rec.get("full_shot")
-    if full_shot_pref is None:
-        stats = _mask_stats(binary)
-        full_shot_pref = bool(stats["coverage"] < 0.50 and stats["bbox_area_fraction"] > 0.35)
-    crop_box = None if full_shot_pref else CLOSEUP_CROPS.get(stem[-6:])
-    crop_info = None
-    if rec.get("no_auto_crop"):
-        # framing=bleed: kadrs paliek tāds, kā nofotografēts. Automātiskā
-        # tuvplāna apgriešana (plan_closeup_crop) šeit būtu kaitīga: tā tuvina
-        # un nogriež tieši to fonu, kura dēļ kadrs tiek atstāts.
-        crop_info = {"auto": False, "reason": "framing=bleed"}
-    elif not full_shot_pref and crop_box is None:
-        # Automātiska full-bleed kompozīcija: ja maska ir laba, bet nesasniedz
-        # 3 malas, to atrisina apgriešana, nevis cita maska.
-        t = time.perf_counter()
-        crop_box, n_edges = plan_closeup_crop(binary)
-        crop_info = {"auto": True, "edges_after": n_edges,
-                     "seconds": round(time.perf_counter() - t, 2)}
-        if crop_box is None:
-            raise ValueError(
-                f"{stem}: nevar izveidot full-bleed kompozīciju ar 3 malām "
-                f"(maska nesasniedz malas un apgriešana nelīdz)")
     paraugs, placed_mask, full_shot = render_paraugs(
         cutout, binary, full_shot_override=bool(full_shot_pref), crop_box=crop_box,
         shadow_angle=shadow_angle,
@@ -154,7 +158,7 @@ def render_one(rec: dict, profile: dict, png_level: int) -> dict:
         )
     save_image_atomic(paraugs, Path(OUT) / "paraugs" / f"{stem}_PARAUGS_2000x2500.jpg", quality=95)
     save_image_atomic(placed_mask, Path(OUT) / "masks" / f"{stem}_PARAUGS_MASK.png")
-    paraugs_s = time.perf_counter() - t
+    paraugs_s = time.perf_counter() - t_par
 
     del cutout, paraugs, placed_mask, binary, orig
     gc.collect()

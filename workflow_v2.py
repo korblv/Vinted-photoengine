@@ -56,7 +56,8 @@ from loop import (  # noqa: E402
 
 from engine.infra import (  # noqa: E402,F401
     ROTATIONS_CW, fit_size, normalize_rotation, parse_rotations,
-    rotation_for, apply_quarter_turn, open_rgb, open_rgb_recorded,
+    rotation_for, validate_rotations_against_files,
+    apply_quarter_turn, open_rgb, open_rgb_recorded,
     probe_source_image, sha256_file, atomic_write_text, atomic_write_json,
     save_image_atomic, save_gray_png, workspace_bytes,
     environment_problems, preflight,
@@ -259,11 +260,15 @@ def main() -> int:
             print(f"Remēdiju pārraksti: {len(args.overrides_map)} bildēm", flush=True)
         except Exception as exc:
             print(f"Nevar nolasīt --overrides: {exc}", flush=True)
-    ROTATIONS_CW.update(parse_rotations(args.rotate))
+    cli_rot = parse_rotations(args.rotate)
+    ROTATIONS_CW.clear()
+    ROTATIONS_CW.update(cli_rot)
+    NO_DECONTAM.clear()
     NO_DECONTAM.update(str(x).strip() for x in (args.no_decontam or []) if str(x).strip())
     # §131: deklarētie pilnkadra (makro) kadri — tikai pēc lietotāja pogas
     # lēmuma; maker tos skaitliski verificē (lut_only_verify) un STOP, ja
     # kadrā tomēr redzams papīra fons.
+    LUT_ONLY.clear()
     LUT_ONLY.update(str(x).strip() for x in (args.lut_only or []) if str(x).strip())
     _resolve_args(args)
     _set_run_meta(args)
@@ -289,6 +294,12 @@ def main() -> int:
         return 0 if result["ready"] else 2
     if not files:
         raise RuntimeError("Nav apstrādājamu bilžu")
+    bad_rot = validate_rotations_against_files(cli_rot, files)
+    if bad_rot:
+        raise ValueError(
+            f"--rotate atslēga neatbilst nevienam izvēlētajam failam: {bad_rot} "
+            f"(izvēlētie: {files})"
+        )
     missing = [f for f in files if not (Path(SRC_DIR) / f).is_file()]
     if missing:
         print("V2.1 BLOĶĒTS: uploads mapē trūkst šo failu:", flush=True)
@@ -809,9 +820,17 @@ def main() -> int:
             # projektā ir aizliegts). Tāpēc šādā gadījumā slamjam netiek
             # izpildīts — tiek atgriezts `original` un ierakstīts atskaitē,
             # KA un KĀPĒC.
+            # Avota malu kontaktu mēra pa to pašu 1.2% / 0.96% joslu kā
+            # checker GATE_F (24 px no 2000x2500), lai 1-2 px mīksta ISNet
+            # pāreja pie x=0 nekļūtu par viltus "slēgtu siluetu".
+            _bh, _bw = binary.shape
+            _kx = max(1, int(round((24.0 / 2000.0) * _bw)))
+            _ky = max(1, int(round((24.0 / 2500.0) * _bh)))
             edge_contact = {
-                "top": float(binary[0].mean()), "bottom": float(binary[-1].mean()),
-                "left": float(binary[:, 0].mean()), "right": float(binary[:, -1].mean()),
+                "top": float(binary[:_ky, :].mean()),
+                "bottom": float(binary[-_ky:, :].mean()),
+                "left": float(binary[:, :_kx].mean()),
+                "right": float(binary[:, -_kx:].mean()),
             }
             touched = sum(v >= 0.50 for v in edge_contact.values())
             closed = touched == 0

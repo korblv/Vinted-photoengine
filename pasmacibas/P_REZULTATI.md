@@ -226,3 +226,51 @@ zaudētais audums 0,64% < 1,0%), bet AI fragmentu heirisika to atgrūda
 par 0,005 (bbox_area 0,3451 < 0,35). Izšķīra cilvēka lēmums (poga) +
 checkera vārti kā tiesnesis: manuālā pieņemšana → attempt 3 →
 3/3 PASS (K +0,01, R/C/H/S zaļi). Sk. PROGRESS §136.
+
+## 13. 4. pašmācību kārta un pilna koda audita verifikācija (2026-10-28, §144)
+
+Vide: izolēta kopija `/tmp/pdrill` (attīrīta pēc skrējiena; aktīvā grupa
+`145704` ražošanas `output/` nav aiztikta). Ainas papildinātas
+`pasmacibas/gen_scenes.py --round4` (tagad visas 3./4. kārtas ainas ir
+reproducējamas no viena skripta ar `--gt-dir` GT maskām un zemu RAM patēriņu).
+
+### 13.1. Pozitīvā un negatīvā treniņu tabula (reāls ISNet + čekeris)
+
+| aina | gaidītais ceļš | faktiski | IoU pret GT | laiks (s) | GATE_K `shift_b` | GATE_R (`fore`/`bg`) | spriedums |
+|---|---|---|---|---|---|---|---|
+| `PDR_H_salocits` | `isnet_pad_retry` + `original` (2 bleed + 2 margin) | ✓ `isnet_pad_retry` (`original`) | **0,9947** | 12,77 | −1,99 | 13,0 / 2,0 | **12/12 PASS** |
+| `PDR_H2_slamjam_mala` | `isnet_pad_retry` + `slamjam` pie sensora malas | ✓ `isnet_pad_retry` (`slamjam`) | **0,9934** | 11,45 | −1,95 | 14,0 / 0,0 | **12/12 PASS** |
+| `PDR_J_henley_bleed` | `isnet_pad_retry` + `original` (3 malu bleed) | ✓ `isnet_pad_retry` (`original`) | **0,9990** | 12,36 | −0,06 | 10,0 / 0,0 | **12/12 PASS** |
+| `PDR_M_plate_only` | **`plate_texture`** + `original` | ✓ **`plate_texture`** (`original`) | **0,9979** | 13,90 | 0,00 | 6,0 / 0,0 | **12/12 PASS** |
+| `PDR_K_exif6_portrets` | `isnet` + `slamjam` ar `EXIF=6` | ✓ `isnet` (`slamjam`) | **0,9886** | 8,31 | −1,90 | 14,0 / 0,0 | **12/12 PASS** |
+| `PDR_L_makro_pilnkadrs` | `lut_only` (`--lut-only`) | ✓ `lut_only` (`LapVar=2876`) | — | 1,52 | −1,39 | 15,0 / — | **12/12 PASS** |
+| `PDR_I_dividots` | STOP (divi nesavienoti objekti) | ✓ `needs_review` (`largest 0,546 < 0,90`) | — | — | — | — | **STOP ✓** |
+| `PDR_D_haoss` | STOP (izkaisīti plankumi) | ✓ `needs_review` (`overflow 0,8587`) | — | — | — | — | **STOP ✓** |
+
+### 13.2. Pretinieka (adversarial) un rīku higiēnas pārbaudes
+
+| pārbaude | mērījums pirms remonta | mērījums pēc remonta |
+|---|---|---|
+| `--rotate TYPO99:90` drukas kļūda | klusi ignorēta (`rotation_cw = 0`) | tūlītējs `ValueError` pirms ISNet (`< 0,1 s`) |
+| `EXIF=6` avots čekerī (`K`, `L/P`, `Q`, `S`) | viltus kritiens: `GATE_K shift_b = +34,55`, `GATE_Q = 5,556%` | visi 12 vārti zaļi (`shift_b = −1,90`, `Q = 0,028%`) |
+| `GATE_F` izgudrots apakšas grieziens (`avots=0,0`, `paraugs=0,76`) | pašapstiprinošs `PASS` (`M` bija `PARAUGS_MASK`) | noķerts: `pass=False`, `kind="cut"`, `inherited=False` |
+| `PARAUGS` ar nepareizu izmēru (`1999×2500`) | `UnboundLocalError: local variable 'M'` | tīrs `GATE_D: pass=False, size=[1999, 2500]` |
+| `para_scale` uz atvērta silueta (`cov=0,60, full_shot=False`) | `0,7839` pret `render_paraugs` `1,0593` (`26,0%` ēnas nobīde) | `1,059322` (`0,000000` starpība) |
+| Daļējs `checker_v2.py STEM` + `--make-zip` | pārrakstīja `report_v2.json`, izmetot pārējos kadrus | saglabā izdzīvojušos ierakstus; `GALA_P4.zip` (`PARAUGS` + `MAKRO`, `bad_crc=None`) |
+| `rebuild_master.py` bez AI modeļa + atkārtots čekeris | trūka `exif_transpose`, `lut_only` un precīza `para_scale` | `max diff = 0` (`145704` un `EXIF=6`), `3/3 PASS` pēc pilnas pārbūves |
+| `close_group.py` ar sufiksu / grupas slēgšana | neatrada `IMG_..._145704.jpg` un atstāja vecos JSON | atrod visus 14 grupas failus (`18,48 MB`) vai 59 treniņa failus (`107,71 MB`) |
+| **Jauns 4. kārtā atklāts defekts (`H2_slamjam_mala`):** `slamjam` pie sensora malas (`x1 + pad_px > mw`) | `GATE_R` viltus kritiens (`bg_p99 = 7,0 > 4,0`, `max = 80`) tur, kur MASTER fiziski beidzās pie sensora malas | izslēgta neierakstāmā `<=70 px` sensora ārējā ēnas josla → `bg_p99 = 0,0` (`2,66M` fona px), slieksnis `4,0` nemainīts |
+
+### 13.3. Pilnā ceļu seguma tabula pēc 4. kārtas
+
+| ceļš | segums pēc 4. kārtas |
+|---|---|
+| `isnet` | ✓ sintētiski (`A`, `K_exif6_portrets`) + reālie |
+| `isnet_pad_retry` | ✓ **sintētiski pirmo reizi** (`H_salocits`, `H2_slamjam_mala`, `J_henley_bleed`) + reālais `161031` |
+| `plate_texture` | ✓ **sintētiski pirmo reizi** (`M_plate_only`, IoU `0,9979`) + reālais `145704` |
+| `chroma_seeded` | ✓ sintētiski (`P2` rotētās `A` ainas) |
+| `lut_only` | ✓ sintētiski (`F_makro`, `L_makro_pilnkadrs`) + reālais `145647` |
+| `needs_review` STOP | ✓ sintētiski (`D_haoss`, `I_dividots`) + reālais `145345` |
+| `make_zip` (`PARAUGS` + `MAKRO`) pēc daļēja čekera | ✓ verificēts 4. kārtā (`GALA_P4.zip`, CRC OK) |
+| `rebuild_master.py` + pilns čekeris (`A2`/`R`) | ✓ verificēts 4. kārtā (`max diff = 0`) |
+

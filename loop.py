@@ -5,7 +5,7 @@ PARAUGS = deterministiski samazināts 2000x2500 kadrs pēc parauga (JPG)."""
 import argparse, json, math, os
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 BG = (243, 243, 243)          # izmērīts no parauga (#F3F3F3)
 BG_GRAY = BG[0]               # 243 — skalārā forma; VIENĪGAIS avots visiem moduļiem
@@ -569,20 +569,27 @@ def resize_rgba_premultiplied(piece, new_size):
     return Image.fromarray(out)
 
 
-def para_scale(binary_full: np.ndarray) -> float:
-    """Mērogs, ar kādu maskas bbox tiks ielīmēts 2000x2500 audeklā.
+def para_scale(binary_full: np.ndarray, full_shot_override=None, crop_box=None) -> float:
+    """Mērogs, ar kādu `render_paraugs` pārvērš avotu 2000x2500 audeklā.
 
     Tā pati formula, ko lieto `render_paraugs`, lai ēnas garums master un
     gala bildē būtu viens un tas pats fiziskais lielums (QA §38).
     """
+    h, w = binary_full.shape[:2]
     x0, y0, bw, bh = cv2.boundingRect(binary_full.astype(np.uint8))
     if bw <= 0 or bh <= 0:
         return 1.0
     coverage = float(binary_full.mean())
-    if coverage < 0.70:      # full_shot: proporcionāli centrālajā zonā
+    full_shot = (coverage < 0.70) if full_shot_override is None else bool(full_shot_override)
+    if full_shot:            # full_shot: proporcionāli centrālajā zonā
         return min((GARMENT_FILL_W * CANVAS[0]) / bw,
                    (GARMENT_FILL_H * CANVAS[1]) / bh)
-    return max(CANVAS[0] / bw, CANVAS[1] / bh)   # cover
+    if crop_box is not None:
+        fx0, fy0, fx1, fy1 = crop_box
+        cw = max(1, int(round(fx1 * w)) - int(round(fx0 * w)))
+        ch = max(1, int(round(fy1 * h)) - int(round(fy0 * h)))
+        return max(CANVAS[0] / cw, CANVAS[1] / ch)
+    return max(CANVAS[0] / w, CANVAS[1] / h)     # cover pa pilno kadru
 
 
 def shadow_bg(shape, binary, dx, dy, blur, strength, falloff_px=None):
@@ -825,7 +832,8 @@ def main():
 
     for fname in files:
         stem = os.path.splitext(fname)[0]
-        orig = Image.open(f"{SRC_DIR}/{fname}").convert("RGB")
+        with Image.open(f"{SRC_DIR}/{fname}") as _im:
+            orig = ImageOps.exif_transpose(_im).convert("RGB")
         if args.saved_mask:
             saved_path = f"{OUT}/masks/{stem}_MASK.png"
             if not os.path.exists(saved_path):

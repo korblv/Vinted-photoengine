@@ -3760,3 +3760,64 @@ izpildes.
   GitHub eksporta arhīvs `/home/user/arena-vinted-dzinejs.zip` (ar svaigu
   `loop_bildes_git.bundle`). Gaida pogu `Lejupielādēju — dzēst grupu`.
 
+### §144 GitHub repozitorija izpakošana, pilns koda audits (7 defektu remonts) un 4. pašmācību kārta (2026-10-28)
+
+- **GitHub repozitorijs un CI:** pilna 96 komitu vēsture + tags `v2.1.0` + divas
+  GitHub Actions darbplūsmas (`.github/workflows/ci.yml` un
+  `unpack_arena_zip.yml`) nopublicētas `https://github.com/korblv/Vinted-photoengine`
+  (bez izpakojama `.zip` saknē; nulle saglabātu akreditācijas datu diskā).
+- **Lietotāja apstiprinājums ar pogu `pilns_remonts_un_p4` (`ask_user`):**
+  veikta visu 19 `.py` moduļu caurskate, eksperimentāla kļūdu reprodukcija un
+  **7 reālu defektu** remonts (saglabājot `config.toml` un visus čekera vārtu
+  sliekšņus nemainītus un `checker_v2.py` pilnībā neatkarīgu no maker moduļiem):
+  1. **`checker_v2.py` un `loop.py` `EXIF` orientācija:** `GATE_K`, `GATE_L/P`,
+     `GATE_Q/S` un `loop.py:main()` atvēra avotu ar pliku `Image.open` bez
+     `ImageOps.exif_transpose` (uz `EXIF=6` kadrā izraisīja viltus kritienu
+     `GATE_K shift_b = +34.55` un `GATE_Q = 5.556 %`). Tagad visur lietots
+     `_open_source_pil` ar `exif_transpose` + bezzaudējumu 90° pagriezienu.
+  2. **`checker_v2.py` `GATE_F` pašapstiprinošā tautoloģija + `UnboundLocalError`:**
+     `_src_strip` lasīja `M` (`PARAUGS_MASK.png`) nevis neatkarīgo avota `mask`
+     (`_MASK.png`), kā dēļ izgudrots grieziens vienmēr deva `inherited=True`, bet
+     nepareizs `PARAUGS` izmērs (`1999x2500`) izraisīja `UnboundLocalError: M`.
+     Izlabots uz avota `_MASK.png` (vai ierakstīto `closeup_crop` logu) un `M = None`
+     inicializāciju.
+  3. **`loop.py:para_scale` un `engine/render.py` ēnas mērogs:** atvērtiem
+     siluetiem (`cov < 0.70`, `full_shot=False`) `para_scale` rēķināja `slamjam`
+     mērogu (`0.7839` pret `render_paraugs` `1.0593` — `26.0 %` ēnas mēroga
+     neatbilstība starp `MASTER_1to1.png` un `PARAUGS`). Tagad `para_scale`
+     pieņem `full_shot_override` un `crop_box`, sakrītot ar `render_paraugs`
+     līdz 6 zīmēm aiz komata.
+  4. **`engine/render.py` taimeru pārklāšanās:** atdalīti `t_grade`, `t_sh`,
+     `t_dec`, `t_crop`, `t_master`, `t_par` — `master_s` vairs dubulti
+     nepieskaita `decontaminate_s`.
+  5. **Rīku drošība (`engine/infra.py`, `workflow_v2.py`, `checker_v2.py`):**
+     `validate_rotations_against_files` tūlītēji met `ValueError` uz `--rotate`
+     drukas kļūdām (PROGRESS §67); filtrēts `checker_v2.py STEM` / `--only`
+     saglabā iepriekš pārbaudītos grupas kadrus `report_v2.json` (novēršot
+     `P_REZULTATI §1` slazdu pirms `--make-zip`).
+  6. **`rebuild_master.py`, `close_group.py` un `atjaunot.py` dublikāts:**
+     `rebuild_master.py` atbalsta `exif_transpose`, ne-`.jpg` avotus no
+     `report_v2_maker.json`, `lut_only` centrālo kvadrātu un precīzu `para_scale`
+     (`145704` verifikācija: `max diff 0, vid 0.0000, px>2 0`); `close_group.py`
+     atbalsta 6+ simbolu sufiksus (`145704`) un tīri kopj grupas JSON atskaites;
+     dublikāts pārvietots `git mv atjaunot.py archive/atjaunot.py`.
+  7. **4. pašmācību kārtā atklāts `GATE_R` un `edge_contact` defekts:**
+     `workflow_v2.py` mērīja `edge_contact` pa 1 px rindu/kolonnu (nevis 1.2 % /
+     0.96 % joslu kā `GATE_F`), bet `checker_v2.py:gate_r_reconciliation`
+     `full_shot=True` režīmā pie sensora malas (`x1 + pad_px > mw`) klasificēja
+     ārpus MASTER robežas noklīdušo `<=70 px` ēnas joslu kā plakano `#F3F3F3`
+     fonu (`bg_p99 = 7.0 > 4.0`). Abi salāgoti bez sliekšņu mīkstināšanas
+     (`bg_p99 = 0.0` uz `2.66M` fona px).
+- **Testi un 4. pašmācību kārta (`pasmacibas/P_REZULTATI.md §13`):**
+  - `pytest test_workflow_v2.py`: **`142 → 150 passed`** (`TestRound4AuditRepairs`
+    ar 8 jauniem testiem); aktīvais `IMG_20261025_145704` nemainīgi `12/12 ALL_PASS`.
+  - Izolētā `/tmp/pdrill` treniņā ar reālu ISNet pirmo reizi sintētiski segti
+    VISI masku atzari, t.sk. `isnet_pad_retry` (`H_salocits` IoU `0.9947`,
+    `H2_slamjam_mala` IoU `0.9934`, `J_henley_bleed` IoU `0.9990`) un
+    **`plate_texture`** (`M_plate_only` IoU `0.9979`), kā arī `EXIF=6`
+    (`K_exif6_portrets` IoU `0.9886`), `lut_only` (`L_makro_pilnkadrs`),
+    `STOP` eskalācijas (`I_dividots`, `D_haoss`), `make_zip` (`PARAUGS` + `MAKRO`,
+    CRC OK) un bezmodeļa `rebuild_master.py` (`6/6 PASS`). `/tmp/pdrill`
+    pilnībā izdzēsts.
+
+
